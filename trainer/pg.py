@@ -20,6 +20,7 @@ class PolicyGradientTrainer(AgentTrainer):
         self.args = args
         self.gamma = args['gamma']
         self.lrate = args['lrate']
+        self.bacth_size = args['batch_size']
         if args['optimizer'] == 'adam':
             self.optimizer = optim.Adam(policy.parameters(), lr=self.lrate)
         else:
@@ -48,13 +49,14 @@ class PolicyGradientTrainer(AgentTrainer):
         # Store transition in the replay buffer.
         full_act = np.concatenate(act).squeeze()
         self.replay_buffer.store_effect(idx, full_act, rew, done or terminal)
-        self.sample_counter += 1
+        if done or terminal:
+            self.sample_counter += 1
 
     def preupdate(self):
         pass
 
     def update(self):
-        if self.sample_counter != self.args['replay_buffer_size']: return None, None
+        if self.sample_counter != self.args['batch_size']: return None, None
         self.sample_counter = 0
 
         obs, full_act, rew, _, done = self.replay_buffer.sample(-1)

@@ -56,7 +56,7 @@ def create_args(gamma = 0.9, lrate = 0.01, episode_len = 50, batch_size = 1024,
 
 def create_default_args(algo = 'pg'):
     if algo == 'pg':  # policy gradient
-        return create_args(0.9, 0.001, 50, -1, 20000, grad_clip=2)
+        return create_args(0.9, 0.001, 50, 200, 10000, grad_clip=2)
     elif algo == 'ddpg':  # ddpg
         return create_args(0.9, 0.01, 75, 1024, int(1e6), grad_clip=2)
     else: assert (False)
@@ -140,7 +140,7 @@ def train(iters = 100000, report_rate = 400, save_rate = 2000, eval_range = 400,
                 policy.save(save_dir + '/' + policy.name + '_best.pkl')
 
         # display training output
-        if (terminal and (len(episode_rewards) % report_rate == 0)) or \
+        if (terminal and (len(episode_rewards) % report_rate == 0) and (algo != 'pg')) or \
             ((algo == 'pg') and (loss is not None)):
             logger.print('Episode#%d, Time Elapsed = %.3f min' % (len(episode_rewards), (time.time()-elap) / 60))
             logger.print('-> Total Samples: %d' % t)
