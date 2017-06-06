@@ -12,6 +12,8 @@ sys.path.insert(0, path_to_python_repo)
 
 import torch
 use_cuda = torch.cuda.is_available()
+if use_cuda:
+    print('>>> CUDA used!!!')
 FloatTensor = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
 LongTensor = torch.cuda.LongTensor if use_cuda else torch.LongTensor
 ByteTensor = torch.cuda.ByteTensor if use_cuda else torch.ByteTensor
