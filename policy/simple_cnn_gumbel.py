@@ -1,10 +1,10 @@
+from headers import *
 import random
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 from torch.autograd import Variable
-import utils
 
 class CNNGumbelPolicy(torch.nn.Module):
     def __init__(self, D_shape_in, D_out, hiddens, kernel_sizes=5, strides=2,
@@ -35,29 +35,25 @@ class CNNGumbelPolicy(torch.nn.Module):
         self.out_dim = sum(D_out)
         self.func=activation
 
-        self.all_params = []
         self.conv_layers = []
         self.bc_layers = []
         prev_hidden = D_shape_in[0]
-        for h, k, s in zip(self.hiddens, self.kernel_sizes, self.strides):
+        for i, dat in enumerate(zip(self.hiddens, self.kernel_sizes, self.strides)):
+            h, k, s = dat
             self.conv_layers.append(nn.Conv2d(prev_hidden, h, kernel_size=k, stride=s))
-            self.all_params += list(self.conv_layers[-1].parameters())
+            setattr(self, 'conv_layer%d'%i, self.conv_layers[-1])
             if use_batch_norm:
                 self.bc_layers.append(nn.BatchNorm2d(h))
-                self.all_params += list(self.bc_layers[-1].parameters())
+                setattr(self, 'bc_layer%d'%i, self.bc_layers[-1])
             else:
                 self.bc_layers.append(None)
             prev_hidden = h
         self.feat_size = self._get_feature_dim(D_shape_in)
         print('Feature Size = %d' % self.feat_size)
         self.linear_layers = []
-        for d in self.D_out:
+        for i, d in enumerate(self.D_out):
             self.linear_layers.append(nn.Linear(self.feat_size, d))
-            self.all_params += list(self.linear_layers[-1].parameters())
-
-    ######################
-    def parameters(self):
-        return self.all_params
+            setattr(self, 'linear_layer%d'%i, self.linear_layers[-1])
 
     ######################
     def _forward_feature(self, x):
@@ -78,7 +74,7 @@ class CNNGumbelPolicy(torch.nn.Module):
     def _get_concrete_stats(self, linear, feat, gumbel_noise = True):
         logits = linear(feat)
         if gumbel_noise:
-            u = torch.rand(logits.size())
+            u = torch.rand(logits.size()).type(FloatTensor)
             x = Variable(torch.log(-torch.log(u)))
             logits_with_noise = logits - x
             prob = F.softmax(logits_with_noise)
