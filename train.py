@@ -36,7 +36,7 @@ else:
     assert (False)
 
 frame_history_len = 4
-resolution = (400, 300)
+resolution = (200, 150)
 observation_shape = (3 * frame_history_len, resolution[0], resolution[1])
 action_shape = (4, 2)
 colide_res = 1000
