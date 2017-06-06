@@ -1,7 +1,14 @@
 import sys
-#TODO: path to the python directory of the objrender project
-path_to_python_repo = '/Users/yiw/workroom/objrender/python'
-sys.path.insert(0, '/Users/yiw/workroom/objrender/python')
+
+if "Apple" in sys.version:
+    # own mac PC
+    path_to_python_repo = '/Users/yiw/workroom/objrender/python'
+elif "Red Hat" in sys.version:
+    path_to_python_repo = '/home/yiw/code/objrender/python'
+else:
+    assert(False)
+sys.path.insert(0, path_to_python_repo)
+
 
 import torch
 use_cuda = torch.cuda.is_available()
