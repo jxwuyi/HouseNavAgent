@@ -71,12 +71,12 @@ class CNNGumbelPolicy(torch.nn.Module):
         n_size = out_feat.data.view(bs, -1).size(1)
         return n_size
     #######################
-    def _get_concrete_stats(self, linear, feat, gumbel_noise = True):
+    def _get_concrete_stats(self, linear, feat, gumbel_noise = 1.0):
         logits = linear(feat)
-        if gumbel_noise:
+        if gumbel_noise is not None:
             u = torch.rand(logits.size()).type(FloatTensor)
             x = Variable(torch.log(-torch.log(u)))
-            logits_with_noise = logits - x
+            logits_with_noise = logits - x * gumbel_noise
             prob = F.softmax(logits_with_noise)
             logp = F.log_softmax(logits_with_noise)
         else:
@@ -84,7 +84,7 @@ class CNNGumbelPolicy(torch.nn.Module):
             logp = F.log_softmax(logits)
         return logits, prob, logp
 
-    def forward(self, x, gumbel_noise = True):
+    def forward(self, x, gumbel_noise = 1.0):
         """
         compute the forward pass of the model.
         return logits and the softmax prob w./w.o. gumbel noise
@@ -99,7 +99,7 @@ class CNNGumbelPolicy(torch.nn.Module):
             self.logits.append(_logits)
             self.logp.append(_logp)
             self.prob.append(_prob)
-        return self.logits, self.logp, self.prob
+        return self.prob
 
     ########################
     def logprob(self, actions, logp = None):

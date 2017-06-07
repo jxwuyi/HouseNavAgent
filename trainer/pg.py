@@ -36,9 +36,12 @@ class PolicyGradientTrainer(AgentTrainer):
 
     def action(self):
         frames = self.replay_buffer.encode_recent_observation()[np.newaxis, ...]
-        raw_x = Variable(torch.from_numpy(frames.transpose([0, 3, 1, 2])), volatile=True).type(ByteTensor)
-        _,_,batched_actions = self.policy(raw_x.type(FloatTensor))
-        cpu_actions = [a.cpu() for a in batched_actions]
+        raw_x = Variable(torch.from_numpy(frames.transpose([0, 3, 1, 2])), volatile=True)
+        batched_actions = self.policy(raw_x.type(FloatTensor))
+        if use_cuda:
+            cpu_actions = [a.cpu() for a in batched_actions]
+        else:
+            cpu_actions = batched_actions
         return [a[0].data.numpy() for a in cpu_actions]
 
     def process_observation(self, obs):

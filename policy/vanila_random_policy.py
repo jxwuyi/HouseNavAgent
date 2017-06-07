@@ -19,17 +19,13 @@ class VanilaRandomPolicy(torch.nn.Module):
             self.D_out = D_out
         self.out_dim = sum(D_out)
 
-    def forward(self, x, gumbel_noise = True):
+    def forward(self, x, gumbel_noise = 1.0):
         """
         compute the forward pass of the model.
         return logits and the softmax prob w./w.o. gumbel noise
         """
         action = []
-        logits = []
-        logprob = []
         for d in self.D_out:
-            u = Variable(torch.rand(x.size(0), d), volatile=True)
+            u = Variable(torch.rand(x.size(0), d))
             action.append(F.softmax(u))
-            logits.append(u)
-            logprob.append(F.log_softmax(u))
-        return logits, logprob, action
+        return action

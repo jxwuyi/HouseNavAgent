@@ -9,7 +9,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 def evaluate(iters = 1000, max_episode_len = 2000, algo='nop',
-            model_name='random', model_file=None, log_dir='./temp/eval',
+            model_name='cnn', model_file=None, log_dir='./temp/eval',
             store_images=False):
     args = common.create_default_args(algo)
     trainer = common.create_trainer(algo,model_name,args)
@@ -60,7 +60,8 @@ def evaluate(iters = 1000, max_episode_len = 2000, algo='nop',
         if store_images:
             all_images.append(cur_images)
 
-        logger.print('Episode#%d, Elapsed = %.3f min' % (it+1, (time.time()-elap)/ 60))
+        dur = time.time() - elap
+        logger.print('Episode#%d, Elapsed = %.3f min' % (it+1, dur/ 60))
         logger.print('  ---> Total Samples = {}'.format(t))
         logger.print('  ---> Success = %d  (rate = %.3f), Best Dist = %.2f'
             % (episode_success[-1], np.mean(episode_success), episode_best_dist[-1]))
@@ -73,6 +74,7 @@ def render_episode(env, images):
         time.sleep(0.5)
 
 if __name__ == '__main__':
+    np.random.seed(0)
     ep_succ, ep_len, ep_best_dist, all_images = evaluate()
 
     print('Total Success Rate = {}'.format(np.mean(ep_succ)))
