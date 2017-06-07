@@ -62,17 +62,19 @@ class PolicyGradientTrainer(AgentTrainer):
         obs, full_act, rew, _, done = self.replay_buffer.sample(-1)
         act = split_batched_array(full_act, self.act_shape)
         ret = np.stack(discount_with_dones(rew, done, self.gamma))
-        ret = (ret - np.mean(ret)) / np.std(ret)  # return
+        ret_batch = Variable(torch.from_numpy((ret - np.mean(ret)) / np.std(ret)).type(FloatTensor), requires_grad=False)  # return
 
         # training
-        obs_batch = Variable(torch.from_numpy(obs.transpose([0, 3, 1, 2])).type(ByteTensor).type(FloatTensor), volatile=True) / 255.0
-        act_batch = [Variable(torch.from_numpy(a).type(FloatTensor), volatile=True) for a in act]
-        policy(obs)  # forward pass
-        loss = (policy.logprob(act_batch) * ret).mean()
-        loss_val = loss.view(-1).numpy()[0]
+        obs_batch = Variable(torch.from_numpy(obs.transpose([0, 3, 1, 2])).type(ByteTensor).type(FloatTensor)) / 255.0
+        act_batch = [Variable(torch.from_numpy(a).type(FloatTensor), requires_grad=False) for a in act]
+        self.policy(obs_batch)  # forward pass
+        loss = (self.policy.logprob(act_batch) * ret_batch).mean()
+        loss_val = loss.view(-1).data.cpu().numpy()[0]
         self.optimizer.zero_grad()
         loss.backward()
         if self.grad_norm_clip is not None:
-            torch.nn.utils.clip_grad_norm(policy.prameters(), args.grad_norm_clip)
-        optimizer.step()
-        return loss_val, policy.entropy().mean().view(-1).numpy()[0]
+            torch.nn.utils.clip_grad_norm(self.policy.parameters(), self.args['grad_clip'])
+        self.optimizer.step()
+        ent = self.policy.entropy().mean()
+        ent_val = ent.view(-1).data.cpu().numpy()[0]
+        return loss_val, ent_val

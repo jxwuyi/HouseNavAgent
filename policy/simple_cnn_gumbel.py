@@ -112,8 +112,8 @@ class CNNGumbelPolicy(torch.nn.Module):
     def entropy(self, logits=None):
         if logits is None: logits = self.logits
         ret = 0
-        for l,d in zip(logits, self.D_out):
-            a0 = l - torch.max(l, axis=1, keepdims=True).repeat(1, d)
+        for l, d in zip(logits, self.D_out):
+            a0 = l - torch.max(l, dim=1)[0].repeat(1, d)
             ea0 = torch.exp(a0)
             z0 = ea0.sum(1).repeat(1, d)
             p0 = ea0 / z0

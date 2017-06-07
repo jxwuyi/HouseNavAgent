@@ -2,7 +2,7 @@ from headers import *
 import utils
 
 import os, sys, time, pickle, json
-
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -35,7 +35,7 @@ else:
     # fair server
     assert (False)
 
-frame_history_len = 4
+frame_history_len = 3
 resolution = (200, 150)
 observation_shape = (3 * frame_history_len, resolution[0], resolution[1])
 action_shape = (4, 2)
@@ -56,9 +56,9 @@ def create_args(gamma = 0.9, lrate = 0.01, episode_len = 50, batch_size = 1024,
 
 def create_default_args(algo = 'pg'):
     if algo == 'pg':  # policy gradient
-        return create_args(0.9, 0.001, 50, 100, 5000, grad_clip=2)
+        return create_args(0.9, 0.01, 10, 100, 1000)
     elif algo == 'ddpg':  # ddpg
-        return create_args(0.9, 0.01, 75, 1024, int(1e6), grad_clip=2)
+        return create_args(0.9, 0.01, 75, 1024, int(1e6))
     else: assert (False)
 
 def create_policy(inp_shape, act_shape):
@@ -134,10 +134,11 @@ def train(iters = 100000, report_rate = 400, save_rate = 2000, eval_range = 400,
         # save results
         if (terminal and (len(episode_rewards) % save_rate == 0)) or \
             (len(episode_rewards) > iters):
-            policy.save(save_dir + '/' + policy.name + '.pkl')
-            if mean(episode_rewards[-eval_range:]) > best_res:
-                best_res = mean(episode_rewards[-eval_range:])
-                policy.save(save_dir + '/' + policy.name + '_best.pkl')
+            trainer.save(save_dir + '/' + policy.name + '.pkl')
+            logger.print('Successfully Saved to <{}>'.format(save_dir + '/' + policy.name + '.pkl'))
+            if np.mean(episode_rewards[-eval_range:]) > best_res:
+                best_res = np.mean(episode_rewards[-eval_range:])
+                trainer.save(save_dir + '/' + policy.name + '_best.pkl')
 
         # display training output
         if (terminal and (len(episode_rewards) % report_rate == 0) and (algo != 'pg')) or \
@@ -147,7 +148,6 @@ def train(iters = 100000, report_rate = 400, save_rate = 2000, eval_range = 400,
             logger.print('  >> Loss    = %.4f' % loss)
             logger.print('  >> Entropy = %.4f' % ent)
             logger.print('  >> Reward  = %.4f' % np.mean(episode_rewards[-eval_range:]))
-            elap = time.time()
 
         t += 1
 
