@@ -37,7 +37,7 @@ class AgentTrainer(object):
         raise NotImplemented()
 
     def save(self, filename):
-        torch.save(self.state_dict(), filename)
+        torch.save(self.policy.state_dict(), filename)
 
     def load(self, filename):
-        self.load_state_dict(torch.load(filename))
+        self.policy.load_state_dict(torch.load(filename))

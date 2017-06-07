@@ -134,11 +134,11 @@ def train(iters = 100000, report_rate = 400, save_rate = 2000, eval_range = 400,
         # save results
         if (terminal and (len(episode_rewards) % save_rate == 0)) or \
             (len(episode_rewards) > iters):
-            trainer.save(save_dir + '/' + policy.name + '.pkl')
-            logger.print('Successfully Saved to <{}>'.format(save_dir + '/' + policy.name + '.pkl'))
+            trainer.save(save_dir + '/' + trainer.name + '.pkl')
+            logger.print('Successfully Saved to <{}>'.format(save_dir + '/' + trainer.name + '.pkl'))
             if np.mean(episode_rewards[-eval_range:]) > best_res:
                 best_res = np.mean(episode_rewards[-eval_range:])
-                trainer.save(save_dir + '/' + policy.name + '_best.pkl')
+                trainer.save(save_dir + '/' + trainer.name + '_best.pkl')
 
         # display training output
         if (terminal and (len(episode_rewards) % report_rate == 0) and (algo != 'pg')) or \
