@@ -1,4 +1,4 @@
-import sys
+import os, sys
 
 if "Apple" in sys.version:
     # own mac PC
@@ -21,8 +21,8 @@ Tensor = FloatTensor
 
 # define AgentTrainer Template
 class AgentTrainer(object):
-    def __init__(self, name, policy, obs_shape, act_shape, args):
-        raise NotImplemented()
+    def __init__():
+        pass
 
     def action(self, obs):
         raise NotImplemented()
@@ -36,8 +36,21 @@ class AgentTrainer(object):
     def update(self, agents):
         raise NotImplemented()
 
-    def save(self, filename):
+    def save(self, save_dir, version=""):
+        if len(version) > 0:
+            version = "_" + version
+        if save_dir[-1] != '/':
+            save_dir += '/'
+        filename = save_dir + self.name + version + '.pkl'
         torch.save(self.policy.state_dict(), filename)
 
-    def load(self, filename):
+    def load(self, save_dir, version=""):
+        if os.path.isfile(save_dir) or (version is None):
+            filename = save_dir
+        else:
+            if len(version) > 0:
+                version = "_" + version
+            if save_dir[-1] != '/':
+                save_dir += '/'
+                filename = save_dir + self.name + version + '.pkl'
         self.policy.load_state_dict(torch.load(filename))

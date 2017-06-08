@@ -1,4 +1,5 @@
 import numpy as np
+import random
 
 def discount_with_dones(rewards, dones, gamma):
     discounted = []
@@ -12,10 +13,21 @@ def discount_with_dones(rewards, dones, gamma):
 def split_batched_array(action, shape):
     actions = []
     p = 0
-    for i,d in enumerate(shape):
+    for d in shape:
         actions.append(action[:, p:(p + d)])
         p += d
     return actions
+
+def sample_n_unique(sampling_f, n):
+    """Helper function. Given a function `sampling_f` that returns
+    comparable objects, sample n such unique objects.
+    """
+    res = []
+    while len(res) < n:
+        candidate = sampling_f()
+        if candidate not in res:
+            res.append(candidate)
+    return res
 
 class ReplayBuffer(object):
     def __init__(self, size, frame_history_len, frame_type = np.uint8,
@@ -205,9 +217,11 @@ class ReplayBuffer(object):
 
 class MyLogger:
     def __init__(self, logdir, clear_file = False):
+        import os
+        if not os.path.exists(logdir):
+            os.makedirs(logdir)
         self.fname = logdir + '/progress.txt'
         if clear_file:
-            import os
             try:
                 os.remove(self.fname)
             except OSError:

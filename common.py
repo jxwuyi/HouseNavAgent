@@ -9,8 +9,10 @@ import torch.nn.functional as F
 
 from policy.simple_cnn_gumbel import CNNGumbelPolicy as CNNPolicy
 from policy.vanila_random_policy import VanilaRandomPolicy as RandomPolicy
+from policy.ddpg_cnn_critic import DDPGCNNCritic as DDPGCritic
 from trainer.pg import PolicyGradientTrainer as PGTrainer
 from trainer.nop import NOPTrainer
+from trainer.ddpg import DDPGTrainer
 from environment import SimpleHouseEnv as HouseEnv
 from world import World
 
@@ -46,23 +48,6 @@ def genCacheFile(houseID):
 
 #######################
 
-def create_args(gamma = 0.9, lrate = 0.01, episode_len = 50, batch_size = 1024,
-                replay_buffer_size = int(1e5),
-                grad_clip = 2, optimizer = 'adam'):
-    return dict(gamma=gamma, lrate=lrate, episode_len=episode_len,
-                batch_size=batch_size, replay_buffer_size=replay_buffer_size,
-                frame_history_len=frame_history_len, grad_clip=grad_clip,
-                optimizer=optimizer)
-
-def create_default_args(algo = 'pg'):
-    if algo == 'pg':  # policy gradient
-        return create_args(0.9, 0.01, 10, 100, 1000)
-    elif algo == 'ddpg':  # ddpg
-        return create_args(0.9, 0.01, 75, 1024, int(1e6))
-    elif algo == 'nop':
-        return create_args()
-    else: assert (False)
-
 def create_policy(inp_shape, act_shape, name='cnn'):
     if name == 'random':
         policy = RandomPolicy(act_shape)
@@ -79,14 +64,34 @@ def create_policy(inp_shape, act_shape, name='cnn'):
         policy.cuda()
     return policy
 
+def create_critic(inp_shape, act_shape, algo):
+    act_dim = act_shape if isinstance(act_shape, int) else sum(act_shape)
+    if algo == 'ddpg':
+        critic = DDPGCritic(inp_shape, act_dim,
+                            conv_hiddens=[32,16,8,4],
+                            linear_hiddens=[64],
+                            activation=F.relu)  # F.elu
+    else:
+        assert False, 'No critic defined for algo<{}>'.format(algo)
+    if use_cuda:
+        critic.cuda()
+    return critic
+
 def create_trainer(algo, model, args):
-    policy = create_policy(observation_shape, action_shape, name=model)
     # self, name, policy, obs_shape, act_shape, args)
     if algo == 'pg':
-        trainer = PGTrainer('PolicyGradientTrainer',policy,
+        policy = create_policy(observation_shape, action_shape, name=model)
+        trainer = PGTrainer('PolicyGradientTrainer', policy,
                             observation_shape, action_shape, args)
     elif algo == 'nop':
+        policy = create_policy(observation_shape, action_shape, name=model)
         trainer = NOPTrainer('NOPTrainer', policy, observation_shape, action_shape, args)
+    elif algo == 'ddpg':
+        assert(model == 'cnn')
+        critic_gen = lambda: create_critic(observation_shape, action_shape, 'ddpg')
+        policy_gen = lambda: create_policy(observation_shape, action_shape, 'cnn')
+        trainer = DDPGTrainer('DDPGTrainer', policy_gen, critic_gen,
+                              observation_shape, action_shape, args)
     else:
         assert False, 'Trainer not defined for <{}>'.format(algo)
     return trainer

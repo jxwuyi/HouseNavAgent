@@ -20,7 +20,7 @@ class PolicyGradientTrainer(AgentTrainer):
         self.args = args
         self.gamma = args['gamma']
         self.lrate = args['lrate']
-        self.bacth_size = args['batch_size']
+        self.batch_size = args['batch_size']
         if args['optimizer'] == 'adam':
             self.optimizer = optim.Adam(policy.parameters(), lr=self.lrate)
         else:
@@ -76,7 +76,7 @@ class PolicyGradientTrainer(AgentTrainer):
         self.optimizer.zero_grad()
         loss.backward()
         if self.grad_norm_clip is not None:
-            torch.nn.utils.clip_grad_norm(self.policy.parameters(), self.args['grad_clip'])
+            torch.nn.utils.clip_grad_norm(self.policy.parameters(), self.grad_norm_clip)
         self.optimizer.step()
         ent = self.policy.entropy().mean()
         ent_val = ent.view(-1).data.cpu().numpy()[0]
