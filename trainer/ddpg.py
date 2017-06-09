@@ -57,8 +57,8 @@ class DDPGTrainer(AgentTrainer):
 
     def action(self):
         frames = self.replay_buffer.encode_recent_observation()[np.newaxis, ...]
-        raw_x = Variable(torch.from_numpy(frames.transpose([0, 3, 1, 2])), volatile=True)
-        batched_actions = self.p(raw_x.type(FloatTensor))
+        raw_x = Variable(torch.from_numpy(frames.transpose([0, 3, 1, 2])), volatile=True).type(ByteTensor)
+        batched_actions = self.p(raw_x.type(FloatTensor) / 255.0)
         if use_cuda:
             cpu_actions = [a.cpu() for a in batched_actions]
         else:
@@ -89,8 +89,8 @@ class DDPGTrainer(AgentTrainer):
         #act = split_batched_array(full_act, self.act_shape)
 
         # convert to variables
-        obs_n = Variable(torch.from_numpy(obs.transpose([0, 3, 1, 2]))).type(ByteTensor).type(FloatTensor)
-        obs_next_n = Variable(torch.from_numpy(obs_next.transpose([0, 3, 1, 2])), volatile=True).type(ByteTensor).type(FloatTensor)
+        obs_n = Variable(torch.from_numpy(obs.transpose([0, 3, 1, 2]))).type(ByteTensor).type(FloatTensor) / 255.0
+        obs_next_n = Variable(torch.from_numpy(obs_next.transpose([0, 3, 1, 2])), volatile=True).type(ByteTensor).type(FloatTensor) / 255.0
         full_act_n = Variable(torch.from_numpy(full_act)).type(FloatTensor)
         rew_n = Variable(torch.from_numpy(rew), volatile=True).type(FloatTensor)
         done_n = Variable(torch.from_numpy(done), volatile=True).type(FloatTensor)
