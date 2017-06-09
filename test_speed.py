@@ -5,7 +5,7 @@ import utils
 
 import os, sys, time, json
 
-flag_use_pytorch = False
+flag_use_pytorch = True
 
 
 def rand_act(d):
