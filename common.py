@@ -37,7 +37,7 @@ else:
     # fair server
     assert False, 'Unable to locate data folder..... Please edit <common.py>'
 
-frame_history_len = 3
+frame_history_len = 4
 resolution = (200, 150)
 observation_shape = (3 * frame_history_len, resolution[0], resolution[1])
 action_shape = (4, 2)
@@ -53,14 +53,16 @@ def genCacheFile(houseID):
 def create_args(gamma = 0.9, lrate = 0.01, episode_len = 50, batch_size = 1024,
                 replay_buffer_size = int(1e5),
                 grad_clip = 2, optimizer = 'adam',
-                update_freq = 100, ent_penalty=None):
+                update_freq = 100, ent_penalty=None,
+                target_net_update_rate = None):
     return dict(gamma=gamma, lrate=lrate, episode_len=episode_len,
                 batch_size=batch_size, replay_buffer_size=replay_buffer_size,
                 frame_history_len=frame_history_len,
                 grad_clip=grad_clip,
                 optimizer=optimizer,
                 update_freq=update_freq,
-                ent_penalty=None)
+                ent_penalty=None,
+                target_net_update_rate=target_net_update_rate)
 
 
 def create_default_args(algo='pg', gamma=None,
@@ -70,7 +72,7 @@ def create_default_args(algo='pg', gamma=None,
         return create_args(gamma or 0.9, lrate or 0.01,
                            episode_len or 10, batch_size or 100, 1000)
     elif algo == 'ddpg':  # ddpg
-        return create_args(gamma or 0.9, lrate or 0.001, episode_len or 75,
+        return create_args(gamma or 0.9, lrate or 0.001, episode_len or 50,
                            batch_size or 512, int(1e6),
                            update_freq=(update_freq or 50), ent_penalty=1e-3)
     elif algo == 'nop':

@@ -9,7 +9,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 
 
-def make_update_exp(vals, target_vals, rate=1e-2):
+def make_update_exp(vals, target_vals, rate=1e-3):
     target_dict = target_vals.state_dict()
     val_dict = vals.state_dict()
     for k in target_dict.keys():
@@ -46,6 +46,7 @@ class DDPGTrainer(AgentTrainer):
         else:
             self.p_optim = optim.RMSprop(self.p.parameters(), lr=self.lrate)
             self.q_optim = optim.RMSprop(self.q.parameters(), lr=self.lrate)
+        self.target_update_rate = args['target_net_update_rate'] or 1e-2
         self.replay_buffer = ReplayBuffer(
                                 args['replay_buffer_size'],
                                 args['frame_history_len'],
@@ -116,14 +117,15 @@ class DDPGTrainer(AgentTrainer):
         p_ent = self.p.entropy().mean().squeeze()
         if self.args['ent_penalty'] is not None:
             p_loss += self.args['ent_penalty'] * p_ent
+        self.p_optim.zero_grad()
         p_loss.backward()
         if self.grad_norm_clip is not None:
             nn.utils.clip_grad_norm(self.p.parameters(), self.grad_norm_clip)
         self.p_optim.step()
 
         # update target networks
-        make_update_exp(self.p, self.target_p)
-        make_update_exp(self.q, self.target_q)
+        make_update_exp(self.p, self.target_p, rate=self.target_update_rate)
+        make_update_exp(self.q, self.target_q, rate=self.target_update_rate)
 
         return p_loss.data.cpu().numpy()[0], p_ent.data.cpu().numpy()[0]
 

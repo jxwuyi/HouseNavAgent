@@ -104,6 +104,7 @@ def parse_args():
     parser.add_argument("--max-episode-len", type=int, help="maximum episode length")
     parser.add_argument("--update-freq", type=int, help="update model parameters once every this many samples collected")
     parser.add_argument("--max-iters", type=int, default=int(2e6), help="maximum number of training episodes")
+    parser.add_argument("--target-net-update-rate", type=float, help="update rate for target networks")
     # Checkpointing
     parser.add_argument("--save-dir", type=str, default="./_model_", help="directory in which training state and model should be saved")
     parser.add_argument("--log-dir", type=str, default="./log", help="directory in which logs training stats")
@@ -128,6 +129,10 @@ if __name__ == '__main__':
     args = common.create_default_args(cmd_args.algo, cmd_args.gamma, cmd_args.lrate,
                                cmd_args.max_episode_len, cmd_args.batch_size,
                                cmd_args.update_freq)
+
+    if cmd_args.target_net_update_rate is not None:
+        args['target_net_update_rate']=cmd_args.target_net_update_rate
+
     train(args,
           houseID=cmd_args.house, linearReward=cmd_args.linear_reward,
           algo=cmd_args.algo, iters=cmd_args.max_iters,
