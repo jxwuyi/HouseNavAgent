@@ -43,10 +43,41 @@ observation_shape = (3 * frame_history_len, resolution[0], resolution[1])
 action_shape = (4, 2)
 colide_res = 1000
 
+
 def genCacheFile(houseID):
     return prefix + houseID + '/cachedmap1k.pkl'
 
 #######################
+
+
+def create_args(gamma = 0.9, lrate = 0.01, episode_len = 50, batch_size = 1024,
+                replay_buffer_size = int(1e5),
+                grad_clip = 2, optimizer = 'adam',
+                update_freq = 100, ent_penalty=None):
+    return dict(gamma=gamma, lrate=lrate, episode_len=episode_len,
+                batch_size=batch_size, replay_buffer_size=replay_buffer_size,
+                frame_history_len=frame_history_len,
+                grad_clip=grad_clip,
+                optimizer=optimizer,
+                update_freq=update_freq,
+                ent_penalty=None)
+
+
+def create_default_args(algo='pg', gamma=None,
+                        lrate=None, episode_len=None,
+                        batch_size=None, update_freq=None):
+    if algo == 'pg':  # policy gradient
+        return create_args(gamma or 0.9, lrate or 0.01,
+                           episode_len or 10, batch_size or 100, 1000)
+    elif algo == 'ddpg':  # ddpg
+        return create_args(gamma or 0.9, lrate or 0.001, episode_len or 75,
+                           batch_size or 512, int(1e6),
+                           update_freq=(update_freq or 50), ent_penalty=1e-3)
+    elif algo == 'nop':
+        return create_args()
+    else:
+        assert (False)
+
 
 def create_policy(inp_shape, act_shape, name='cnn'):
     if name == 'random':
@@ -64,6 +95,7 @@ def create_policy(inp_shape, act_shape, name='cnn'):
         policy.cuda()
     return policy
 
+
 def create_critic(inp_shape, act_shape, algo):
     act_dim = act_shape if isinstance(act_shape, int) else sum(act_shape)
     if algo == 'ddpg':
@@ -76,6 +108,7 @@ def create_critic(inp_shape, act_shape, algo):
     if use_cuda:
         critic.cuda()
     return critic
+
 
 def create_trainer(algo, model, args):
     # self, name, policy, obs_shape, act_shape, args)
@@ -95,6 +128,7 @@ def create_trainer(algo, model, args):
     else:
         assert False, 'Trainer not defined for <{}>'.format(algo)
     return trainer
+
 
 def create_env(k = 0, linearReward=False):
     houseID = all_houseIDs[k]

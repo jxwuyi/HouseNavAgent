@@ -9,41 +9,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-def create_args(gamma = 0.9, lrate = 0.01, episode_len = 50, batch_size = 1024,
-                replay_buffer_size = int(1e5),
-                grad_clip = 2, optimizer = 'adam',
-                update_freq = 100, ent_penalty=None):
-    return dict(gamma=gamma, lrate=lrate, episode_len=episode_len,
-                batch_size=batch_size, replay_buffer_size=replay_buffer_size,
-                frame_history_len=common.frame_history_len,
-                grad_clip=grad_clip,
-                optimizer=optimizer,
-                update_freq=update_freq,
-                ent_penalty=None)
-
-
-def create_default_args(algo='pg', gamma=None,
-                        lrate=None, episode_len=None,
-                        batch_size=None, update_freq=None):
-    if algo == 'pg':  # policy gradient
-        return create_args(gamma or 0.9, lrate or 0.01,
-                           episode_len or 10, batch_size or 100, 1000)
-    elif algo == 'ddpg':  # ddpg
-        return create_args(gamma or 0.9, lrate or 0.001, episode_len or 75,
-                           batch_size or 512, int(1e6),
-                           update_freq=(update_freq or 50), ent_penalty=1e-3)
-    elif algo == 'nop':
-        return create_args()
-    else:
-        assert (False)
-
-
 def train(args=None,
           houseID=0, linearReward=False, algo='pg', model_name='cnn',
           iters=2000000, report_rate=20, save_rate=1000, eval_range=200,
           log_dir='./temp', save_dir='./_model_', warmstart=None):
     if args is None:
-        args = create_default_args(algo)
+        args = common.create_default_args(algo)
     trainer = common.create_trainer(algo, model_name, args)
     env = common.create_env(houseID, linearReward)
     logger = utils.MyLogger(log_dir, True)
@@ -126,7 +97,7 @@ def parse_args():
     parser.add_argument("--linear-reward", action='store_true', default=False,
                         help="whether to use reward according to distance; o.w. indicator reward")
     # Core training parameters
-    parser.add_argument("--algo", type=str, default="ddpg", help="algorithm")
+    parser.add_argument("--algo", choices=['ddpg','pg'], default="ddpg", help="algorithm")
     parser.add_argument("--lrate", type=float, help="learning rate")
     parser.add_argument("--gamma", type=float, help="discount")
     parser.add_argument("--batch-size", type=int, help="batch size")

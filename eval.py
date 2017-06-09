@@ -97,8 +97,8 @@ def parse_args():
     parser.add_argument("--house", type=int, default=0, help="house ID")
     parser.add_argument("--seed", type=int, default=0, help="random seed")
     # Core parameters
-    parser.add_argument("--algo", type=str, default="ddpg", help="algorithm for training")
-    parser.add_argument("--max-episode-len", type=int, help="maximum episode length")
+    parser.add_argument("--algo", choices=['nop','pg','ddpg'], default="ddpg", help="algorithm for training")
+    parser.add_argument("--max-episode-len", type=int, default=2000, help="maximum episode length")
     parser.add_argument("--max-iters", type=int, default=1000, help="maximum number of eval episodes")
     parser.add_argument("--store-history", action='store_true', default=False, help="whether to store all the episode frames")
     # Checkpointing
@@ -109,14 +109,15 @@ def parse_args():
 
 if __name__ == '__main__':
     args = parse_args()
-    assert (args.warmstart is not None) and (os.path.exists(args.warmstart)), 'Model File Not Exists!'
+    assert (args.warmstart is None) or (os.path.exists(args.warmstart)), 'Model File Not Exists!'
 
     if args.seed is not None:
         np.random.seed(args.seed)
 
+    model_name = 'random' if args.warmstart is None else 'cnn'
     episode_stats = \
         evaluate(args.max_iters, args.max_episode_len,
-                 args.algo, args.warmstart, args.log_dir,
+                 args.algo, model_name, args.warmstart, args.log_dir,
                  args.store_history)
 
     if args.store_history:
