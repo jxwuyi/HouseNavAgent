@@ -125,7 +125,7 @@ if __name__ == '__main__':
         print('Directory <{}> does not exist! Creating directory ...'.format(cmd_args.save_dir))
         os.makedirs(cmd_args.save_dir)
 
-    args = create_default_args(cmd_args.algo, cmd_args.gamma, cmd_args.lrate,
+    args = common.create_default_args(cmd_args.algo, cmd_args.gamma, cmd_args.lrate,
                                cmd_args.max_episode_len, cmd_args.batch_size,
                                cmd_args.update_freq)
     train(args,
