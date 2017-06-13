@@ -1,5 +1,6 @@
 from headers import *
 from utils import *
+import common
 import os
 import numpy as np
 import torch
@@ -7,6 +8,9 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 from torch.autograd import Variable
+
+
+import time
 
 
 def make_update_exp(vals, target_vals, rate=1e-3):
@@ -58,8 +62,7 @@ class DDPGTrainer(AgentTrainer):
 
     def action(self):
         frames = self.replay_buffer.encode_recent_observation()[np.newaxis, ...]
-        raw_x = Variable(torch.from_numpy(frames.transpose([0, 3, 1, 2])), volatile=True).type(ByteTensor)
-        batched_actions = self.p(raw_x.type(FloatTensor) / 255.0)
+        batched_actions = self.p(self._process_frames(frames, volatile=True))
         if use_cuda:
             cpu_actions = [a.cpu() for a in batched_actions]
         else:
@@ -81,20 +84,29 @@ class DDPGTrainer(AgentTrainer):
 
     def update(self):
         if (self.sample_counter < self.args['update_freq']) or \
-           not self.replay_buffer.can_sample(self.batch_size * self.args['update_freq']):
+           not self.replay_buffer.can_sample(self.batch_size * self.args['episode_len']):
             return None, None
         self.sample_counter = 0
+
+
+        tt = time.time()
+
 
         obs, full_act, rew, obs_next, done = \
             self.replay_buffer.sample(self.batch_size)
         #act = split_batched_array(full_act, self.act_shape)
+        time_counter[-1] += time.time() - tt
+        tt = time.time()
 
         # convert to variables
-        obs_n = Variable(torch.from_numpy(obs.transpose([0, 3, 1, 2]))).type(ByteTensor).type(FloatTensor) / 255.0
-        obs_next_n = Variable(torch.from_numpy(obs_next.transpose([0, 3, 1, 2])), volatile=True).type(ByteTensor).type(FloatTensor) / 255.0
+        obs_n = self._process_frames(obs)
+        obs_next_n = self._process_frames(obs_next, volatile=True)
         full_act_n = Variable(torch.from_numpy(full_act)).type(FloatTensor)
         rew_n = Variable(torch.from_numpy(rew), volatile=True).type(FloatTensor)
         done_n = Variable(torch.from_numpy(done), volatile=True).type(FloatTensor)
+
+        time_counter[0] += time.time() - tt
+        tt = time.time()
 
         # train q network
         target_act_next = self.target_p(obs_next_n)
@@ -123,9 +135,17 @@ class DDPGTrainer(AgentTrainer):
             nn.utils.clip_grad_norm(self.p.parameters(), self.grad_norm_clip)
         self.p_optim.step()
 
+
+        time_counter[1] += time.time() -tt
+        tt =time.time()
+
+
         # update target networks
         make_update_exp(self.p, self.target_p, rate=self.target_update_rate)
         make_update_exp(self.q, self.target_q, rate=self.target_update_rate)
+
+
+        time_counter[2] += time.time()-tt
 
         return p_loss.data.cpu().numpy()[0], p_ent.data.cpu().numpy()[0]
 

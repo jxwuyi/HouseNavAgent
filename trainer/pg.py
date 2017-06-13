@@ -36,8 +36,9 @@ class PolicyGradientTrainer(AgentTrainer):
 
     def action(self):
         frames = self.replay_buffer.encode_recent_observation()[np.newaxis, ...]
-        raw_x = Variable(torch.from_numpy(frames.transpose([0, 3, 1, 2])), volatile=True)
-        batched_actions = self.policy(raw_x.type(FloatTensor) / 255.0)
+        raw_x = self._process_frames(frames, volatile=True)
+        #raw_x = Variable(torch.from_numpy(frames.transpose([0, 3, 1, 2])), volatile=True)
+        batched_actions = self.policy(raw_x)
         if use_cuda:
             cpu_actions = [a.cpu() for a in batched_actions]
         else:
@@ -68,7 +69,8 @@ class PolicyGradientTrainer(AgentTrainer):
         ret_batch = Variable(torch.from_numpy((ret - np.mean(ret)) / np.std(ret)).type(FloatTensor), requires_grad=False)  # return
 
         # training
-        obs_batch = Variable(torch.from_numpy(obs.transpose([0, 3, 1, 2])).type(ByteTensor).type(FloatTensor)) / 255.0
+        #obs_batch = Variable(torch.from_numpy(obs.transpose([0, 3, 1, 2])).type(ByteTensor).type(FloatTensor)) / 255.0
+        obs_batch = self._process_frames(obs)
         act_batch = [Variable(torch.from_numpy(a).type(FloatTensor), requires_grad=False) for a in act]
         self.policy(obs_batch)  # forward pass
         loss = (self.policy.logprob(act_batch) * ret_batch).mean()

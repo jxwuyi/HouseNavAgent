@@ -1,5 +1,8 @@
 import os, sys
 
+time_counter = [0,0,0,0]
+
+
 if "Apple" in sys.version:
     # own mac PC
     path_to_python_repo = '/Users/yiw/workroom/objrender/python'
@@ -11,6 +14,8 @@ sys.path.insert(0, path_to_python_repo)
 
 
 import torch
+from torch.autograd import Variable
+
 use_cuda = torch.cuda.is_available()
 if use_cuda:
     print('>>> CUDA used!!!')
@@ -35,6 +40,17 @@ class AgentTrainer(object):
 
     def update(self, agents):
         raise NotImplemented()
+
+    def _process_frames(self, raw_frames, volatile=False):
+        """
+        frames: (batch_size, len, n, m, channel_n) in numpy
+        --> output (batch_size, len * channel_n, n, m), processed as FloatTensor
+        """
+        batch_size = raw_frames.shape[0]
+        img_h, img_w = raw_frames.shape[2], raw_frames.shape[3]
+        chn = raw_frames.shape[1] * raw_frames.shape[4]
+        frames = Variable(torch.from_numpy(raw_frames), volatile=volatile).type(ByteTensor).permute(0, 1, 4, 2, 3).resize(batch_size, chn, img_h, img_w)
+        return frames.type(FloatTensor) / 255.0
 
     def save(self, save_dir, version=""):
         if len(version) > 0:

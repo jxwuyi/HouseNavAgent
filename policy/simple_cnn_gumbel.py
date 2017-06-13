@@ -1,5 +1,6 @@
 from headers import *
 import random
+import utils
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -42,9 +43,11 @@ class CNNGumbelPolicy(torch.nn.Module):
             h, k, s = dat
             self.conv_layers.append(nn.Conv2d(prev_hidden, h, kernel_size=k, stride=s))
             setattr(self, 'conv_layer%d'%i, self.conv_layers[-1])
+            utils.initialize_weights(self.conv_layers[-1])
             if use_batch_norm:
                 self.bc_layers.append(nn.BatchNorm2d(h))
                 setattr(self, 'bc_layer%d'%i, self.bc_layers[-1])
+                utils.initialize_weights(self.bc_layers[-1])
             else:
                 self.bc_layers.append(None)
             prev_hidden = h
@@ -54,6 +57,7 @@ class CNNGumbelPolicy(torch.nn.Module):
         for i, d in enumerate(self.D_out):
             self.linear_layers.append(nn.Linear(self.feat_size, d))
             setattr(self, 'linear_layer%d'%i, self.linear_layers[-1])
+            utils.initialize_weights(self.linear_layers[-1])
 
     ######################
     def _forward_feature(self, x):

@@ -11,7 +11,7 @@ def render_episode(env, images):
 
 
 def visualize(args, all_stats, config):
-    env = common.create_env(config.house)
+    env = common.create_env(config.house, hardness = config.hardness)
     env.reset_render()
     for it, stats in enumerate(all_stats):
         if args.only_success and (stats['success'] == 0):

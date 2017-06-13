@@ -4,6 +4,7 @@ import utils
 
 import os, sys, time, pickle, json, argparse
 import numpy as np
+import random
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -15,8 +16,13 @@ def train(args=None,
           log_dir='./temp', save_dir='./_model_', warmstart=None):
     if args is None:
         args = common.create_default_args(algo)
+
+    hardness = args['hardness']
+    if hardness is not None:
+        print('>>> Hardness Level = {}'.format(hardness))
+
     trainer = common.create_trainer(algo, model_name, args)
-    env = common.create_env(houseID, linearReward)
+    env = common.create_env(houseID, linearReward, hardness)
     logger = utils.MyLogger(log_dir, True)
 
     if warmstart is not None:
@@ -81,10 +87,15 @@ def train(args=None,
             ((algo == 'pg') and (loss is not None)):
             logger.print('Episode#%d, Updates=%d, Time Elapsed = %.3f min' % (len(episode_rewards), update_times, (time.time()-elap) / 60))
             logger.print('-> Total Samples: %d' % t)
+            logger.print('-> Avg Episode Length: %.4f' % (t / len(episode_rewards)))
             if loss is not None:
                 logger.print('  >> Loss    = %.4f' % loss)
                 logger.print('  >> Entropy = %.4f' % ent)
             logger.print('  >> Reward  = %.4f' % np.mean(episode_rewards[-eval_range:]))
+            print('----> Data Loading Time = %.4f min' % (time_counter[-1] / 60))
+            print('----> GPU Data Transfer Time = %.4f min' % (time_counter[0] / 60))
+            print('----> Training Time = %.4f min' % (time_counter[1] / 60))
+            print('----> Target Net Update Time = %.4f min' % (time_counter[2] / 60))
 
         t += 1
 
@@ -94,6 +105,7 @@ def parse_args():
     # Environment
     parser.add_argument("--house", type=int, default=0, help="house ID")
     parser.add_argument("--seed", type=int, help="random seed")
+    parser.add_argument("--hardness", type=float, help="real number from 0 to 1, indicating the hardness of the environment")
     parser.add_argument("--linear-reward", action='store_true', default=False,
                         help="whether to use reward according to distance; o.w. indicator reward")
     # Core training parameters
@@ -118,6 +130,7 @@ if __name__ == '__main__':
     cmd_args = parse_args()
     if cmd_args.seed is not None:
         np.random.seed(cmd_args.seed)
+        random.seed(cmd_args.seed)
 
     if cmd_args.linear_reward:
         print('Using Linear Reward Function in the Env!')
@@ -132,6 +145,9 @@ if __name__ == '__main__':
 
     if cmd_args.target_net_update_rate is not None:
         args['target_net_update_rate']=cmd_args.target_net_update_rate
+
+    if cmd_args.hardness is not None:
+        args['hardness'] = cmd_args.hardness
 
     train(args,
           houseID=cmd_args.house, linearReward=cmd_args.linear_reward,

@@ -38,7 +38,8 @@ else:
     assert False, 'Unable to locate data folder..... Please edit <common.py>'
 
 frame_history_len = 4
-resolution = (200, 150)
+#resolution = (200, 150)
+resolution = (120, 90)
 observation_shape = (3 * frame_history_len, resolution[0], resolution[1])
 action_shape = (4, 2)
 colide_res = 1000
@@ -52,10 +53,11 @@ def genCacheFile(houseID):
 
 def create_args(gamma = 0.9, lrate = 0.01, episode_len = 50, batch_size = 1024,
                 replay_buffer_size = int(1e5),
-                grad_clip = 2, optimizer = 'adam',
+                grad_clip = 5, optimizer = 'adam',
                 update_freq = 100, ent_penalty=None,
                 target_net_update_rate = None):
-    return dict(gamma=gamma, lrate=lrate, episode_len=episode_len,
+    return dict(gamma=gamma, lrate=lrate, hardness = None,
+                episode_len=episode_len,
                 batch_size=batch_size, replay_buffer_size=replay_buffer_size,
                 frame_history_len=frame_history_len,
                 grad_clip=grad_clip,
@@ -73,8 +75,8 @@ def create_default_args(algo='pg', gamma=None,
                            episode_len or 10, batch_size or 100, 1000)
     elif algo == 'ddpg':  # ddpg
         return create_args(gamma or 0.9, lrate or 0.001, episode_len or 50,
-                           batch_size or 512, int(1e6),
-                           update_freq=(update_freq or 50), ent_penalty=1e-3)
+                           batch_size or 256, int(5e5),
+                           update_freq=(update_freq or 100), ent_penalty=1e-3)
     elif algo == 'nop':
         return create_args()
     else:
@@ -89,8 +91,8 @@ def create_policy(inp_shape, act_shape, name='cnn'):
         policy = CNNPolicy(inp_shape, act_shape,
                         hiddens=[32, 32, 16, 8],
                         kernel_sizes=5, strides=2,
-                        activation = F.relu,  # F.elu
-                        use_batch_norm = True)
+                        activation = F.elu,  # F.relu
+                        use_batch_norm = True)  # False
     else:
         assert False, 'Policy Undefined for <{}>'.format(name)
     if use_cuda:
@@ -132,12 +134,12 @@ def create_trainer(algo, model, args):
     return trainer
 
 
-def create_env(k = 0, linearReward=False):
+def create_env(k=0, linearReward=False, hardness=None):
     houseID = all_houseIDs[k]
     objFile = prefix + houseID + '/house.obj'
     jsonFile = prefix + houseID + '/house.json'
     cachedFile = genCacheFile(houseID)
     assert os.path.isfile(cachedFile), '[Warning] No Cached Map File Found for House <{}> (id = {})!'.format(houseID, k)
     world = World(jsonFile, objFile, csvFile, colide_res, CachedFile=cachedFile)
-    env = HouseEnv(world, resolution=resolution, linearReward=linearReward)  # currently use indicator reward
+    env = HouseEnv(world, resolution=resolution, linearReward=linearReward, hardness=hardness)
     return env

@@ -9,14 +9,18 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-def evaluate(iters = 1000, max_episode_len = 1000, algo='nop',
+def evaluate(iters = 1000, max_episode_len = 1000, hardness = None, algo='nop',
              model_name='cnn', model_file=None, log_dir='./log/eval',
              store_images=False):
     args = common.create_default_args(algo)
     trainer = common.create_trainer(algo, model_name, args)
     if model_file is not None:
         trainer.load(model_file)
-    env = common.create_env()
+
+    if hardness is not None:
+        print('>>>> Hardness = {}'.format(hardness))
+    env = common.create_env(hardness=hardness)
+
     logger = utils.MyLogger(log_dir, True)
     logger.print('Start Evaluating ...')
 
@@ -96,6 +100,7 @@ def parse_args():
     # Environment
     parser.add_argument("--house", type=int, default=0, help="house ID")
     parser.add_argument("--seed", type=int, default=0, help="random seed")
+    parser.add_argument("--hardness", type=float, help="real number from 0 to 1, indicating the hardness of the environment")
     # Core parameters
     parser.add_argument("--algo", choices=['nop','pg','ddpg'], default="ddpg", help="algorithm for training")
     parser.add_argument("--max-episode-len", type=int, default=2000, help="maximum episode length")
@@ -111,12 +116,16 @@ if __name__ == '__main__':
     args = parse_args()
     assert (args.warmstart is None) or (os.path.exists(args.warmstart)), 'Model File Not Exists!'
 
+    if not os.path.exists(args.log_dir):
+        print('Directory <{}> does not exist! Creating directory ...'.format(args.log_dir))
+        os.makedirs(args.log_dir)
+
     if args.seed is not None:
         np.random.seed(args.seed)
 
     model_name = 'random' if args.warmstart is None else 'cnn'
     episode_stats = \
-        evaluate(args.max_iters, args.max_episode_len,
+        evaluate(args.max_iters, args.max_episode_len, args.hardness,
                  args.algo, model_name, args.warmstart, args.log_dir,
                  args.store_history)
 

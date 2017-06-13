@@ -1,6 +1,11 @@
 import numpy as np
 import random
+import math
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
+####### Util Functions ############
 def discount_with_dones(rewards, dones, gamma):
     discounted = []
     r = 0
@@ -10,6 +15,7 @@ def discount_with_dones(rewards, dones, gamma):
         discounted.append(r)
     return discounted[::-1]
 
+
 def split_batched_array(action, shape):
     actions = []
     p = 0
@@ -17,6 +23,7 @@ def split_batched_array(action, shape):
         actions.append(action[:, p:(p + d)])
         p += d
     return actions
+
 
 def sample_n_unique(sampling_f, n):
     """Helper function. Given a function `sampling_f` that returns
@@ -29,6 +36,24 @@ def sample_n_unique(sampling_f, n):
             res.append(candidate)
     return res
 
+
+############ Weight Initialization ############
+def initialize_weights(cls):
+    for m in cls.modules():
+        if isinstance(m, nn.Conv2d):
+            n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+            m.weight.data.normal_(0, math.sqrt(2. / n))
+            m.bias.data.zero_()
+        elif isinstance(m, nn.BatchNorm2d):
+            m.weight.data.fill_(1)
+            m.bias.data.zero_()
+        elif isinstance(m, nn.Linear):
+            fan_in = m.in_features
+            m.weight.data.normal_(0, math.sqrt(1. / fan_in))
+            m.bias.data.zero_()
+
+
+#############  Replay Buffer ##############
 class ReplayBuffer(object):
     def __init__(self, size, frame_history_len, frame_type = np.uint8,
                 action_shape = [], action_type = np.int32):
@@ -71,18 +96,26 @@ class ReplayBuffer(object):
         self.reward   = None
         self.done     = None
 
+        self.batch_size = None
+        self.obs_batch = None
+        self.obs_nxt_batch = None
+
     def can_sample(self, batch_size):
         """Returns true if `batch_size` different transitions can be sampled from the buffer."""
-        return batch_size + self.frame_history_len <= self.num_in_buffer
+        return batch_size + 1 <= self.num_in_buffer
 
     def _encode_sample(self, idxes):
-        obs_batch      = np.concatenate([self._encode_observation(idx)[None] for idx in idxes], 0)
+        #obs_batch      = np.concatenate([self._encode_observation(idx)[None] for idx in idxes], 0)
+        for i, idx in enumerate(idxes):
+            self.obs_batch[i] = self._encode_observation(idx)
         act_batch      = self.action[idxes]
         rew_batch      = self.reward[idxes]
-        next_obs_batch = np.concatenate([self._encode_observation(idx + 1)[None] for idx in idxes], 0)
+        #next_obs_batch = np.concatenate([self._encode_observation(idx + 1)[None] for idx in idxes], 0)
+        for i, idx in enumerate(idxes):
+            self.obs_nxt_batch[i] = self._encode_observation(idx + 1)
         done_mask      = np.array([1.0 if self.done[idx] else 0.0 for idx in idxes], dtype=np.float32)
 
-        return obs_batch, act_batch, rew_batch, next_obs_batch, done_mask
+        return self.obs_batch, act_batch, rew_batch, self.obs_nxt_batch, done_mask
 
     def sample(self, batch_size):
         """Sample `batch_size` different transitions.
@@ -122,6 +155,13 @@ class ReplayBuffer(object):
             idxes = list(range(0, self.num_in_buffer - 1))
         else:
             idxes = sample_n_unique(lambda: random.randint(0, self.num_in_buffer - 2), batch_size)
+
+        if (self.batch_size is None) or (len(idxes) != self.batch_size):
+            self.batch_size = len(idxes)
+            img_h, img_w = self.obs.shape[1], self.obs.shape[2]
+            self.obs_batch = np.zeros([self.batch_size, self.frame_history_len, img_h, img_w, 3],dtype=self.frame_type)
+            self.obs_nxt_batch = np.zeros([self.batch_size, self.frame_history_len, img_h, img_w, 3],dtype=self.frame_type)
+
         return self._encode_sample(idxes)
 
     def encode_recent_observation(self):
@@ -154,14 +194,25 @@ class ReplayBuffer(object):
         # if zero padding is needed for missing context
         # or we are on the boundry of the buffer
         if start_idx < 0 or missing_context > 0:
-            frames = [np.zeros_like(self.obs[0]) for _ in range(missing_context)]
+            #frames = [np.zeros_like(self.obs[0]) for _ in range(missing_context)]
+            img_h, img_w = self.obs.shape[1], self.obs.shape[2]
+            frames = np.zeros((self.frame_history_len, img_h, img_w, 3), dtype=self.frame_type)
+            pt = missing_context
             for idx in range(start_idx, end_idx):
-                frames.append(self.obs[idx % self.size])
-            return np.concatenate(frames, 2)
+                #frames.append(self.obs[idx % self.size])
+                frames[pt] = self.obs[idx % self.size]
+                pt += 1
+            #return np.concatenate(frames, 2)
+            return frames
         else:
             # this optimization has potential to saves about 30% compute time \o/
-            img_h, img_w = self.obs.shape[1], self.obs.shape[2]
-            return self.obs[start_idx:end_idx].transpose(1, 2, 0, 3).reshape(img_h, img_w, -1)
+            #img_h, img_w = self.obs.shape[1], self.obs.shape[2]
+            #return self.obs[start_idx:end_idx].transpose(1, 2, 0, 3).reshape(img_h, img_w, -1)
+            #frames = []
+            #for id in range(start_idx, end_idx):
+            #    frames.append(self.obs[id])
+            #return np.concatenate(frames, 2)
+            return self.obs[start_idx:end_idx]
 
     def store_frame(self, frame):
         """Store a single frame in the buffer at the next available index, overwriting
@@ -214,7 +265,7 @@ class ReplayBuffer(object):
         self.done[idx]   = done
 
 
-
+######## Logging Utils ############
 class MyLogger:
     def __init__(self, logdir, clear_file = False):
         import os

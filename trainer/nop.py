@@ -25,8 +25,8 @@ class NOPTrainer(AgentTrainer):
 
     def action(self):
         frames = self.replay_buffer.encode_recent_observation()[np.newaxis, ...]
-        raw_x = Variable(torch.from_numpy(frames.transpose([0, 3, 1, 2])), volatile=True)
-        batched_actions = self.policy(raw_x.type(FloatTensor))
+        raw_x = self._process_frames(frames, volatile=True)
+        batched_actions = self.policy(raw_x)
         if use_cuda:
             cpu_actions = [a.cpu() for a in batched_actions]
         else:
