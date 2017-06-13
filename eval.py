@@ -9,6 +9,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+def proc_info(info):
+    return dict(pos=(info['pos'].x, info['pos'].y, info['pos'].z),
+                yaw=info['yaw'], loc=info['loc'], grid=info['grid'],
+                dist=info['dist'])
+
 def evaluate(iters = 1000, max_episode_len = 1000, hardness = None, algo='nop',
              model_name='cnn', model_file=None, log_dir='./log/eval',
              store_history=False):
@@ -33,7 +38,7 @@ def evaluate(iters = 1000, max_episode_len = 1000, hardness = None, algo='nop',
         cur_infos = []
         obs = env.reset()
         if store_history:
-            cur_infos.append(env.cam_info)
+            cur_infos.append(proc_info(env.cam_info))
             #cur_images.append(env.render(renderMapLoc=env.cam_info['loc'], display=False))
         obs = obs.transpose([1, 0, 2])
         episode_success.append(0)
@@ -49,7 +54,7 @@ def evaluate(iters = 1000, max_episode_len = 1000, hardness = None, algo='nop',
             # environment step
             obs, rew, done, info = env.step(action)
             if store_history:
-                cur_infos.append(info)
+                cur_infos.append(proc_info(info))
                 #cur_images.append(env.render(renderMapLoc=env.cam_info['loc'], display=False))
             obs = obs.transpose([1, 0, 2])
             cur_dist = env.cam_info['dist']

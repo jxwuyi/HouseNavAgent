@@ -6,7 +6,7 @@ import os, time, pickle, argparse
 def render_episode(env, infos):
     for i, info in enumerate(infos):
         env.set_cam_info(info)
-        env.render(renderMapLoc=env.cam_info['loc'])
+        env.render(renderMapLoc=info['loc'])
         if i == 0:
             time.sleep(0.6)
         else:
