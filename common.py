@@ -76,7 +76,7 @@ def create_default_args(algo='pg', gamma=None,
     elif algo == 'ddpg':  # ddpg
         return create_args(gamma or 0.9, lrate or 0.001, episode_len or 50,
                            batch_size or 256, int(5e5),
-                           update_freq=(update_freq or 100), ent_penalty=1e-3)
+                           update_freq=(update_freq or 100))   #, ent_penalty=1e-3)
     elif algo == 'nop':
         return create_args()
     else:
@@ -92,7 +92,7 @@ def create_policy(inp_shape, act_shape, name='cnn'):
                         hiddens=[32, 32, 16, 8],
                         kernel_sizes=5, strides=2,
                         activation = F.elu,  # F.relu
-                        use_batch_norm = True)  # False
+                        use_batch_norm = False)  # False
     else:
         assert False, 'Policy Undefined for <{}>'.format(name)
     if use_cuda:
@@ -106,7 +106,7 @@ def create_critic(inp_shape, act_shape, algo):
         critic = DDPGCritic(inp_shape, act_dim,
                             conv_hiddens=[32,16,8,4],
                             linear_hiddens=[64],
-                            activation=F.relu)  # F.elu
+                            activation=F.elu)  # F.elu
     else:
         assert False, 'No critic defined for algo<{}>'.format(algo)
     if use_cuda:
