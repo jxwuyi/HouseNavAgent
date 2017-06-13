@@ -4,11 +4,17 @@ import common
 import os, time, pickle, argparse
 
 def render_episode(env, infos):
-    for i, info in enumerate(infos):
+    images = []
+    for info in infos:
         env.set_cam_info(info)
-        env.render(renderMapLoc=info['loc'])
+        images.append(env.render(renderMapLoc=info['loc'], display=False))
+    return images
+
+def show_episode(env, images):
+    for i, im in enumerate(images):
+        env.render(im)
         if i == 0:
-            time.sleep(0.6)
+            time.sleep(0.5)
         else:
             time.sleep(0.3)
 
@@ -20,6 +26,9 @@ def visualize(args, all_stats, config):
     print('Resolution = {}'.format(env.resolution))
     total_len = 0
     total_succ = 0
+    episode_images = []
+    print('Rendering ....')
+    elap = time.time()
     for it, stats in enumerate(all_stats):
         if args.only_success and (stats['success'] == 0):
             continue
@@ -27,12 +36,21 @@ def visualize(args, all_stats, config):
             continue
         if stats['length'] > args.max_episode_len:
             continue
+        episode_images.append((render_episode(env, stats['infos']), stats))
+        if len(episode_images) > args.max_iters:
+            break
+        if len(episode_images) % 10 == 0:
+            print(' >>> %d Episode Rendered, Time Elapsed = %.4fs' % (len(episode_images), time.time()-elap))
+    dur = time.time()-elap
+    print('Total %d Episodes Rendered (Avg %.4fs per Ep.)' % (len(episode_images), dur / (len(episode_images))))
+    for it, dat in enumerate(episode_images):
+        images, stats = dat
         total_len += stats['length']
         total_succ += stats['success']
         print('Episode#%d, Length = %d (Avg len = %.3f)' % (it + 1, stats['length'], total_len/(it+1)))
         print(' >> Success = %d  (Rate = %.3f)' % (stats['success'], total_succ / (it + 1)))
         print(' >> Stay in Room = %d' % stats['good'])
-        render_episode(env, stats['infos'])
+        show_episode(env, images)
         time.sleep(1)
 
 
@@ -40,6 +58,8 @@ def parse_args():
     parser = argparse.ArgumentParser("Visualization for 3D House Navigation")
     # config
     parser.add_argument("file", type=str, help="evaluation stats file")
+    parser.add_argument("--max-iters", type=int, default=500,
+                        help="at most display this number of episodes")
     parser.add_argument("--max-episode-len", type=int, default=2000,
                         help="only display episode with length smaller than this number")
     parser.add_argument("--only-success", action='store_true', default=False,
