@@ -7,12 +7,14 @@ import os, time, pickle, argparse
 def render_episode(env, images):
     for im in images:
         env.render(im)
-        time.sleep(0.5)
+        time.sleep(0.3)
 
 
 def visualize(args, all_stats, config):
     env = common.create_env(config.house, hardness = config.hardness)
     env.reset_render()
+    total_len = 0
+    total_succ = 0
     for it, stats in enumerate(all_stats):
         if args.only_success and (stats['success'] == 0):
             continue
@@ -20,11 +22,13 @@ def visualize(args, all_stats, config):
             continue
         if stats['length'] > args.max_episode_len:
             continue
-        print('Episode#%d, Length = %d' % (it + 1, stats['length']))
-        print(' >> Success = %d' % stats['success'])
+        total_len += stats['length']
+        total_succ += stats['success']
+        print('Episode#%d, Length = %d (Avg len = %.3f)' % (it + 1, stats['length'], total_len/(it+1)))
+        print(' >> Success = %d  (Rate = %.3f)' % (stats['success'], total_succ / (it + 1)))
         print(' >> Stay in Room = %d' % stats['good'])
         render_episode(env, stats['images'])
-        print('Press Any Key To Continue ...')
+        input('Press Any Key To Continue ...')
 
 
 def parse_args():
