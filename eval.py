@@ -11,7 +11,7 @@ import torch.nn.functional as F
 
 def evaluate(iters = 1000, max_episode_len = 1000, hardness = None, algo='nop',
              model_name='cnn', model_file=None, log_dir='./log/eval',
-             store_images=False):
+             store_history=False):
     args = common.create_default_args(algo)
     trainer = common.create_trainer(algo, model_name, args)
     if model_file is not None:
@@ -30,10 +30,11 @@ def evaluate(iters = 1000, max_episode_len = 1000, hardness = None, algo='nop',
     elap = time.time()
     t = 0
     for it in range(iters):
-        cur_images = []
+        cur_infos = []
         obs = env.reset()
-        if store_images:
-            cur_images.append(env.render(renderMapLoc=env.cam_info['loc'], display=False))
+        if store_history:
+            cur_infos.append(env.cam_info)
+            #cur_images.append(env.render(renderMapLoc=env.cam_info['loc'], display=False))
         obs = obs.transpose([1, 0, 2])
         episode_success.append(0)
         episode_good.append(0)
@@ -47,8 +48,9 @@ def evaluate(iters = 1000, max_episode_len = 1000, hardness = None, algo='nop',
             action = trainer.action()
             # environment step
             obs, rew, done, info = env.step(action)
-            if store_images:
-                cur_images.append(env.render(renderMapLoc=env.cam_info['loc'], display=False))
+            if store_history:
+                cur_infos.append(info)
+                #cur_images.append(env.render(renderMapLoc=env.cam_info['loc'], display=False))
             obs = obs.transpose([1, 0, 2])
             cur_dist = env.cam_info['dist']
             if cur_dist == 0:
@@ -67,8 +69,8 @@ def evaluate(iters = 1000, max_episode_len = 1000, hardness = None, algo='nop',
                 cur_stats['success'] = 1
                 cur_stats['length'] = episode_step
                 break
-        if store_images:
-            cur_stats['images'] = cur_images
+        if store_history:
+            cur_stats['infos'] = cur_infos
         episode_stats.append(cur_stats)
 
         dur = time.time() - elap

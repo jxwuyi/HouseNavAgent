@@ -3,16 +3,21 @@ import common
 
 import os, time, pickle, argparse
 
-
-def render_episode(env, images):
-    for im in images:
-        env.render(im)
-        time.sleep(0.3)
+def render_episode(env, infos):
+    for i, info in enumerate(infos):
+        env.set_cam_info(info)
+        env.render(renderMapLoc=env.cam_info['loc'])
+        if i == 0:
+            time.sleep(0.6)
+        else:
+            time.sleep(0.3)
 
 
 def visualize(args, all_stats, config):
-    env = common.create_env(config.house, hardness = config.hardness)
+    common.resolution = (800, 600)
+    env = common.create_env(config.house, hardness=config.hardness)
     env.reset_render()
+    print('Resolution = {}'.format(env.resolution))
     total_len = 0
     total_succ = 0
     for it, stats in enumerate(all_stats):
@@ -27,7 +32,7 @@ def visualize(args, all_stats, config):
         print('Episode#%d, Length = %d (Avg len = %.3f)' % (it + 1, stats['length'], total_len/(it+1)))
         print(' >> Success = %d  (Rate = %.3f)' % (stats['success'], total_succ / (it + 1)))
         print(' >> Stay in Room = %d' % stats['good'])
-        render_episode(env, stats['images'])
+        render_episode(env, stats['infos'])
         time.sleep(1)
 
 
