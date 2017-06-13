@@ -28,7 +28,7 @@ def visualize(args, all_stats, config):
         print(' >> Success = %d  (Rate = %.3f)' % (stats['success'], total_succ / (it + 1)))
         print(' >> Stay in Room = %d' % stats['good'])
         render_episode(env, stats['images'])
-        input('Press Any Key To Continue ...')
+        time.sleep(1)
 
 
 def parse_args():
