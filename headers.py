@@ -50,7 +50,13 @@ class AgentTrainer(object):
         img_h, img_w = raw_frames.shape[2], raw_frames.shape[3]
         chn = raw_frames.shape[1] * raw_frames.shape[4]
         frames = Variable(torch.from_numpy(raw_frames), volatile=volatile).type(ByteTensor).permute(0, 1, 4, 2, 3).resize(batch_size, chn, img_h, img_w)
-        return frames.type(FloatTensor) / 255.0
+        return (frames.type(FloatTensor) - 128.0) / 128.0
+
+    def eval(self):
+        self.policy.eval()
+
+    def train(self):
+        self.policy.train()
 
     def save(self, save_dir, version=""):
         if len(version) > 0:

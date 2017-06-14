@@ -48,8 +48,9 @@ def initialize_weights(cls):
             m.weight.data.fill_(1)
             m.bias.data.zero_()
         elif isinstance(m, nn.Linear):
-            fan_in = m.in_features
-            m.weight.data.normal_(0, math.sqrt(1. / fan_in))
+            #m.weight.data.normal_(0, math.sqrt(1. / m.in_features))
+            #m.weight.data.linear_(-3e-4, 3e-4)
+            m.weight.data.normal_(0, 0.01)
             m.bias.data.zero_()
 
 

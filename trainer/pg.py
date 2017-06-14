@@ -82,4 +82,4 @@ class PolicyGradientTrainer(AgentTrainer):
         self.optimizer.step()
         ent = self.policy.entropy().mean()
         ent_val = ent.view(-1).data.cpu().numpy()[0]
-        return loss_val, ent_val
+        return dict(policy_loss=loss_val, policy_entropy=ent_val)

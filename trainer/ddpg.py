@@ -43,14 +43,15 @@ class DDPGTrainer(AgentTrainer):
         self.args = args
         self.gamma = args['gamma']
         self.lrate = args['lrate']
+        self.critic_lrate = args['critic_lrate']
         self.batch_size = args['batch_size']
         if args['optimizer'] == 'adam':
             self.p_optim = optim.Adam(self.p.parameters(), lr=self.lrate)
-            self.q_optim = optim.Adam(self.q.parameters(), lr=self.lrate)
+            self.q_optim = optim.Adam(self.q.parameters(), lr=self.critic_lrate)
         else:
             self.p_optim = optim.RMSprop(self.p.parameters(), lr=self.lrate)
-            self.q_optim = optim.RMSprop(self.q.parameters(), lr=self.lrate)
-        self.target_update_rate = args['target_net_update_rate'] or 1e-2
+            self.q_optim = optim.RMSprop(self.q.parameters(), lr=self.critic_lrate)
+        self.target_update_rate = args['target_net_update_rate'] or 1e-3
         self.replay_buffer = ReplayBuffer(
                                 args['replay_buffer_size'],
                                 args['frame_history_len'],
@@ -128,7 +129,7 @@ class DDPGTrainer(AgentTrainer):
         p_loss = -q_val.mean().squeeze()
         p_ent = self.p.entropy().mean().squeeze()
         if self.args['ent_penalty'] is not None:
-            p_loss += self.args['ent_penalty'] * p_ent
+            p_loss -= self.args['ent_penalty'] * p_ent  # encourage exploration
         self.p_optim.zero_grad()
         p_loss.backward()
         if self.grad_norm_clip is not None:
@@ -147,7 +148,18 @@ class DDPGTrainer(AgentTrainer):
 
         time_counter[2] += time.time()-tt
 
-        return p_loss.data.cpu().numpy()[0], p_ent.data.cpu().numpy()[0]
+        return dict(policy_loss=p_loss.data.cpu().numpy()[0],
+                    policy_entropy=p_ent.data.cpu().numpy()[0],
+                    critic_loss=q_loss.data.cpu().numpy()[0])
+
+    def train(self):
+        self.p.train()
+        self.q.train()
+        self.target_p.train()
+        self.target_q.train()
+
+    def eval(self):
+        self.p.eval()
 
     def save(self, save_dir, version=""):
         if len(version) > 0:

@@ -68,8 +68,8 @@ def train(args=None,
 
         # update all trainers
         trainer.preupdate()
-        loss, ent = trainer.update()
-        if loss is not None:
+        stats = trainer.update()
+        if stats is not None:
             update_times += 1
 
         # save results
@@ -88,9 +88,9 @@ def train(args=None,
             logger.print('Episode#%d, Updates=%d, Time Elapsed = %.3f min' % (len(episode_rewards), update_times, (time.time()-elap) / 60))
             logger.print('-> Total Samples: %d' % t)
             logger.print('-> Avg Episode Length: %.4f' % (t / len(episode_rewards)))
-            if loss is not None:
-                logger.print('  >> Loss    = %.4f' % loss)
-                logger.print('  >> Entropy = %.4f' % ent)
+            if stats is not None:
+                for k in stats.key():
+                    logger.print('  >> %s = %.4f' % (k, stats[k]))
             logger.print('  >> Reward  = %.4f' % np.mean(episode_rewards[-eval_range:]))
             print('----> Data Loading Time = %.4f min' % (time_counter[-1] / 60))
             print('----> GPU Data Transfer Time = %.4f min' % (time_counter[0] / 60))
@@ -110,13 +110,18 @@ def parse_args():
                         help="whether to use reward according to distance; o.w. indicator reward")
     # Core training parameters
     parser.add_argument("--algo", choices=['ddpg','pg'], default="ddpg", help="algorithm")
-    parser.add_argument("--lrate", type=float, help="learning rate")
+    parser.add_argument("--lrate", type=float, help="learning rate for policy")
+    parser.add_argument("--critic-lrate", type=float, help="learning rate for critic")
     parser.add_argument("--gamma", type=float, help="discount")
     parser.add_argument("--batch-size", type=int, help="batch size")
     parser.add_argument("--max-episode-len", type=int, help="maximum episode length")
     parser.add_argument("--update-freq", type=int, help="update model parameters once every this many samples collected")
     parser.add_argument("--max-iters", type=int, default=int(2e6), help="maximum number of training episodes")
     parser.add_argument("--target-net-update-rate", type=float, help="update rate for target networks")
+    parser.add_argument("--batch-norm", action='store_true', dest='use_batch_norm',
+                        help="Whether to use batch normalization in the policy network. default=False.")
+    parser.set_defaults(use_batch_norm=False)
+    parser.add_argument("--entropy-penalty", type=float, help="policy entropy regularizer")
     # Checkpointing
     parser.add_argument("--save-dir", type=str, default="./_model_", help="directory in which training state and model should be saved")
     parser.add_argument("--log-dir", type=str, default="./log", help="directory in which logs training stats")
@@ -139,9 +144,12 @@ if __name__ == '__main__':
         print('Directory <{}> does not exist! Creating directory ...'.format(cmd_args.save_dir))
         os.makedirs(cmd_args.save_dir)
 
-    args = common.create_default_args(cmd_args.algo, cmd_args.gamma, cmd_args.lrate,
+    args = common.create_default_args(cmd_args.algo, cmd_args.gamma,
+                               cmd_args.lrate, cmd_args.critic_lrate,
                                cmd_args.max_episode_len, cmd_args.batch_size,
-                               cmd_args.update_freq)
+                               cmd_args.update_freq,
+                               cmd_args.use_batch_norm,
+                               cmd_args.entropy_penalty)
 
     if cmd_args.target_net_update_rate is not None:
         args['target_net_update_rate']=cmd_args.target_net_update_rate
