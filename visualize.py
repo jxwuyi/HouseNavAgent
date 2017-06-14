@@ -43,6 +43,7 @@ def visualize(args, all_stats, config):
             print(' >>> %d Episode Rendered, Time Elapsed = %.4fs' % (len(episode_images), time.time()-elap))
     dur = time.time()-elap
     print('Total %d Episodes Rendered (Avg %.4fs per Ep.)' % (len(episode_images), dur / (len(episode_images))))
+    input('>> press any key to continue ...')
     for it, dat in enumerate(episode_images):
         images, stats = dat
         total_len += stats['length']
