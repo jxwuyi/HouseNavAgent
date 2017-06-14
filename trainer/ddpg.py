@@ -131,6 +131,7 @@ class DDPGTrainer(AgentTrainer):
         if self.args['ent_penalty'] is not None:
             p_loss -= self.args['ent_penalty'] * p_ent  # encourage exploration
         self.p_optim.zero_grad()
+        self.q_optim.zero_grad()  # important!! clear the grad in Q
         p_loss.backward()
         if self.grad_norm_clip is not None:
             nn.utils.clip_grad_norm(self.p.parameters(), self.grad_norm_clip)

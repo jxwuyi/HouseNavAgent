@@ -45,6 +45,8 @@ action_shape = (4, 2)
 colide_res = 1000
 
 
+debugger = None
+
 def genCacheFile(houseID):
     return prefix + houseID + '/cachedmap1k.pkl'
 

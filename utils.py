@@ -268,11 +268,11 @@ class ReplayBuffer(object):
 
 ######## Logging Utils ############
 class MyLogger:
-    def __init__(self, logdir, clear_file = False):
+    def __init__(self, logdir, clear_file = False, filename = None):
         import os
         if not os.path.exists(logdir):
             os.makedirs(logdir)
-        self.fname = logdir + '/progress.txt'
+        self.fname = logdir + '/' + (filename or 'progress.txt')
         if clear_file:
             try:
                 os.remove(self.fname)
