@@ -60,7 +60,7 @@ class PolicyGradientTrainer(AgentTrainer):
         pass
 
     def update(self):
-        if self.sample_counter != self.args['batch_size']: return None, None
+        if self.sample_counter != self.args['batch_size']: return None
         self.sample_counter = 0
 
         obs, full_act, rew, _, done = self.replay_buffer.sample(-1)

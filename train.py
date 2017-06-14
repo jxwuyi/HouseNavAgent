@@ -82,14 +82,14 @@ def train(args=None,
                 trainer.save(save_dir, "best")
 
         # display training output
-        if ((update_times % report_rate == 0) and (algo != 'pg') and (loss is not None)) or \
+        if ((update_times % report_rate == 0) and (algo != 'pg') and (stats is not None)) or \
             ((update_times == 0) and (algo != 'pg') and (len(episode_rewards) % 100 == 0) and (done or terminal)) or \
-            ((algo == 'pg') and (loss is not None)):
+            ((algo == 'pg') and (stats is not None)):
             logger.print('Episode#%d, Updates=%d, Time Elapsed = %.3f min' % (len(episode_rewards), update_times, (time.time()-elap) / 60))
             logger.print('-> Total Samples: %d' % t)
             logger.print('-> Avg Episode Length: %.4f' % (t / len(episode_rewards)))
             if stats is not None:
-                for k in stats.key():
+                for k in stats:
                     logger.print('  >> %s = %.4f' % (k, stats[k]))
             logger.print('  >> Reward  = %.4f' % np.mean(episode_rewards[-eval_range:]))
             print('----> Data Loading Time = %.4f min' % (time_counter[-1] / 60))

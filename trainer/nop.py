@@ -44,4 +44,4 @@ class NOPTrainer(AgentTrainer):
         pass
 
     def update(self):
-        return dict()
+        return None

@@ -86,7 +86,7 @@ class DDPGTrainer(AgentTrainer):
     def update(self):
         if (self.sample_counter < self.args['update_freq']) or \
            not self.replay_buffer.can_sample(self.batch_size * self.args['episode_len']):
-            return None, None
+            return None
         self.sample_counter = 0
 
 
