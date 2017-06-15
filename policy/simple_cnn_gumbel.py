@@ -85,7 +85,7 @@ class CNNGumbelPolicy(torch.nn.Module):
     def _get_concrete_stats(self, linear, feat, gumbel_noise = 1.0):
         logits = linear(feat)
         if gumbel_noise is not None:
-            u = torch.rand(logits.size()).type(FloatTensor)
+            u = torch.rand(logits.size()).type(FloatTensor) + 1e-9  # Important!!!
             x = Variable(torch.log(-torch.log(u)))
             logits_with_noise = logits - x * gumbel_noise
             prob = F.softmax(logits_with_noise)

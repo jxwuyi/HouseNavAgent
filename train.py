@@ -147,6 +147,7 @@ if __name__ == '__main__':
     if cmd_args.seed is not None:
         np.random.seed(cmd_args.seed)
         random.seed(cmd_args.seed)
+        torch.manual_seed(cmd_args.seed)  #optional
 
     if cmd_args.linear_reward:
         print('Using Linear Reward Function in the Env!')

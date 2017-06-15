@@ -90,9 +90,7 @@ class DDPGTrainer(AgentTrainer):
             return None
         self.sample_counter = 0
 
-
         tt = time.time()
-
 
         obs, full_act, rew, obs_next, done = \
             self.replay_buffer.sample(self.batch_size)
@@ -182,8 +180,8 @@ class DDPGTrainer(AgentTrainer):
     def train(self):
         self.p.train()
         self.q.train()
-        self.target_p.train()
-        self.target_q.train()
+        #self.target_p.train()
+        #self.target_q.train()
 
     def eval(self):
         self.p.eval()
