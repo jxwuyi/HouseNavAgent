@@ -35,9 +35,12 @@ def train(args=None,
 
     logger.print('Start Training')
 
+    common.debugger = utils.MyLogger(log_dir, True, 'full_logs.txt')
+
     episode_rewards = [0.0]
 
     obs = env.reset()
+    assert not np.any(np.isnan(obs)), 'nan detected in the observation!'
     obs = obs.transpose([1, 0, 2])
     logger.print('Observation Shape = {}'.format(obs.shape))
 
@@ -51,8 +54,10 @@ def train(args=None,
         idx = trainer.process_observation(obs)
         # get action
         action = trainer.action()
+        #proc_action = [np.exp(a) for a in action]
         # environment step
         obs, rew, done, info = env.step(action)
+        assert not np.any(np.isnan(obs)), 'nan detected in the observation!'
         obs = obs.transpose([1, 0, 2])
         episode_step += 1
         terminal = (episode_step >= args['episode_len'])
@@ -62,6 +67,7 @@ def train(args=None,
 
         if done or terminal:
             obs = env.reset()
+            assert not np.any(np.isnan(obs)), 'nan detected in the observation!'
             obs = obs.transpose([1, 0, 2])
             episode_step = 0
             episode_rewards.append(0)
@@ -71,6 +77,9 @@ def train(args=None,
         stats = trainer.update()
         if stats is not None:
             update_times += 1
+
+            if common.debugger is not None:
+                common.debugger.print('>>>>>> Update#{} Finished!!!'.format(update_times), False)
 
         # save results
         if ((done or terminal) and (len(episode_rewards) % save_rate == 0)) or\
@@ -112,6 +121,8 @@ def parse_args():
     parser.add_argument("--algo", choices=['ddpg','pg'], default="ddpg", help="algorithm")
     parser.add_argument("--lrate", type=float, help="learning rate for policy")
     parser.add_argument("--critic-lrate", type=float, help="learning rate for critic")
+    parser.add_argument('--weight-decay', type=float, help="weight decay for policy")
+    parser.add_argument('--critic-weight-decay', type=float, help="weight decay for critic")
     parser.add_argument("--gamma", type=float, help="discount")
     parser.add_argument("--batch-size", type=int, help="batch size")
     parser.add_argument("--max-episode-len", type=int, help="maximum episode length")
@@ -149,7 +160,9 @@ if __name__ == '__main__':
                                cmd_args.max_episode_len, cmd_args.batch_size,
                                cmd_args.update_freq,
                                cmd_args.use_batch_norm,
-                               cmd_args.entropy_penalty)
+                               cmd_args.entropy_penalty,
+                               cmd_args.weight_decay,
+                               cmd_args.critic_weight_decay)
 
     if cmd_args.target_net_update_rate is not None:
         args['target_net_update_rate']=cmd_args.target_net_update_rate

@@ -1,4 +1,5 @@
 from headers import *
+import utils
 from utils import *
 import common
 import os
@@ -46,11 +47,11 @@ class DDPGTrainer(AgentTrainer):
         self.critic_lrate = args['critic_lrate']
         self.batch_size = args['batch_size']
         if args['optimizer'] == 'adam':
-            self.p_optim = optim.Adam(self.p.parameters(), lr=self.lrate)
-            self.q_optim = optim.Adam(self.q.parameters(), lr=self.critic_lrate)
+            self.p_optim = optim.Adam(self.p.parameters(), lr=self.lrate, weight_decay=args['weight_decay'])  #betas=(0.5,0.999)
+            self.q_optim = optim.Adam(self.q.parameters(), lr=self.critic_lrate, weight_decay=args['critic_weight_decay'])  #betas=(0.5,0.999)
         else:
-            self.p_optim = optim.RMSprop(self.p.parameters(), lr=self.lrate)
-            self.q_optim = optim.RMSprop(self.q.parameters(), lr=self.critic_lrate)
+            self.p_optim = optim.RMSprop(self.p.parameters(), lr=self.lrate, weight_decay=args['weight_decay'])
+            self.q_optim = optim.RMSprop(self.q.parameters(), lr=self.critic_lrate, weight_decay=args['critic_weight_decay'])
         self.target_update_rate = args['target_net_update_rate'] or 1e-3
         self.replay_buffer = ReplayBuffer(
                                 args['replay_buffer_size'],
@@ -110,6 +111,7 @@ class DDPGTrainer(AgentTrainer):
         tt = time.time()
 
         # train q network
+        common.debugger.print('Grad Stats of Q Update ...', False)
         target_act_next = self.target_p(obs_next_n)
         target_q_next = self.target_q(obs_next_n, target_act_next)
         target_q = rew_n + self.gamma * (1.0 - done_n) * target_q_next
@@ -117,25 +119,43 @@ class DDPGTrainer(AgentTrainer):
         current_q = self.q(obs_n, full_act_n)
         q_norm = (current_q * current_q).mean().squeeze()  # l2 norm
         q_loss = F.smooth_l1_loss(current_q, target_q) + 0.001*q_norm  # huber
+
+        common.debugger.print('>> Q_Loss = {}'.format(q_loss.data.mean()), False)
+
         self.q_optim.zero_grad()
         q_loss.backward()
+
+        common.debugger.print('Stats of Q Network (*before* clip and opt)....', False)
+        utils.log_parameter_stats(common.debugger, self.q)
+
         if self.grad_norm_clip is not None:
-            nn.utils.clip_grad_norm(self.q.parameters(), self.grad_norm_clip)
+            #nn.utils.clip_grad_norm(self.q.parameters(), self.grad_norm_clip)
+            utils.clip_grad_norm(self.q.parameters(), self.grad_norm_clip)
         self.q_optim.step()
 
         # train p network
-        new_act_n = self.p(obs_n)  # NOTE: maybe use <gumbel_noise=None> ?
+        new_act_n = self.p(obs_n, gumbel_noise=None)  # NOTE: maybe use <gumbel_noise=None> ?
         q_val = self.q(obs_n, new_act_n)
         p_loss = -q_val.mean().squeeze()
         p_ent = self.p.entropy().mean().squeeze()
         if self.args['ent_penalty'] is not None:
             p_loss -= self.args['ent_penalty'] * p_ent  # encourage exploration
+
+        common.debugger.print('>> P_Loss = {}'.format(p_loss.data.mean()), False)
+
         self.p_optim.zero_grad()
         self.q_optim.zero_grad()  # important!! clear the grad in Q
         p_loss.backward()
+
         if self.grad_norm_clip is not None:
-            nn.utils.clip_grad_norm(self.p.parameters(), self.grad_norm_clip)
+            #nn.utils.clip_grad_norm(self.p.parameters(), self.grad_norm_clip)
+            utils.clip_grad_norm(self.p.parameters(), self.grad_norm_clip)
         self.p_optim.step()
+
+        common.debugger.print('Stats of Q Network (in the phase of P-Update)....', False)
+        utils.log_parameter_stats(common.debugger, self.q)
+        common.debugger.print('Stats of P Network (after clip and opt)....', False)
+        utils.log_parameter_stats(common.debugger, self.p)
 
 
         time_counter[1] += time.time() -tt
@@ -146,11 +166,17 @@ class DDPGTrainer(AgentTrainer):
         make_update_exp(self.p, self.target_p, rate=self.target_update_rate)
         make_update_exp(self.q, self.target_q, rate=self.target_update_rate)
 
+        common.debugger.print('Stats of Q Target Network (After Update)....', False)
+        utils.log_parameter_stats(common.debugger, self.target_q)
+        common.debugger.print('Stats of P Target Network (After Update)....', False)
+        utils.log_parameter_stats(common.debugger, self.target_p)
+
 
         time_counter[2] += time.time()-tt
 
         return dict(policy_loss=p_loss.data.cpu().numpy()[0],
                     policy_entropy=p_ent.data.cpu().numpy()[0],
+                    critic_norm=q_norm.data.cpu().numpy()[0],
                     critic_loss=q_loss.data.cpu().numpy()[0])
 
     def train(self):

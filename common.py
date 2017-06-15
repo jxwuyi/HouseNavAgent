@@ -58,10 +58,12 @@ def create_args(gamma = 0.9, lrate = 0.001, critic_lrate = 0.001,
                 replay_buffer_size = int(1e6),
                 grad_clip = 2, optimizer = 'adam',
                 update_freq = 100, ent_penalty=None,
+                decay = 0, critic_decay = 0,
                 target_net_update_rate = None,
                 use_batch_norm = False,
                 entropy_penalty = None):
     return dict(gamma=gamma, lrate=lrate, critic_lrate=critic_lrate,
+                weight_decay=decay, critic_weight_decay=critic_decay,
                 episode_len=episode_len,
                 batch_size=batch_size, replay_buffer_size=replay_buffer_size,
                 frame_history_len=frame_history_len,
@@ -74,26 +76,30 @@ def create_args(gamma = 0.9, lrate = 0.001, critic_lrate = 0.001,
 
 
 def create_default_args(algo='pg', gamma=None,
-                        lrate=None, critic_lrate=None, episode_len=None,
+                        lrate=None, critic_lrate=None,
+                        episode_len=None,
                         batch_size=None, update_freq=None,
-                        use_batch_norm=True, entropy_penalty=None):
+                        use_batch_norm=True, entropy_penalty=None,
+                        decay=None, critic_decay=None):
     if algo == 'pg':  # policy gradient
         return create_args(gamma or 0.95, lrate or 0.001, None,
-                           episode_len or 10, batch_size or 100, 1000)
+                           episode_len or 10, batch_size or 100, 1000,
+                           decay=(decay or 0))
     elif algo == 'ddpg':  # ddpg
         return create_args(gamma or 0.95, lrate or 0.001, critic_lrate or 0.001,
                            episode_len or 50,
                            batch_size or 256, int(5e5),
                            update_freq=(update_freq or 100),
                            use_batch_norm=use_batch_norm,
-                           entropy_penalty=entropy_penalty)
+                           entropy_penalty=entropy_penalty,
+                           decay=(decay or 0), critic_decay=(critic_decay or 0))
     elif algo == 'nop':
         return create_args()
     else:
         assert (False)
 
 
-def create_policy(inp_shape, act_shape, name='cnn', use_bc=True):
+def create_policy(inp_shape, act_shape, name='cnn', use_bc=False):
     if name == 'random':
         policy = RandomPolicy(act_shape)
     elif name == 'cnn':
@@ -101,8 +107,8 @@ def create_policy(inp_shape, act_shape, name='cnn', use_bc=True):
         policy = CNNPolicy(inp_shape, act_shape,
                         hiddens=[32, 32, 16, 16],
                         kernel_sizes=5, strides=2,
-                        activation = F.relu,  # F.relu
-                        use_batch_norm = use_bc)  # False
+                        activation=F.relu,  # F.relu
+                        use_batch_norm=use_bc)  # False
     else:
         assert False, 'Policy Undefined for <{}>'.format(name)
     if use_cuda:
@@ -110,13 +116,14 @@ def create_policy(inp_shape, act_shape, name='cnn', use_bc=True):
     return policy
 
 
-def create_critic(inp_shape, act_shape, algo):
+def create_critic(inp_shape, act_shape, algo, use_bc=False):
     act_dim = act_shape if isinstance(act_shape, int) else sum(act_shape)
     if algo == 'ddpg':
         critic = DDPGCritic(inp_shape, act_dim,
                             conv_hiddens=[32,16,16,8],
                             linear_hiddens=[128],
-                            activation=F.relu)  # F.elu
+                            activation=F.relu,  # F.elu
+                            use_batch_norm=use_bc)
     else:
         assert False, 'No critic defined for algo<{}>'.format(algo)
     if use_cuda:
@@ -127,17 +134,18 @@ def create_critic(inp_shape, act_shape, algo):
 def create_trainer(algo, model, args):
     # self, name, policy, obs_shape, act_shape, args)
     if algo == 'pg':
-        policy = create_policy(observation_shape, action_shape, name=model)
+        policy = create_policy(observation_shape, action_shape,
+                               name=model, use_bc=args['use_batch_norm'])
         trainer = PGTrainer('PolicyGradientTrainer', policy,
                             observation_shape, action_shape, args)
     elif algo == 'nop':
         policy = create_policy(observation_shape, action_shape,
-                               name=model, use_bc=args.use_batch_norm)
+                               name=model, use_bc=args['use_batch_norm'])
         trainer = NOPTrainer('NOPTrainer', policy, observation_shape, action_shape, args)
     elif algo == 'ddpg':
         assert(model == 'cnn')
-        critic_gen = lambda: create_critic(observation_shape, action_shape, 'ddpg')
-        policy_gen = lambda: create_policy(observation_shape, action_shape, 'cnn')
+        critic_gen = lambda: create_critic(observation_shape, action_shape, 'ddpg', args['use_batch_norm'])
+        policy_gen = lambda: create_policy(observation_shape, action_shape, 'cnn', args['use_batch_norm'])
         trainer = DDPGTrainer('DDPGTrainer', policy_gen, critic_gen,
                               observation_shape, action_shape, args)
     else:

@@ -1,4 +1,5 @@
 from headers import *
+import common
 import random
 import utils
 import torch
@@ -70,6 +71,10 @@ class DDPGCNNCritic(torch.nn.Module):
             if bc is not None:
                 x = bc(x)
             x = self.func(x)
+            if common.debugger is not None:
+                common.debugger.print("------>[C] Forward of Conv<{}>, Norm = {}, Var = {}, Max = {}, Min = {}".format(
+                                    conv, x.norm(), x.data.var(), x.data.max(), x.data.min()), False)
+
         return x
 
     def _get_feature_dim(self, D_shape_in):
@@ -87,10 +92,16 @@ class DDPGCNNCritic(torch.nn.Module):
         """
         self.feat = val = self._forward_feature(x)
         val = val.view(-1, self.feat_size)
+
+        common.debugger.print("------>[C] Forward of Critic, Feature Norm = {}, Var = {}, Max = {}, Min = {}".format(
+                                val.data.norm(), val.data.var(), val.data.max(), val.data.min()), False)
+
         if isinstance(act, list):
             val = torch.cat([val] + act, dim=1)
+            common.debugger.print("                              Norm of Action = {}".format([a.data.norm() for a in act]) , False)
         else:
             val = torch.cat([val, act], dim=1)
+            common.debugger.print("                              Norm of Action = {}".format(act.data.norm()), False)
         for i, l in enumerate(self.linear_layers):
             if i > 0:
                 val = self.func(val)

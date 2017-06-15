@@ -1,4 +1,5 @@
 from headers import *
+import common
 import random
 import utils
 import torch
@@ -66,6 +67,12 @@ class CNNGumbelPolicy(torch.nn.Module):
             if bc is not None:
                 x = bc(x)
             x = self.func(x)
+
+            if common.debugger is not None:
+                common.debugger.print("------>[P] Forward of Conv<{}>, Norm = {}, Var = {}, Max = {}, Min = {}".format(
+                                    conv, x.data.norm(), x.data.var(), x.data.max(), x.data.min()), False)
+
+
         return x
 
     def _get_feature_dim(self, D_shape_in):
@@ -95,15 +102,25 @@ class CNNGumbelPolicy(torch.nn.Module):
         """
         self.feat = feat = self._forward_feature(x)
         feat = feat.view(-1, self.feat_size)
+
+        common.debugger.print("------>[P] Forward of Policy, Feature Norm = {}, Var = {}, Max = {}, Min = {}".format(
+                                feat.data.norm(), feat.data.var(), feat.data.max(), feat.data.min()), False)
+
         self.logits = []
         self.logp = []
         self.prob = []
         for l in self.linear_layers:
             _logits, _prob, _logp = self._get_concrete_stats(l, feat, gumbel_noise)
             self.logits.append(_logits)
+
+            common.debugger.print("------>[P] Forward of Policy, Logits{}, Norm = {}, Var = {}, Max = {}, Min = {}".format(
+                                    _logits.size(1), _logits.data.norm(), _logits.data.var(), _logits.data.max(), _logits.data.min()), False)
+            common.debugger.print("------>[P] Forward of Policy, LogP{}, Norm = {}, Var = {}, Max = {}, Min = {}".format(
+                                    _logp.size(1), _logp.data.norm(), _logp.data.var(), _logp.data.max(), _logp.data.min()), False)
+
             self.logp.append(_logp)
             self.prob.append(_prob)
-        return self.prob
+        return self.prob  #self.logp
 
     ########################
     def logprob(self, actions, logp = None):
@@ -121,5 +138,5 @@ class CNNGumbelPolicy(torch.nn.Module):
             ea0 = torch.exp(a0)
             z0 = ea0.sum(1).repeat(1, d)
             p0 = ea0 / z0
-            ret = ret + torch.sum(p0 * (torch.log(z0) - a0), dim=1)
+            ret = ret + torch.sum(p0 * (torch.log(z0 + 1e-8) - a0), dim=1)
         return ret
