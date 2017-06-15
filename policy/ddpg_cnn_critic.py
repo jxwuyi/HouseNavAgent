@@ -73,7 +73,7 @@ class DDPGCNNCritic(torch.nn.Module):
             x = self.func(x)
             if common.debugger is not None:
                 common.debugger.print("------>[C] Forward of Conv<{}>, Norm = {}, Var = {}, Max = {}, Min = {}".format(
-                                    conv, x.norm(), x.data.var(), x.data.max(), x.data.min()), False)
+                                    conv, x.data.norm(), x.data.var(), x.data.max(), x.data.min()), False)
 
         return x
 

@@ -47,8 +47,8 @@ class DDPGTrainer(AgentTrainer):
         self.critic_lrate = args['critic_lrate']
         self.batch_size = args['batch_size']
         if args['optimizer'] == 'adam':
-            self.p_optim = optim.Adam(self.p.parameters(), lr=self.lrate, weight_decay=args['weight_decay'])  #betas=(0.5,0.999)
-            self.q_optim = optim.Adam(self.q.parameters(), lr=self.critic_lrate, weight_decay=args['critic_weight_decay'])  #betas=(0.5,0.999)
+            self.p_optim = optim.Adam(self.p.parameters(), lr=self.lrate, weight_decay=args['weight_decay'])  #,betas=(0.5,0.999))
+            self.q_optim = optim.Adam(self.q.parameters(), lr=self.critic_lrate, weight_decay=args['critic_weight_decay'])  #,betas=(0.5,0.999))
         else:
             self.p_optim = optim.RMSprop(self.p.parameters(), lr=self.lrate, weight_decay=args['weight_decay'])
             self.q_optim = optim.RMSprop(self.q.parameters(), lr=self.critic_lrate, weight_decay=args['critic_weight_decay'])
