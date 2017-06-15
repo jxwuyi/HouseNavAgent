@@ -37,6 +37,9 @@ class DDPGTrainer(AgentTrainer):
         self.target_p.load_state_dict(self.p.state_dict())
         self.target_q.load_state_dict(self.q.state_dict())
 
+        #self.target_p.eval()
+        #self.target_q.eval()
+
         self.obs_shape = obs_shape
         self.act_shape = act_shape
         self.act_dim = sum(act_shape)
@@ -63,6 +66,7 @@ class DDPGTrainer(AgentTrainer):
         self.sample_counter = 0
 
     def action(self):
+        #self.eval()
         frames = self.replay_buffer.encode_recent_observation()[np.newaxis, ...]
         batched_actions = self.p(self._process_frames(frames, volatile=True))
         if use_cuda:
@@ -89,7 +93,7 @@ class DDPGTrainer(AgentTrainer):
            not self.replay_buffer.can_sample(self.batch_size * self.args['episode_len']):
             return None
         self.sample_counter = 0
-
+        #self.train()
         tt = time.time()
 
         obs, full_act, rew, obs_next, done = \

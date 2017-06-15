@@ -84,9 +84,16 @@ class CNNGumbelPolicy(torch.nn.Module):
     #######################
     def _get_concrete_stats(self, linear, feat, gumbel_noise = 1.0):
         logits = linear(feat)
+        common.debugger.print("------>[P] Forward of Policy, logits = {}".format(
+                                [logits.data.cpu().numpy()]), False)
         if gumbel_noise is not None:
-            u = torch.rand(logits.size()).type(FloatTensor) + 1e-9  # Important!!!
-            x = Variable(torch.log(-torch.log(u)))
+            u = torch.rand(logits.size()).type(FloatTensor)
+            common.debugger.print("------>[P] Forward of Policy, gumbel uniform <u> Norm = {}, Var = {}, Max = {}, Min = {}".format(
+                                    u.norm(), u.var(), u.max(), u.min()), False)
+            eps = 1e-15  # IMPORTANT!!!!
+            x = Variable(torch.log(-torch.log(u + eps) + eps))
+            common.debugger.print("------>[P] Forward of Policy, gumbel noise = {}, Var = {}, Max = {}, Min = {}".format(
+                                    x.data.norm(), x.data.var(), x.data.max(), x.data.min()), False)
             logits_with_noise = logits - x * gumbel_noise
             prob = F.softmax(logits_with_noise)
             logp = F.log_softmax(logits_with_noise)
