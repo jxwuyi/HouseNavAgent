@@ -55,7 +55,7 @@ def evaluate(iters = 1000, max_episode_len = 1000, hardness = None, algo='nop',
         for _ in range(max_episode_len):
             idx = trainer.process_observation(obs)
             # get action
-            action = trainer.action()
+            action = trainer.action(False)
             # environment step
             obs, rew, done, info = env.step(action)
             if store_history:
