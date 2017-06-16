@@ -61,7 +61,8 @@ def create_args(gamma = 0.9, lrate = 0.001, critic_lrate = 0.001,
                 decay = 0, critic_decay = 0,
                 target_net_update_rate = None,
                 use_batch_norm = False,
-                entropy_penalty = None):
+                entropy_penalty = None,
+                critic_penalty=None):
     return dict(gamma=gamma, lrate=lrate, critic_lrate=critic_lrate,
                 weight_decay=decay, critic_weight_decay=critic_decay,
                 episode_len=episode_len,
@@ -71,6 +72,7 @@ def create_args(gamma = 0.9, lrate = 0.001, critic_lrate = 0.001,
                 optimizer=optimizer,
                 update_freq=update_freq,
                 ent_penalty=entropy_penalty,
+                critic_penalty=critic_penalty,
                 target_net_update_rate=target_net_update_rate,
                 use_batch_norm=use_batch_norm)
 
@@ -79,7 +81,8 @@ def create_default_args(algo='pg', gamma=None,
                         lrate=None, critic_lrate=None,
                         episode_len=None,
                         batch_size=None, update_freq=None,
-                        use_batch_norm=True, entropy_penalty=None,
+                        use_batch_norm=True,
+                        entropy_penalty=None, critic_penalty=None,
                         decay=None, critic_decay=None):
     if algo == 'pg':  # policy gradient
         return create_args(gamma or 0.95, lrate or 0.001, None,
@@ -92,6 +95,7 @@ def create_default_args(algo='pg', gamma=None,
                            update_freq=(update_freq or 100),
                            use_batch_norm=use_batch_norm,
                            entropy_penalty=entropy_penalty,
+                           critic_penalty=critic_penalty,
                            decay=(decay or 0), critic_decay=(critic_decay or 0))
     elif algo == 'nop':
         return create_args()

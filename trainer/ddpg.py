@@ -120,7 +120,7 @@ class DDPGTrainer(AgentTrainer):
         target_q.volatile = False
         current_q = self.q(obs_n, full_act_n)
         q_norm = (current_q * current_q).mean().squeeze()  # l2 norm
-        q_loss = F.smooth_l1_loss(current_q, target_q) + 0.001*q_norm  # huber
+        q_loss = F.smooth_l1_loss(current_q, target_q) + self.args['critic_penalty']*q_norm  # huber
 
         common.debugger.print('>> Q_Loss = {}'.format(q_loss.data.mean()), False)
 

@@ -133,6 +133,7 @@ def parse_args():
                         help="Whether to use batch normalization in the policy network. default=False.")
     parser.set_defaults(use_batch_norm=False)
     parser.add_argument("--entropy-penalty", type=float, help="policy entropy regularizer")
+    parser.add_argument("--critic-penalty", type=float, default=0.001, help="critic norm regularizer")
     # Checkpointing
     parser.add_argument("--save-dir", type=str, default="./_model_", help="directory in which training state and model should be saved")
     parser.add_argument("--log-dir", type=str, default="./log", help="directory in which logs training stats")
@@ -162,6 +163,7 @@ if __name__ == '__main__':
                                cmd_args.update_freq,
                                cmd_args.use_batch_norm,
                                cmd_args.entropy_penalty,
+                               cmd_args.critic_penalty,
                                cmd_args.weight_decay,
                                cmd_args.critic_weight_decay)
 
