@@ -17,6 +17,10 @@ def proc_info(info):
 def evaluate(iters = 1000, max_episode_len = 1000, hardness = None, algo='nop',
              model_name='cnn', model_file=None, log_dir='./log/eval',
              store_history=False, use_batch_norm=True):
+
+    # Do not need to log detailed computation stats
+    common.debugger = utils.FakeLogger()
+
     args = common.create_default_args(algo, use_batch_norm=use_batch_norm)
     trainer = common.create_trainer(algo, model_name, args)
     if model_file is not None:
@@ -114,9 +118,9 @@ def parse_args():
     parser.add_argument("--max-episode-len", type=int, default=2000, help="maximum episode length")
     parser.add_argument("--max-iters", type=int, default=1000, help="maximum number of eval episodes")
     parser.add_argument("--store-history", action='store_true', default=False, help="whether to store all the episode frames")
-    parser.add_argument("--no-batch-norm", action='store_false', dest='use_batch_norm',
-                        help="Whether to use batch normalization in the policy network. default=True.")
-    parser.set_defaults(use_batch_norm=True)
+    parser.add_argument("--batch-norm", action='store_true', dest='use_batch_norm',
+                        help="Whether to use batch normalization in the policy network. default=False.")
+    parser.set_defaults(use_batch_norm=False)
     # Checkpointing
     parser.add_argument("--log-dir", type=str, default="./log/eval", help="directory in which logs eval stats")
     parser.add_argument("--warmstart", type=str, help="file to load the model")

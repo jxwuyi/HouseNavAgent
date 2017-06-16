@@ -295,6 +295,15 @@ class MyLogger:
         with open(self.fname, 'a') as f:
             print(str, file=f)
 
+
+class FakeLogger:
+    def __init__(self, *args, **dict_args):
+        pass
+
+    def print(self, *args, **dict_args):
+        pass
+
+
 def log_var_stats(logger, v):
     logger.print('  -> Param<{}>, '.format(v.size())+\
                  'Val Stats = [norm = %.7f, mean = %.7f, var = %.7f, min = %.7f, max = %.7f]'%(

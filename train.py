@@ -13,7 +13,8 @@ import torch.nn.functional as F
 def train(args=None,
           houseID=0, linearReward=False, algo='pg', model_name='cnn',
           iters=2000000, report_rate=20, save_rate=1000, eval_range=200,
-          log_dir='./temp', save_dir='./_model_', warmstart=None):
+          log_dir='./temp', save_dir='./_model_', warmstart=None,
+          log_debug_info=True):
     if args is None:
         args = common.create_default_args(algo)
 
@@ -35,7 +36,10 @@ def train(args=None,
 
     logger.print('Start Training')
 
-    common.debugger = utils.MyLogger(log_dir, True, 'full_logs.txt')
+    if log_debug_info:
+        common.debugger = utils.MyLogger(log_dir, True, 'full_logs.txt')
+    else:
+        common.debugger = utils.FakeLogger()
 
     episode_rewards = [0.0]
 
@@ -140,6 +144,8 @@ def parse_args():
     parser.add_argument("--save-rate", type=int, default=1000, help="save model once every time this many episodes are completed")
     parser.add_argument("--report-rate", type=int, default=50, help="report training stats once every time this many training steps are performed")
     parser.add_argument("--warmstart", type=str, help="model to recover from. can be either a directory or a file.")
+    parser.add_argument("--no-debug", action="store_false", dest="debug", help="do not log all the computation details")
+    parser.set_defaults(debug=True)
     return parser.parse_args()
 
 
@@ -165,7 +171,8 @@ if __name__ == '__main__':
                                cmd_args.entropy_penalty,
                                cmd_args.critic_penalty,
                                cmd_args.weight_decay,
-                               cmd_args.critic_weight_decay)
+                               cmd_args.critic_weight_decay,
+                               cmd_args.debug)
 
     if cmd_args.target_net_update_rate is not None:
         args['target_net_update_rate']=cmd_args.target_net_update_rate
