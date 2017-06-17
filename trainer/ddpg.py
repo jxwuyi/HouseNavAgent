@@ -66,7 +66,7 @@ class DDPGTrainer(AgentTrainer):
         self.sample_counter = 0
 
     def action(self, gumbel_noise=True):
-        #self.eval()
+        self.eval()
         frames = self.replay_buffer.encode_recent_observation()[np.newaxis, ...]
         frames = self._process_frames(frames, volatile=True)
         if gumbel_noise:
@@ -97,7 +97,7 @@ class DDPGTrainer(AgentTrainer):
            not self.replay_buffer.can_sample(self.batch_size * self.args['episode_len']):
             return None
         self.sample_counter = 0
-        #self.train()
+        self.train()
         tt = time.time()
 
         obs, full_act, rew, obs_next, done = \
@@ -140,7 +140,7 @@ class DDPGTrainer(AgentTrainer):
         self.q_optim.step()
 
         # train p network
-        new_act_n = self.p(obs_n, gumbel_noise=None)  # NOTE: maybe use <gumbel_noise=None> ?
+        new_act_n = self.p(obs_n)  # NOTE: maybe use <gumbel_noise=None> ?
         q_val = self.q(obs_n, new_act_n)
         p_loss = -q_val.mean().squeeze()
         p_ent = self.p.entropy().mean().squeeze()

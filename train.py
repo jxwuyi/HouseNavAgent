@@ -171,8 +171,7 @@ if __name__ == '__main__':
                                cmd_args.entropy_penalty,
                                cmd_args.critic_penalty,
                                cmd_args.weight_decay,
-                               cmd_args.critic_weight_decay,
-                               cmd_args.debug)
+                               cmd_args.critic_weight_decay)
 
     if cmd_args.target_net_update_rate is not None:
         args['target_net_update_rate']=cmd_args.target_net_update_rate
@@ -185,4 +184,5 @@ if __name__ == '__main__':
           algo=cmd_args.algo, iters=cmd_args.max_iters,
           report_rate=cmd_args.report_rate, save_rate=cmd_args.save_rate,
           log_dir=cmd_args.log_dir, save_dir=cmd_args.save_dir,
-          warmstart=cmd_args.warmstart)
+          warmstart=cmd_args.warmstart,
+          log_debug_info=cmd_args.debug)
