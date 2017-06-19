@@ -138,6 +138,7 @@ def parse_args():
     parser.set_defaults(use_batch_norm=False)
     parser.add_argument("--entropy-penalty", type=float, help="policy entropy regularizer")
     parser.add_argument("--critic-penalty", type=float, default=0.001, help="critic norm regularizer")
+    parser.add_argument("--replay-buffer-size", type=int, help="size of replay buffer")
     # Checkpointing
     parser.add_argument("--save-dir", type=str, default="./_model_", help="directory in which training state and model should be saved")
     parser.add_argument("--log-dir", type=str, default="./log", help="directory in which logs training stats")
@@ -171,7 +172,8 @@ if __name__ == '__main__':
                                cmd_args.entropy_penalty,
                                cmd_args.critic_penalty,
                                cmd_args.weight_decay,
-                               cmd_args.critic_weight_decay)
+                               cmd_args.critic_weight_decay,
+                               cmd_args.replay_buffer_size)
 
     if cmd_args.target_net_update_rate is not None:
         args['target_net_update_rate']=cmd_args.target_net_update_rate

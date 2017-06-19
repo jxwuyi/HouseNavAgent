@@ -317,8 +317,10 @@ def log_var_stats(logger, v):
         ), False)
 
 def log_parameter_stats(logger, p):
+    if (logger is None) or isinstance(logger, FakeLogger):
+        return
     assert isinstance(p, nn.Module), '[Error in <utils.log_parameter_stats>] policy must be an instance of <nn.Module>'
-    assert isinstance(logger, MyLogger), '[Error in <utils.log_parameter_stats>] logger must be an instance of <utils.MyLogger>'
+    assert hasattr(logger, 'print'), '[Error in <utils.log_parameter_stats>] logger must have method <print>'
     if hasattr(p,'conv_layers'):
         for i,conv in enumerate(p.conv_layers):
             if conv is None: continue

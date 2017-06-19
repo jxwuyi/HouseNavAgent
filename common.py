@@ -83,7 +83,8 @@ def create_default_args(algo='pg', gamma=None,
                         batch_size=None, update_freq=None,
                         use_batch_norm=True,
                         entropy_penalty=None, critic_penalty=None,
-                        decay=None, critic_decay=None):
+                        decay=None, critic_decay=None,
+                        replay_buffer_size=None):
     if algo == 'pg':  # policy gradient
         return create_args(gamma or 0.95, lrate or 0.001, None,
                            episode_len or 10, batch_size or 100, 1000,
@@ -91,7 +92,8 @@ def create_default_args(algo='pg', gamma=None,
     elif algo == 'ddpg':  # ddpg
         return create_args(gamma or 0.95, lrate or 0.001, critic_lrate or 0.001,
                            episode_len or 50,
-                           batch_size or 256, int(5e5),
+                           batch_size or 256,
+                           replay_buffer_size or int(5e5),
                            update_freq=(update_freq or 100),
                            use_batch_norm=use_batch_norm,
                            entropy_penalty=entropy_penalty,
