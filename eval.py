@@ -24,6 +24,8 @@ def evaluate(house,
     common.debugger = utils.FakeLogger()
 
     args = common.create_default_args(algo, use_batch_norm=use_batch_norm,
+                                      replay_buffer_size=50,
+                                      episode_len=max_episode_len,
                                       rnn_units=rnn_units, rnn_layers=rnn_layers, rnn_cell=rnn_cell)
     trainer = common.create_trainer(algo, model_name, args)
     if model_file is not None:
@@ -58,10 +60,10 @@ def evaluate(house,
         if hasattr(env.world, "_id"):
             cur_stats['world_id'] = env.world._id
         episode_step = 0
-        for _ in range(max_episode_len):
+        for _st in range(max_episode_len):
             idx = trainer.process_observation(obs)
             # get action
-            action = trainer.action(False)
+            action = trainer.action(True)  # use gumbel noise
             # environment step
             obs, rew, done, info = env.step(action)
             if store_history:
@@ -77,10 +79,8 @@ def evaluate(house,
                 cur_stats['best_dist'] = cur_dist
             episode_step += 1
             # collect experience
-            trainer.process_experience(idx, action, rew, done, False)
+            trainer.process_experience(idx, action, rew, done, (_st + 1 >= max_episode_len))
             if done:
-                obs = env.reset()
-                obs = obs.transpose([1, 0, 2])
                 episode_success[-1] = 1
                 cur_stats['success'] = 1
                 cur_stats['length'] = episode_step
