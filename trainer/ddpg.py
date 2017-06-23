@@ -1,6 +1,7 @@
 from headers import *
 import utils
 from utils import *
+from replay_buffer import *
 import common
 import os
 import numpy as np
@@ -24,7 +25,7 @@ def make_update_exp(vals, target_vals, rate=1e-3):
 
 class DDPGTrainer(AgentTrainer):
     def __init__(self, name, policy_creator, critic_creator,
-                 obs_shape, act_shape, args):
+                 obs_shape, act_shape, args, replay_buffer=None):
         self.name = name
         self.p = policy_creator()
         self.q = critic_creator()
@@ -56,7 +57,8 @@ class DDPGTrainer(AgentTrainer):
             self.p_optim = optim.RMSprop(self.p.parameters(), lr=self.lrate, weight_decay=args['weight_decay'])
             self.q_optim = optim.RMSprop(self.q.parameters(), lr=self.critic_lrate, weight_decay=args['critic_weight_decay'])
         self.target_update_rate = args['target_net_update_rate'] or 1e-3
-        self.replay_buffer = ReplayBuffer(
+        self.replay_buffer = replay_buffer or \
+                             ReplayBuffer(
                                 args['replay_buffer_size'],
                                 args['frame_history_len'],
                                 action_shape=[self.act_dim],
@@ -194,17 +196,17 @@ class DDPGTrainer(AgentTrainer):
     def eval(self):
         self.p.eval()
 
-    def save(self, save_dir, version=""):
+    def save(self, save_dir, version="", prefix="DDPG"):
         if len(version) > 0:
             version = "_" + version
         if save_dir[-1] != '/':
             save_dir += '/'
-        filename = save_dir + "DDPG_" + self.name + version + '.pkl'
+        filename = save_dir + prefix + "_" + self.name + version + '.pkl'
         all_data = [self.p.state_dict(), self.target_p.state_dict(),
                     self.q.state_dict(), self.target_q.state_dict()]
         torch.save(all_data, filename)
 
-    def load(self, save_dir, version=""):
+    def load(self, save_dir, version="", prefix="DDPG"):
         if os.path.isfile(save_dir) or (version is None):
             filename = save_dir
         else:
@@ -212,7 +214,7 @@ class DDPGTrainer(AgentTrainer):
                 version = "_" + version
             if save_dir[-1] != '/':
                 save_dir += '/'
-            filename = save_dir + "DDPG_" + self.name + version + '.pkl'
+            filename = save_dir + prefix + "_" + self.name + version + '.pkl'
         all_data = torch.load(filename)
         self.p.load_state_dict(all_data[0])
         self.target_p.load_state_dict(all_data[1])

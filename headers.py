@@ -29,6 +29,9 @@ class AgentTrainer(object):
     def __init__():
         pass
 
+    def reset_agent(self):
+        pass
+
     def action(self, obs):
         raise NotImplemented()
 
@@ -41,15 +44,22 @@ class AgentTrainer(object):
     def update(self, agents):
         raise NotImplemented()
 
-    def _process_frames(self, raw_frames, volatile=False):
+    def _process_frames(self, raw_frames, volatile=False, merge_dim=True, return_variable=True):
         """
         frames: (batch_size, len, n, m, channel_n) in numpy
-        --> output (batch_size, len * channel_n, n, m), processed as FloatTensor
+        output:
+        >> merge_dim=True: (batch_size, len * channel_n, n, m), processed as FloatTensor
+           merge_dim=False:(batch_size, len, channel_n, n, m), processed as FloatTensor
         """
         batch_size = raw_frames.shape[0]
         img_h, img_w = raw_frames.shape[2], raw_frames.shape[3]
         chn = raw_frames.shape[1] * raw_frames.shape[4]
-        frames = Variable(torch.from_numpy(raw_frames), volatile=volatile).type(ByteTensor).permute(0, 1, 4, 2, 3).resize(batch_size, chn, img_h, img_w)
+        if return_variable:
+            frames = Variable(torch.from_numpy(raw_frames), volatile=volatile)
+        else:
+            frames = torch.from_numpy(raw_frames)
+        frames = frames.type(ByteTensor).permute(0, 1, 4, 2, 3)
+        if merge_dim: frames = frames.resize(batch_size, chn, img_h, img_w)
         return (frames.type(FloatTensor) - 128.0) / 128.0
 
     def eval(self):

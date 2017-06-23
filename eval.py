@@ -14,14 +14,17 @@ def proc_info(info):
                 yaw=info['yaw'], loc=info['loc'], grid=info['grid'],
                 dist=info['dist'])
 
-def evaluate(iters = 1000, max_episode_len = 1000, hardness = None, algo='nop',
+def evaluate(house,
+             iters = 1000, max_episode_len = 1000, hardness = None, algo='nop',
              model_name='cnn', model_file=None, log_dir='./log/eval',
-             store_history=False, use_batch_norm=True):
+             store_history=False, use_batch_norm=True,
+             rnn_units=None, rnn_layers=None, rnn_cell=None):
 
     # Do not need to log detailed computation stats
     common.debugger = utils.FakeLogger()
 
-    args = common.create_default_args(algo, use_batch_norm=use_batch_norm)
+    args = common.create_default_args(algo, use_batch_norm=use_batch_norm,
+                                      rnn_units=rnn_units, rnn_layers=rnn_layers, rnn_cell=rnn_cell)
     trainer = common.create_trainer(algo, model_name, args)
     if model_file is not None:
         trainer.load(model_file)
@@ -29,7 +32,7 @@ def evaluate(iters = 1000, max_episode_len = 1000, hardness = None, algo='nop',
 
     if hardness is not None:
         print('>>>> Hardness = {}'.format(hardness))
-    env = common.create_env(hardness=hardness)
+    env = common.create_env(house, hardness=hardness)
 
     logger = utils.MyLogger(log_dir, True)
     logger.print('Start Evaluating ...')
@@ -41,6 +44,7 @@ def evaluate(iters = 1000, max_episode_len = 1000, hardness = None, algo='nop',
     t = 0
     for it in range(iters):
         cur_infos = []
+        trainer.reset_agent()
         obs = env.reset()
         if store_history:
             cur_infos.append(proc_info(env.cam_info))
@@ -51,6 +55,8 @@ def evaluate(iters = 1000, max_episode_len = 1000, hardness = None, algo='nop',
         cur_stats = dict(best_dist=1e50,
                          success=0, good=0, reward=0,
                          length=max_episode_len, images=None)
+        if hasattr(env.world, "_id"):
+            cur_stats['world_id'] = env.world._id
         episode_step = 0
         for _ in range(max_episode_len):
             idx = trainer.process_observation(obs)
@@ -114,13 +120,20 @@ def parse_args():
     parser.add_argument("--seed", type=int, default=0, help="random seed")
     parser.add_argument("--hardness", type=float, help="real number from 0 to 1, indicating the hardness of the environment")
     # Core parameters
-    parser.add_argument("--algo", choices=['nop','pg','ddpg'], default="ddpg", help="algorithm for training")
+    parser.add_argument("--algo", choices=['nop','pg','ddpg', 'rdpg'], default="ddpg", help="algorithm for training")
     parser.add_argument("--max-episode-len", type=int, default=2000, help="maximum episode length")
     parser.add_argument("--max-iters", type=int, default=1000, help="maximum number of eval episodes")
     parser.add_argument("--store-history", action='store_true', default=False, help="whether to store all the episode frames")
     parser.add_argument("--batch-norm", action='store_true', dest='use_batch_norm',
                         help="Whether to use batch normalization in the policy network. default=False.")
     parser.set_defaults(use_batch_norm=False)
+    # RNN Parameters
+    parser.add_argument("--rnn-units", type=int,
+                        help="[RNN-Only] number of units in an RNN cell")
+    parser.add_argument("--rnn-layers", type=int,
+                        help="[RNN-Only] number of layers in RNN")
+    parser.add_argument("--rnn-cell", choices=['lstm', 'gru'],
+                        help="[RNN-Only] RNN cell type")
     # Checkpointing
     parser.add_argument("--log-dir", type=str, default="./log/eval", help="directory in which logs eval stats")
     parser.add_argument("--warmstart", type=str, help="file to load the model")
@@ -140,9 +153,10 @@ if __name__ == '__main__':
 
     model_name = 'random' if args.warmstart is None else 'cnn'
     episode_stats = \
-        evaluate(args.max_iters, args.max_episode_len, args.hardness,
+        evaluate(args.house, args.max_iters, args.max_episode_len, args.hardness,
                  args.algo, model_name, args.warmstart, args.log_dir,
-                 args.store_history, args.use_batch_norm)
+                 args.store_history, args.use_batch_norm,
+                 args.rnn_units, args.rnn_layers, args.rnn_cell)
 
     if args.store_history:
         filename = args.log_dir

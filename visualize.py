@@ -36,6 +36,8 @@ def visualize(args, all_stats, config):
             continue
         if stats['length'] > args.max_episode_len:
             continue
+        if 'world_id' in stats:
+            env.reset(stats['world_id'])
         episode_images.append((render_episode(env, stats['infos']), stats))
         if len(episode_images) > args.max_iters:
             break

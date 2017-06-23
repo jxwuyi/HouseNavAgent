@@ -11,7 +11,7 @@ import torch.nn.functional as F
 
 
 def train(args=None,
-          houseID=0, linearReward=False, algo='pg', model_name='cnn',
+          houseID=0, linearReward=False, algo='pg', model_name='cnn',  # NOTE: optional: model_name='rnn'
           iters=2000000, report_rate=20, save_rate=1000, eval_range=200,
           log_dir='./temp', save_dir='./_model_', warmstart=None,
           log_debug_info=True):
@@ -43,6 +43,7 @@ def train(args=None,
 
     episode_rewards = [0.0]
 
+    trainer.reset_agent()
     obs = env.reset()
     assert not np.any(np.isnan(obs)), 'nan detected in the observation!'
     obs = obs.transpose([1, 0, 2])
@@ -70,6 +71,7 @@ def train(args=None,
         episode_rewards[-1] += rew
 
         if done or terminal:
+            trainer.reset_agent()
             obs = env.reset()
             assert not np.any(np.isnan(obs)), 'nan detected in the observation!'
             obs = obs.transpose([1, 0, 2])
@@ -81,7 +83,6 @@ def train(args=None,
         stats = trainer.update()
         if stats is not None:
             update_times += 1
-
             if common.debugger is not None:
                 common.debugger.print('>>>>>> Update#{} Finished!!!'.format(update_times), False)
 
@@ -116,13 +117,14 @@ def train(args=None,
 def parse_args():
     parser = argparse.ArgumentParser("Reinforcement Learning for 3D House Navigation")
     # Environment
-    parser.add_argument("--house", type=int, default=0, help="house ID")
+    parser.add_argument("--house", type=int, default=0,
+                        help="house ID (default 0); if < 0, then multi-house environment")
     parser.add_argument("--seed", type=int, help="random seed")
     parser.add_argument("--hardness", type=float, help="real number from 0 to 1, indicating the hardness of the environment")
     parser.add_argument("--linear-reward", action='store_true', default=False,
                         help="whether to use reward according to distance; o.w. indicator reward")
     # Core training parameters
-    parser.add_argument("--algo", choices=['ddpg','pg'], default="ddpg", help="algorithm")
+    parser.add_argument("--algo", choices=['ddpg','pg', 'rdpg'], default="ddpg", help="algorithm")
     parser.add_argument("--lrate", type=float, help="learning rate for policy")
     parser.add_argument("--critic-lrate", type=float, help="learning rate for critic")
     parser.add_argument('--weight-decay', type=float, help="weight decay for policy")
@@ -139,6 +141,15 @@ def parse_args():
     parser.add_argument("--entropy-penalty", type=float, help="policy entropy regularizer")
     parser.add_argument("--critic-penalty", type=float, default=0.001, help="critic norm regularizer")
     parser.add_argument("--replay-buffer-size", type=int, help="size of replay buffer")
+    # RNN Parameters
+    parser.add_argument("--rnn-units", type=int,
+                        help="[RNN-Only] number of units in an RNN cell")
+    parser.add_argument("--rnn-layers", type=int,
+                        help="[RNN-Only] number of layers in RNN")
+    parser.add_argument("--batch-length", type=int,
+                        help="[RNN-Only] maximum length of an episode in a batch")
+    parser.add_argument("--rnn-cell", choices=['lstm', 'gru'],
+                        help="[RNN-Only] RNN cell type")
     # Checkpointing
     parser.add_argument("--save-dir", type=str, default="./_model_", help="directory in which training state and model should be saved")
     parser.add_argument("--log-dir", type=str, default="./log", help="directory in which logs training stats")
@@ -173,7 +184,10 @@ if __name__ == '__main__':
                                cmd_args.critic_penalty,
                                cmd_args.weight_decay,
                                cmd_args.critic_weight_decay,
-                               cmd_args.replay_buffer_size)
+                               cmd_args.replay_buffer_size,
+                               # RNN Parameters
+                               cmd_args.batch_length, cmd_args.rnn_layers,
+                               cmd_args.rnn_cell, cmd_args.rnn_units)
 
     if cmd_args.target_net_update_rate is not None:
         args['target_net_update_rate']=cmd_args.target_net_update_rate
