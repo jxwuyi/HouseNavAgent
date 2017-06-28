@@ -10,11 +10,24 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+def create_scheduler():
+    endpoints = [(0, 0.25), (3000, 0.33), (10000, 0.5), (30000, 1.0)]
+    print('Building PiecewiseScheduler with <endpoints> = {}'.format(endpoints))
+    scheduler = utils.PiecewiseSchedule(endpoints, outside_value=1.0)
+    return scheduler
+
+
 def train(args=None,
           houseID=0, linearReward=False, algo='pg', model_name='cnn',  # NOTE: optional: model_name='rnn'
           iters=2000000, report_rate=20, save_rate=1000, eval_range=200,
           log_dir='./temp', save_dir='./_model_', warmstart=None,
           log_debug_info=True):
+
+    if 'scheduler' in args:
+        scheduler = args['scheduler']
+    else:
+        scheduler = None
+
     if args is None:
         args = common.create_default_args(algo)
 
@@ -58,7 +71,11 @@ def train(args=None,
     while(len(episode_rewards) <= iters):
         idx = trainer.process_observation(obs)
         # get action
-        action = trainer.action()
+        if scheduler is not None:
+            noise_level = scheduler.value(len(episode_rewards) - 1)
+            action = trainer.action(noise_level)
+        else:
+            action = trainer.action()
         #proc_action = [np.exp(a) for a in action]
         # environment step
         obs, rew, done, info = env.step(action)
@@ -142,6 +159,9 @@ def parse_args():
     parser.add_argument("--entropy-penalty", type=float, help="policy entropy regularizer")
     parser.add_argument("--critic-penalty", type=float, default=0.001, help="critic norm regularizer")
     parser.add_argument("--replay-buffer-size", type=int, help="size of replay buffer")
+    parser.add_argument("--noise-scheduler", action='store_true', dest='scheduler',
+                        help="Whether to use noise-level scheduler to control the smoothness of action output. default=False.")
+    parser.set_defaults(scheduler=False)
     # RNN Parameters
     parser.add_argument("--rnn-units", type=int,
                         help="[RNN-Only] number of units in an RNN cell")
@@ -200,6 +220,9 @@ if __name__ == '__main__':
 
     if cmd_args.hardness is not None:
         args['hardness'] = cmd_args.hardness
+
+    if cmd_args.scheduler:
+        args['scheduler'] = create_scheduler()
 
     train(args,
           houseID=cmd_args.house, linearReward=cmd_args.linear_reward,

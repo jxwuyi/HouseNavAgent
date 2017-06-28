@@ -67,12 +67,12 @@ class DDPGTrainer(AgentTrainer):
         self.grad_norm_clip = args['grad_clip']
         self.sample_counter = 0
 
-    def action(self, gumbel_noise=True):
+    def action(self, gumbel_noise=None):
         self.eval()
         frames = self.replay_buffer.encode_recent_observation()[np.newaxis, ...]
         frames = self._process_frames(frames, volatile=True)
-        if gumbel_noise:
-            batched_actions = self.p(frames)
+        if gumbel_noise is not None:
+            batched_actions = self.p(frames, gumbel_noise)
         else:
             batched_actions = self.p(frames, None)
         if use_cuda:

@@ -83,7 +83,6 @@ class RDPGTrainer(DDPGTrainer):
         _full_obs_n = self._process_frames(obs, merge_dim=False, return_variable=False)  # [batch, seq_len+1, ...]
         batch = _full_obs_n.size(0)
         seq_len = _full_obs_n.size(1) - 1
-        n_samples = batch * seq_len
         full_obs_n = Variable(_full_obs_n, volatile=True)
         obs_n = Variable(_full_obs_n[:, :-1, ...]).contiguous() # [batch, seq_len, ...]
         obs_next_n = Variable(_full_obs_n[:, 1:, ...], volatile=True).contiguous()

@@ -275,9 +275,10 @@ class RNNReplayBuffer(object):
         for i, idx in enumerate(idxes):
             self.msk_batch[i] = 0
             _len, done, _obs_epis, _act_epis, _rew_epis = self._encode_observation(idx, seq_len)
-            total_length += _len
-            self.msk_batch[i, :_len] = 1
-            self.done_batch[i, :_len] = 1
+            start_pos = _len // 2    # Only compute loss of the last half of the episode
+            total_length += _len - start_pos
+            self.msk_batch[i, start_pos:_len] = 1
+            self.done_batch[i, start_pos:_len] = 1
             if done: self.done_batch[i, _len - 1] = 0
             self.obs_batch[i] = _obs_epis
             self.act_batch[i] = _act_epis
@@ -292,9 +293,9 @@ class RNNReplayBuffer(object):
         assert self.can_sample(batch_size) or (batch_size < 0)
         if seq_len is None: seq_len = self.max_seq_len
         if batch_size < 0:
-            idxes = list(range(0, self.num_in_buffer - 1))
+            idxes = list(range(0, self.num_in_buffer))
         else:
-            idxes = sample_n_unique(lambda: random.randint(0, self.num_in_buffer - 2), batch_size)
+            idxes = sample_n_unique(lambda: random.randint(0, self.num_in_buffer - 1), batch_size)
 
         if (self.batch_size is None) or (len(idxes) != self.batch_size) \
             or (seq_len != self.seq_len):

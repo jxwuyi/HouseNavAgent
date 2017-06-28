@@ -11,6 +11,7 @@ from torch.autograd import Variable
 class RNNGumbelPolicy(torch.nn.Module):
     def __init__(self, D_shape_in, D_out,
                  conv_hiddens = [], kernel_sizes=5, strides=2,
+                 linear_hiddens = [],
                  rnn_cell = 'lstm', rnn_layers=1, rnn_units=128,
                  activation=F.relu, use_batch_norm = True):
         """
@@ -73,13 +74,27 @@ class RNNGumbelPolicy(torch.nn.Module):
                              batch_first=True)
         utils.initialize_weights(self.cell)
 
-        # build final linear layer
-        self.rnn_output_size = self.rnn_units
         self.linear_layers = []
-        for i, d in enumerate(self.D_out):
-            self.linear_layers.append(nn.Linear(self.rnn_output_size, d))
+        self.l_bc_layers = []
+        self.rnn_output_size = cur_dim = self.rnn_units
+        for i,d in enumerate(linear_hiddens):
+            self.linear_layers.append(nn.Linear(cur_dim, d))
             setattr(self, 'linear_layer%d'%i, self.linear_layers[-1])
             utils.initialize_weights(self.linear_layers[-1])
+            if use_batch_norm:
+                self.l_bc_layers.append(nn.BatchNorm1d(d))
+                setattr(self, 'l_bc_layer%d'%i, self.l_bc_layers[-1])
+                utils.initialize_weights(self.l_bc_layers[-1])
+            else:
+                self.l_bc_layers.append(None)
+            cur_dim = d
+
+        # build final linear layer
+        self.final_layers = []
+        for i, d in enumerate(self.D_out):
+            self.final_layers.append(nn.Linear(cur_dim, d))
+            setattr(self, 'output_layer%d'%i, self.final_layers[-1])
+            utils.initialize_weights(self.final_layers[-1], small_init=True)
 
     ######################
     def _forward_feature(self, x):
@@ -114,7 +129,7 @@ class RNNGumbelPolicy(torch.nn.Module):
             u = torch.rand(logits.size()).type(FloatTensor)
             eps = 1e-15  # IMPORTANT!!!!
             x = Variable(torch.log(-torch.log(u + eps) + eps))
-            logits_with_noise = logits - x * gumbel_noise
+            logits_with_noise = (logits - x) * gumbel_noise
             prob = F.softmax(logits_with_noise)
             logp = F.log_softmax(logits_with_noise)
         else:
@@ -149,11 +164,17 @@ class RNNGumbelPolicy(torch.nn.Module):
         outputs, new_h = self.cell(feat, h)
 
         feat = outputs.resize(batch * seq_len, self.rnn_output_size)
-
+        for l,bc in zip(self.linear_layers, self.l_bc_layers):
+            feat = l(feat)
+            if bc is not None:
+                feat = bc(feat)
+            feat = self.func(feat)
+            common.debugger.print("------>[P] Forward of Policy, Mid-Feature Norm = {}, Var = {}, Max = {}, Min = {}".format(
+                                    feat.data.norm(), feat.data.var(), feat.data.max(), feat.data.min()), False)
         self.logits = []
         self.logp = []
         self.prob = []
-        for l in self.linear_layers:
+        for l in self.final_layers:
             _logits, _prob, _logp = self._get_concrete_stats(batch, seq_len, l, feat, gumbel_noise)
             self.logits.append(_logits)
 

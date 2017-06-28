@@ -10,6 +10,7 @@ from torch.autograd import Variable
 
 class CNNGumbelPolicy(torch.nn.Module):
     def __init__(self, D_shape_in, D_out, hiddens, kernel_sizes=5, strides=2,
+                linear_hiddens=[],
                 activation=F.relu, use_batch_norm = True):
         """
         D_shape_in: tupe of two ints, the shape of input images
@@ -53,11 +54,26 @@ class CNNGumbelPolicy(torch.nn.Module):
                 self.bc_layers.append(None)
             prev_hidden = h
         self.feat_size = self._get_feature_dim(D_shape_in)
+        cur_dim = self.feat_size
         self.linear_layers = []
-        for i, d in enumerate(self.D_out):
-            self.linear_layers.append(nn.Linear(self.feat_size, d))
+        self.l_bc_layers = []
+        for i,d in enumerate(linear_hiddens):
+            self.linear_layers.append(nn.Linear(cur_dim, d))
             setattr(self, 'linear_layer%d'%i, self.linear_layers[-1])
             utils.initialize_weights(self.linear_layers[-1])
+            if use_batch_norm:
+                self.l_bc_layers.append(nn.BatchNorm1d(d))
+                setattr(self, 'l_bc_layer%d'%i, self.l_bc_layers[-1])
+                utils.initialize_weights(self.l_bc_layers[-1])
+            else:
+                self.l_bc_layers.append(None)
+            cur_dim = d
+        self.final_size = cur_dim
+        self.final_layers = []
+        for i, d in enumerate(self.D_out):
+            self.final_layers.append(nn.Linear(self.final_size, d))
+            setattr(self, 'output_layer%d'%i, self.final_layers[-1])
+            utils.initialize_weights(self.final_layers[-1], small_init=True)
 
     ######################
     def _forward_feature(self, x):
@@ -66,12 +82,9 @@ class CNNGumbelPolicy(torch.nn.Module):
             if bc is not None:
                 x = bc(x)
             x = self.func(x)
-
             if common.debugger is not None:
                 common.debugger.print("------>[P] Forward of Conv<{}>, Norm = {}, Var = {}, Max = {}, Min = {}".format(
                                     conv, x.data.norm(), x.data.var(), x.data.max(), x.data.min()), False)
-
-
         return x
 
     def _get_feature_dim(self, D_shape_in):
@@ -80,7 +93,7 @@ class CNNGumbelPolicy(torch.nn.Module):
         out_feat = self._forward_feature(inp)
         print('>> Final CNN Shape = {}'.format(out_feat.size()))
         n_size = out_feat.data.view(bs, -1).size(1)
-        print('Feature Size = %d ()' % n_size)
+        print('Feature Size = %d' % n_size)
         return n_size
     #######################
     def _get_concrete_stats(self, linear, feat, gumbel_noise = 1.0):
@@ -89,7 +102,7 @@ class CNNGumbelPolicy(torch.nn.Module):
             u = torch.rand(logits.size()).type(FloatTensor)
             eps = 1e-15  # IMPORTANT!!!!
             x = Variable(torch.log(-torch.log(u + eps) + eps))
-            logits_with_noise = logits - x * gumbel_noise
+            logits_with_noise = logits * gumbel_noise - x
             prob = F.softmax(logits_with_noise)
             logp = F.log_softmax(logits_with_noise)
         else:
@@ -106,11 +119,17 @@ class CNNGumbelPolicy(torch.nn.Module):
         feat = feat.view(-1, self.feat_size)
         common.debugger.print("------>[P] Forward of Policy, Feature Norm = {}, Var = {}, Max = {}, Min = {}".format(
                                 feat.data.norm(), feat.data.var(), feat.data.max(), feat.data.min()), False)
-
+        for l,bc in zip(self.linear_layers, self.l_bc_layers):
+            feat = l(feat)
+            if bc is not None:
+                feat = bc(feat)
+            feat = self.func(feat)
+            common.debugger.print("------>[P] Forward of Policy, Mid-Feature Norm = {}, Var = {}, Max = {}, Min = {}".format(
+                                    feat.data.norm(), feat.data.var(), feat.data.max(), feat.data.min()), False)
         self.logits = []
         self.logp = []
         self.prob = []
-        for l in self.linear_layers:
+        for l in self.final_layers:
             _logits, _prob, _logp = self._get_concrete_stats(l, feat, gumbel_noise)
             self.logits.append(_logits)
 

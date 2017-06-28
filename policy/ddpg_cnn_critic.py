@@ -61,7 +61,7 @@ class DDPGCNNCritic(torch.nn.Module):
         for i, d in enumerate(linear_hiddens):
             self.linear_layers.append(nn.Linear(prev_dim, d))
             setattr(self, 'linear_layer%d'%i, self.linear_layers[-1])
-            utils.initialize_weights(self.linear_layers[-1])
+            utils.initialize_weights(self.linear_layers[-1], small_init=(i == len(linear_hiddens) - 1))
             prev_dim = d
 
     ######################

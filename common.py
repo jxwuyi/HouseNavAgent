@@ -135,14 +135,16 @@ def create_policy(args, inp_shape, act_shape, name='cnn'):
     elif name == 'cnn':
         # assume CNN Policy
         policy = CNNPolicy(inp_shape, act_shape,
-                        hiddens=[32, 32, 16, 16],
+                        hiddens=[64, 64, 128, 128],
+                        linear_hiddens=[128, 64],
                         kernel_sizes=5, strides=2,
                         activation=F.relu,  # F.relu
                         use_batch_norm=use_bc)  # False
     elif name == 'rnn':
         # use RNN Policy
         policy = RNNPolicy(inp_shape, act_shape,
-                        conv_hiddens=[16, 16, 16, 8],
+                        conv_hiddens=[64, 64, 128, 128],
+                        #linear_hiddens=[64],
                         kernel_sizes=5, strides=2,
                         rnn_cell=args['rnn_cell'],
                         rnn_layers=args['rnn_layers'],
@@ -161,14 +163,14 @@ def create_critic(args, inp_shape, act_shape, model):
     act_dim = act_shape if isinstance(act_shape, int) else sum(act_shape)
     if model == 'cnn':
         critic = DDPGCritic(inp_shape, act_dim,
-                            conv_hiddens=[32,16,16,8],
-                            linear_hiddens=[128],
+                            conv_hiddens=[64, 64, 128, 128],
+                            linear_hiddens=[256],
                             activation=F.relu,  # F.elu
                             use_batch_norm=use_bc)
     elif model == 'rnn':
         critic = RNNCritic(inp_shape, act_dim,
-                           conv_hiddens=[16,16,16,8],
-                           linear_hiddens=[32],
+                           conv_hiddens=[64, 64, 128, 128],
+                           linear_hiddens=[64],
                            rnn_cell=args['rnn_cell'],
                            rnn_layers=args['rnn_layers'],
                            rnn_units=args['rnn_units'],
