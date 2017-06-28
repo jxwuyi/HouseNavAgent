@@ -119,6 +119,7 @@ def parse_args():
     parser.add_argument("--house", type=int, default=0, help="house ID")
     parser.add_argument("--seed", type=int, default=0, help="random seed")
     parser.add_argument("--hardness", type=float, help="real number from 0 to 1, indicating the hardness of the environment")
+    parser.add_argument("--action-dim", type=int, help="degree of freedom of the agent movement, default=4, must be in range of [2,4]")
     # Core parameters
     parser.add_argument("--algo", choices=['nop','pg','ddpg', 'rdpg'], default="ddpg", help="algorithm for training")
     parser.add_argument("--max-episode-len", type=int, default=2000, help="maximum episode length")
@@ -150,6 +151,10 @@ if __name__ == '__main__':
 
     if args.seed is not None:
         np.random.seed(args.seed)
+
+    if args.action_dim is not None:
+        common.action_shape = (args.action_dim, 2)
+        print('degree of freedom of the action set to <{}>'.format(args.action_dim))
 
     model_name = 'random' if args.warmstart is None else 'cnn'
     episode_stats = \

@@ -123,6 +123,7 @@ def parse_args():
     parser.add_argument("--hardness", type=float, help="real number from 0 to 1, indicating the hardness of the environment")
     parser.add_argument("--linear-reward", action='store_true', default=False,
                         help="whether to use reward according to distance; o.w. indicator reward")
+    parser.add_argument("--action-dim", type=int, help="degree of freedom of agent movement, must be in the range of [2, 4], default=4")
     # Core training parameters
     parser.add_argument("--algo", choices=['ddpg','pg', 'rdpg'], default="ddpg", help="algorithm")
     parser.add_argument("--lrate", type=float, help="learning rate for policy")
@@ -156,8 +157,9 @@ def parse_args():
     parser.add_argument("--save-rate", type=int, default=1000, help="save model once every time this many episodes are completed")
     parser.add_argument("--report-rate", type=int, default=50, help="report training stats once every time this many training steps are performed")
     parser.add_argument("--warmstart", type=str, help="model to recover from. can be either a directory or a file.")
-    parser.add_argument("--no-debug", action="store_false", dest="debug", help="do not log all the computation details")
-    parser.set_defaults(debug=True)
+    parser.add_argument("--debug", action="store_true", dest="debug", help="log all the computation details")
+    parser.add_argument("--no-debug", action="store_false", dest="debug", help="turn off debug logs")
+    parser.set_defaults(debug=False)
     return parser.parse_args()
 
 
@@ -167,6 +169,10 @@ if __name__ == '__main__':
         np.random.seed(cmd_args.seed)
         random.seed(cmd_args.seed)
         torch.manual_seed(cmd_args.seed)  #optional
+
+    if cmd_args.action_dim is not None:
+        print('Degree of freedom set to be <{}>!'.format(cmd_args.action_dim))
+        common.action_shape = (cmd_args.action_dim, 2)
 
     if cmd_args.linear_reward:
         print('Using Linear Reward Function in the Env!')

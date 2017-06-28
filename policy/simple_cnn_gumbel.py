@@ -53,7 +53,6 @@ class CNNGumbelPolicy(torch.nn.Module):
                 self.bc_layers.append(None)
             prev_hidden = h
         self.feat_size = self._get_feature_dim(D_shape_in)
-        print('Feature Size = %d' % self.feat_size)
         self.linear_layers = []
         for i, d in enumerate(self.D_out):
             self.linear_layers.append(nn.Linear(self.feat_size, d))
@@ -79,7 +78,9 @@ class CNNGumbelPolicy(torch.nn.Module):
         bs = 1
         inp = Variable(torch.rand(bs, *D_shape_in))
         out_feat = self._forward_feature(inp)
+        print('>> Final CNN Shape = {}'.format(out_feat.size()))
         n_size = out_feat.data.view(bs, -1).size(1)
+        print('Feature Size = %d ()' % n_size)
         return n_size
     #######################
     def _get_concrete_stats(self, linear, feat, gumbel_noise = 1.0):
@@ -103,7 +104,6 @@ class CNNGumbelPolicy(torch.nn.Module):
         """
         self.feat = feat = self._forward_feature(x)
         feat = feat.view(-1, self.feat_size)
-
         common.debugger.print("------>[P] Forward of Policy, Feature Norm = {}, Var = {}, Max = {}, Min = {}".format(
                                 feat.data.norm(), feat.data.var(), feat.data.max(), feat.data.min()), False)
 

@@ -225,7 +225,8 @@ def create_env(k=0, linearReward=False, hardness=None):
         else:
             houseID = all_houseIDs[k]
         world = create_world(houseID)
-        env = HouseEnv(world, resolution=resolution, linearReward=linearReward, hardness=hardness)
+        env = HouseEnv(world, resolution=resolution, linearReward=linearReward,
+                       hardness=hardness, action_degree=action_shape[0])
     else:  # multi-house environment
         k = -k
         print('Multi-House Environment! Total Selected Houses = {}'.format(k))
@@ -234,5 +235,6 @@ def create_env(k=0, linearReward=False, hardness=None):
             k = len(all_houseIDs)
         # use the first k houses
         all_worlds = [create_world(houseID) for houseID in all_houseIDs[:k]]
-        env = MultiHouseEnv(all_worlds, resolution=resolution, linearReward=linearReward, hardness=hardness)
+        env = MultiHouseEnv(all_worlds, resolution=resolution, linearReward=linearReward,
+                            hardness=hardness, action_degree=action_shape[0])
     return env

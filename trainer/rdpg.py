@@ -72,7 +72,7 @@ class RDPGTrainer(DDPGTrainer):
         tt = time.time()
 
         obs, full_act, rew, msk, done, total_length = \
-            self.replay_buffer.sample(self.batch_size)
+            self.replay_buffer.sample(self.batch_size, seq_len=self.batch_len)
         total_length = float(total_length)
         #act = split_batched_array(full_act, self.act_shape)
         time_counter[-1] += time.time() - tt

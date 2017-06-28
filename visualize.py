@@ -20,7 +20,7 @@ def show_episode(env, images):
 
 
 def visualize(args, all_stats, config):
-    common.resolution = (800, 600)
+    common.resolution = (400, 300)
     env = common.create_env(config.house, hardness=config.hardness)
     env.reset_render()
     print('Resolution = {}'.format(env.resolution))

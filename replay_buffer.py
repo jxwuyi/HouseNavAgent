@@ -326,7 +326,7 @@ class RNNReplayBuffer(object):
         if total_len <= seq_len:
             start_idx, end_idx = 0, total_len
         else:
-            upper_bound = min(total_len - seq_len, seq_len)
+            upper_bound = total_len - seq_len # min(total_len - seq_len, seq_len)
             # upper_bound = total_len - seq_len
             start_idx = np.random.choice(upper_bound)
             end_idx = start_idx + seq_len
@@ -342,15 +342,15 @@ class RNNReplayBuffer(object):
         done = (end_idx == total_len)
         redudant_frames = seq_len + 1 - cur_len
         if not done:
-            self.obs_epis[end_idx] = self.obs[idx, end_idx]
+            self.obs_epis[cur_len] = self.obs[idx, end_idx]
             redudant_frames -= 1
         if redudant_frames > 0:
             redudant_idx = [np.random.choice(total_len) for _ in range(redudant_frames)]
             self.obs_epis[-redudant_frames:] = self.obs[idx, redudant_idx]
 
-        self.obs_epis[:end_idx] = self.obs[idx, :end_idx]
-        self.act_epis[:end_idx] = self.action[idx, :end_idx]
-        self.rew_epis[:end_idx] = self.reward[idx, :end_idx]
+        self.obs_epis[:cur_len] = self.obs[idx, start_idx:end_idx]
+        self.act_epis[:cur_len] = self.action[idx, start_idx:end_idx]
+        self.rew_epis[:cur_len] = self.reward[idx, start_idx:end_idx]
         return cur_len, done, self.obs_epis, self.act_epis, self.rew_epis
 
     def store_frame(self, frame):
