@@ -47,12 +47,12 @@ class RDPGTrainer(DDPGTrainer):
         #self.h.volatile = True
         self.a = None
 
-    def action(self, gumbel_noise=True):
+    def action(self, gumbel_noise=None):
         self.eval()
         frames = self.replay_buffer.encode_recent_observation()[np.newaxis, np.newaxis, ...]  # [batch=1, seq_len=1]
         frames = self._process_frames(frames, volatile=True, merge_dim=False)
-        if gumbel_noise:
-            batched_actions, new_h = self.p(frames, h=self.h, act=self.a)
+        if gumbel_noise is not None:
+            batched_actions, new_h = self.p(frames, h=self.h, act=self.a, gumbel_noise=gumbel_noise)
         else:
             batched_actions, new_h = self.p(frames, h=self.h, act=self.a, gumbel_noise=None)
         self.h = new_h
