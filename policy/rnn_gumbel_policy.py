@@ -13,7 +13,8 @@ class RNNGumbelPolicy(torch.nn.Module):
                  conv_hiddens = [], kernel_sizes=5, strides=2,
                  linear_hiddens = [],
                  rnn_cell = 'lstm', rnn_layers=1, rnn_units=128,
-                 activation=F.relu, use_batch_norm = True):
+                 activation=F.relu, use_batch_norm = True,
+                 batch_norm_after_rnn = False):
         """
         D_shape_in: (n_channel, n_row, n_col)
         D_out: a int or a list of ints in length of degree of freedoms
@@ -81,7 +82,7 @@ class RNNGumbelPolicy(torch.nn.Module):
             self.linear_layers.append(nn.Linear(cur_dim, d))
             setattr(self, 'linear_layer%d'%i, self.linear_layers[-1])
             utils.initialize_weights(self.linear_layers[-1])
-            if use_batch_norm:
+            if batch_norm_after_rnn:
                 self.l_bc_layers.append(nn.BatchNorm1d(d))
                 setattr(self, 'l_bc_layer%d'%i, self.l_bc_layers[-1])
                 utils.initialize_weights(self.l_bc_layers[-1])
@@ -129,7 +130,7 @@ class RNNGumbelPolicy(torch.nn.Module):
             u = torch.rand(logits.size()).type(FloatTensor)
             eps = 1e-15  # IMPORTANT!!!!
             x = Variable(torch.log(-torch.log(u + eps) + eps))
-            logits_with_noise = (logits - x) * gumbel_noise
+            logits_with_noise = logits * gumbel_noise - x
             prob = F.softmax(logits_with_noise)
             logp = F.log_softmax(logits_with_noise)
         else:

@@ -13,17 +13,19 @@ from policy.rnn_gumbel_policy import RNNGumbelPolicy as RNNPolicy
 from policy.vanila_random_policy import VanilaRandomPolicy as RandomPolicy
 from policy.ddpg_cnn_critic import DDPGCNNCritic as DDPGCritic
 from policy.rnn_critic import RNNCritic
+from policy.joint_cnn_actor_critic import JointCNNPolicyCritic as JointModel
 from trainer.pg import PolicyGradientTrainer as PGTrainer
 from trainer.nop import NOPTrainer
 from trainer.ddpg import DDPGTrainer
 from trainer.rdpg import RDPGTrainer
+from trainer.ddpg_joint import JointDDPGTrainer as JointTrainer
 from environment import SimpleHouseEnv as HouseEnv
 from multihouse_env import MultiHouseEnv
 from world import World
 
 all_houseIDs = ['00065ecbdd7300d35ef4328ffe871505',
-'cf57359cd8603c3d9149445fb4040d90', '31966fdc9f9c87862989fae8ae906295', 'ff32675f2527275171555259b4a1b3c3',
-'7995c2a93311717a3a9c48d789563590', '8b8c1994f3286bfc444a7527ffacde86', '775941abe94306edc1b5820e3a992d75',
+'cf57359cd8603c3d9149445fb4040d90', 'ff32675f2527275171555259b4a1b3c3', '775941abe94306edc1b5820e3a992d75',
+'7995c2a93311717a3a9c48d789563590', '8b8c1994f3286bfc444a7527ffacde86', '31966fdc9f9c87862989fae8ae906295',
 '32e53679b33adfcc5a5660b8c758cc96', '4383029c98c14177640267bd34ad2f3c', '0884337c703e7c25949d3a237101f060',
 '492c5839f8a534a673c92912aedc7b63', 'a7e248efcdb6040c92ac0cdc3b2351a6', '2364b7dcc432c6d6dcc59dba617b5f4b',
 'e3ae3f7b32cf99b29d3c8681ec3be321', 'f10ce4008da194626f38f937fb9c1a03', 'e6f24af5f87558d31db17b86fe269cf2',
@@ -99,7 +101,7 @@ def create_default_args(algo='pg', gamma=None,
         return create_args(gamma or 0.95, lrate or 0.001, None,
                            episode_len or 10, batch_size or 100, 1000,
                            decay=(decay or 0))
-    elif algo == 'ddpg':  # ddpg
+    elif (algo == 'ddpg') or (algo == 'ddpg_joint'):  # ddpg
         return create_args(gamma or 0.95, lrate or 0.001, critic_lrate or 0.001,
                            episode_len or 50,
                            batch_size or 256,
@@ -135,7 +137,7 @@ def create_policy(args, inp_shape, act_shape, name='cnn'):
     elif name == 'cnn':
         # assume CNN Policy
         policy = CNNPolicy(inp_shape, act_shape,
-                        hiddens=[64, 64, 128, 128],
+                        hiddens=[32, 64, 128, 128],
                         linear_hiddens=[128, 64],
                         kernel_sizes=5, strides=2,
                         activation=F.relu,  # F.relu
@@ -143,14 +145,15 @@ def create_policy(args, inp_shape, act_shape, name='cnn'):
     elif name == 'rnn':
         # use RNN Policy
         policy = RNNPolicy(inp_shape, act_shape,
-                        conv_hiddens=[64, 64, 128, 128],
-                        #linear_hiddens=[64],
+                        conv_hiddens=[32, 64, 128, 128],
+                        linear_hiddens=[64],
                         kernel_sizes=5, strides=2,
                         rnn_cell=args['rnn_cell'],
                         rnn_layers=args['rnn_layers'],
                         rnn_units=args['rnn_units'],
                         activation=F.relu,  # F.relu
-                        use_batch_norm=use_bc)  # False
+                        use_batch_norm=use_bc,
+                        batch_norm_after_rnn=False)
     else:
         assert False, 'Policy Undefined for <{}>'.format(name)
     if use_cuda:
@@ -163,13 +166,13 @@ def create_critic(args, inp_shape, act_shape, model):
     act_dim = act_shape if isinstance(act_shape, int) else sum(act_shape)
     if model == 'cnn':
         critic = DDPGCritic(inp_shape, act_dim,
-                            conv_hiddens=[64, 64, 128, 128],
+                            conv_hiddens=[32, 64, 128, 128],
                             linear_hiddens=[256],
                             activation=F.relu,  # F.elu
                             use_batch_norm=use_bc)
     elif model == 'rnn':
         critic = RNNCritic(inp_shape, act_dim,
-                           conv_hiddens=[64, 64, 128, 128],
+                           conv_hiddens=[32, 64, 128, 128],
                            linear_hiddens=[64],
                            rnn_cell=args['rnn_cell'],
                            rnn_layers=args['rnn_layers'],
@@ -181,6 +184,20 @@ def create_critic(args, inp_shape, act_shape, model):
     if use_cuda:
         critic.cuda()
     return critic
+
+
+def create_joint_model(args, inp_shape, act_shape):
+    use_bc = args['use_batch_norm']
+    model = JointModel(inp_shape, act_shape,
+                    cnn_hiddens=[64, 64, 128, 128],
+                    linear_hiddens=[200],
+                    critic_hiddens=[100, 32],
+                    kernel_sizes=5, strides=2,
+                    activation=F.relu,  # F.relu
+                    use_batch_norm=use_bc)
+    if use_cuda:
+        model.cuda()
+    return model
 
 
 def create_trainer(algo, model, args):
@@ -200,6 +217,11 @@ def create_trainer(algo, model, args):
         policy_gen = lambda: create_policy(args, observation_shape, action_shape, 'cnn')
         trainer = DDPGTrainer('DDPGTrainer', policy_gen, critic_gen,
                               observation_shape, action_shape, args)
+    elif algo == 'ddpg_joint':
+        assert(model == 'cnn')
+        model_gen = lambda: create_joint_model(args, observation_shape, action_shape)
+        trainer = JointTrainer('JointDDPGTrainer', model_gen,
+                               observation_shape, action_shape, args)
     elif algo == 'rdpg':
         # critic can be either "cnn" or "rnn"
         critic_gen = lambda: create_critic(args, single_observation_shape, action_shape, model)
