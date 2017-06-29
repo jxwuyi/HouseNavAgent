@@ -34,10 +34,12 @@ if "Apple" in sys.version:
     # own mac laptop
     prefix = '/Users/yiw/Downloads/data/house/'
     csvFile = '/Users/yiw/Downloads/data/metadata/ModelCategoryMapping.csv'
+    colorFile = '/Users/yiw/Downloads/data/metadata/colormap.csv'
 elif "Red Hat" in sys.version:
     # dev server
     prefix = '/home/yiw/local/data/houses-yiwu/'
     csvFile = '/home/yiw/local/data/houses-yiwu/ModelCategoryMapping.csv'
+    colorFile = '/Users/yiw/Downloads/data/metadata/colormap.csv'
 else:
     # fair server
     assert False, 'Unable to locate data folder..... Please edit <common.py>'
@@ -216,7 +218,7 @@ def create_world(houseID):
     jsonFile = prefix + houseID + '/house.json'
     cachedFile = genCacheFile(houseID)
     assert os.path.isfile(cachedFile), '[Warning] No Cached Map File Found for House <{}> (id = {})!'.format(houseID, k)
-    world = World(jsonFile, objFile, csvFile, colide_res, CachedFile=cachedFile)
+    world = World(jsonFile, objFile, csvFile, colorFile, colide_res, CachedFile=cachedFile)
     return world
 
 def create_env(k=0, linearReward=False, hardness=None):
