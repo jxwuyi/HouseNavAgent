@@ -16,11 +16,11 @@ def create_scheduler(type='medium'):
     if type == 'linear':
         return utils.LinearSchedule(10000, 1.0, 0.0)
     if type == 'medium':
-        endpoints = [(0, 0), (2000, 0.1), (5000, 0.25), (10000, 0.5), (30000, 1.0)]
+        endpoints = [(0, 0), (2000, 0.1), (5000, 0.25), (10000, 0.5), (20000, 1.0)]
     elif type == 'high':
-        endpoints = [(0, 0), (4000, 0.1), (10000, 0.25), (20000, 0.5), (40000, 1.0)]
+        endpoints = [(0, 0), (3000, 0.1), (8000, 0.25), (15000, 0.5), (30000, 1.0)]
     elif type == 'low': # low
-        endpoints = [(0, 0), (1000, 0.1), (3000, 0.25), (8000, 0.5), (20000, 1.0)]
+        endpoints = [(0, 0), (1000, 0.1), (2000, 0.25), (7000, 0.5), (15000, 1.0)]
     print('Building PiecewiseScheduler with <endpoints> = {}'.format(endpoints))
     scheduler = utils.PiecewiseSchedule(endpoints, outside_value=1.0)
     return scheduler

@@ -108,24 +108,7 @@ class JointDDPGTrainer(AgentTrainer):
         time_counter[0] += time.time() - tt
         tt = time.time()
 
-        # NOTE: now train p and q iteratively, maybe converted to a single pass?
-
-        # train q network
-        common.debugger.print('Grad Stats of Q Update ...', False)
-        target_q_next = self.target_net(obs_next_n, output_critic=True)
-        target_q = rew_n + self.gamma * (1.0 - done_n) * target_q_next
-        target_q.volatile = False
-
-        current_q = self.net(obs_n, action=full_act_n, output_critic=True)
-        q_norm = (current_q * current_q).mean().squeeze()  # l2 norm
-        q_loss = F.smooth_l1_loss(current_q, target_q) + self.args['critic_penalty']*q_norm  # huber
-        common.debugger.print('>> Q_Loss = {}'.format(q_loss.data.mean()), False)
-
         self.optim.zero_grad()
-        q_loss.backward()
-        if self.grad_norm_clip is not None:
-            utils.clip_grad_norm(self.net.parameters(), self.grad_norm_clip)
-        self.optim.step()
 
         # train p network
         q_val = self.net(obs_n, action=None, output_critic=True)
@@ -134,9 +117,22 @@ class JointDDPGTrainer(AgentTrainer):
         if self.args['ent_penalty'] is not None:
             p_loss -= self.args['ent_penalty'] * p_ent  # encourage exploration
         common.debugger.print('>> P_Loss = {}'.format(p_loss.data.mean()), False)
-
-        self.optim.zero_grad()
         p_loss.backward()
+        self.net.clear_critic_specific_grad()  # we do not need to compute q_grad for actor!!!
+
+        # train q network
+        common.debugger.print('Grad Stats of Q Update ...', False)
+        target_q_next = self.target_net(obs_next_n, output_critic=True)
+        target_q = rew_n + self.gamma * (1.0 - done_n) * target_q_next
+        target_q.volatile = False
+        current_q = self.net(obs_n, action=full_act_n, output_critic=True)
+        q_norm = (current_q * current_q).mean().squeeze()  # l2 norm
+        q_loss = F.smooth_l1_loss(current_q, target_q) + self.args['critic_penalty']*q_norm  # huber
+        common.debugger.print('>> Q_Loss = {}'.format(q_loss.data.mean()), False)
+        q_loss.backward()
+
+        # total_loss = q_loss + p_loss
+        # grad clip
         if self.grad_norm_clip is not None:
             utils.clip_grad_norm(self.net.parameters(), self.grad_norm_clip)
         self.optim.step()
