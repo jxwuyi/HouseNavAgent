@@ -41,7 +41,7 @@ elif "Red Hat" in sys.version:
     # dev server
     prefix = '/home/yiw/local/data/houses-yiwu/'
     csvFile = '/home/yiw/local/data/houses-yiwu/ModelCategoryMapping.csv'
-    colorFile = '/Users/yiw/Downloads/data/metadata/colormap.csv'
+    colorFile = '/home/yiw/Downloads/data/metadata/colormap.csv'
 else:
     # fair server
     assert False, 'Unable to locate data folder..... Please edit <common.py>'
