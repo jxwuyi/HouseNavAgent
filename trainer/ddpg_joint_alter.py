@@ -23,7 +23,7 @@ def make_update_exp(vals, target_vals, rate=1e-3):
     target_vals.load_state_dict(target_dict)
 
 
-class JointDDPGTrainer(AgentTrainer):
+class JointAlterDDPGTrainer(AgentTrainer):
     def __init__(self, name, model_creator,
                  obs_shape, act_shape, args, replay_buffer=None):
         self.name = name
@@ -119,8 +119,12 @@ class JointDDPGTrainer(AgentTrainer):
         common.debugger.print('>> P_Loss = {}'.format(p_loss.data.mean()), False)
         p_loss.backward()
         self.net.clear_critic_specific_grad()  # we do not need to compute q_grad for actor!!!
+        if self.grad_norm_clip is not None:
+            utils.clip_grad_norm(self.net.parameters(), self.grad_norm_clip)
+        self.optim.step()
 
         # train q network
+        self.optim.zero_grad()
         common.debugger.print('Grad Stats of Q Update ...', False)
         target_q_next = self.target_net(obs_next_n, output_critic=True)
         target_q = rew_n + self.gamma * (1.0 - done_n) * target_q_next
@@ -129,7 +133,7 @@ class JointDDPGTrainer(AgentTrainer):
         q_norm = (current_q * current_q).mean().squeeze()  # l2 norm
         q_loss = F.smooth_l1_loss(current_q, target_q) + self.args['critic_penalty']*q_norm  # huber
         common.debugger.print('>> Q_Loss = {}'.format(q_loss.data.mean()), False)
-        q_loss = q_loss * 10
+        #q_loss = q_loss * 50
         q_loss.backward()
 
         # total_loss = q_loss + p_loss

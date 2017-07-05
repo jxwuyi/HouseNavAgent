@@ -263,10 +263,10 @@ class FullReplayBuffer(ReplayBuffer):
         super(FullReplayBuffer, self).store_effect(idx, action, reward, done)
         self.infos[idx] = info
         if self.part_pos is not None:
-            if self.part_pos[i,0,0] > -1:  # remove the previous instance from partitions
-                self._remove_part_index(i, self.part_pos[i])
+            if self.part_pos[idx,0,0] > -1:  # remove the previous instance from partitions
+                self._remove_part_index(idx, self.part_pos[idx])
             new_index = [func(info) for func in self.partition_func]
-            self._add_part_index(i, new_index)
+            self._add_part_index(idx, new_index)
 
     def sample(self, batch_size, partition=None, partition_sampler=None, collect_info=None):
         assert batch_size > 0, '[FullReplayBuffer] Currently only support sample for batch_size > 0'
@@ -287,7 +287,7 @@ class FullReplayBuffer(ReplayBuffer):
             idxes = sample_n_unique(sampler, batch_size)
         if collect_info is not None:
             infos = [collect_info(self.infos[idx]) for idx in idxes]
-        else
+        else:
             infos = None
         ret_vals = list(super(FullReplayBuffer, self).sample(batch_size, _idxes=idxes))
         return ret_vals + [infos]

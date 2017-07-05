@@ -151,7 +151,7 @@ def parse_args():
                         help="whether to use reward according to distance; o.w. indicator reward")
     parser.add_argument("--action-dim", type=int, help="degree of freedom of agent movement, must be in the range of [2, 4], default=4")
     # Core training parameters
-    parser.add_argument("--algo", choices=['ddpg','pg', 'rdpg', 'ddpg_joint'], default="ddpg", help="algorithm")
+    parser.add_argument("--algo", choices=['ddpg','pg', 'rdpg', 'ddpg_joint', 'ddpg_alter'], default="ddpg", help="algorithm")
     parser.add_argument("--lrate", type=float, help="learning rate for policy")
     parser.add_argument("--critic-lrate", type=float, help="learning rate for critic")
     parser.add_argument('--weight-decay', type=float, help="weight decay for policy")

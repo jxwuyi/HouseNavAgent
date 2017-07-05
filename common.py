@@ -19,6 +19,7 @@ from trainer.nop import NOPTrainer
 from trainer.ddpg import DDPGTrainer
 from trainer.rdpg import RDPGTrainer
 from trainer.ddpg_joint import JointDDPGTrainer as JointTrainer
+from trainer.ddpg_joint_alter import JointAlterDDPGTrainer as AlterTrainer
 from environment import SimpleHouseEnv as HouseEnv
 from multihouse_env import MultiHouseEnv
 from world import World
@@ -103,7 +104,7 @@ def create_default_args(algo='pg', gamma=None,
         return create_args(gamma or 0.95, lrate or 0.001, None,
                            episode_len or 10, batch_size or 100, 1000,
                            decay=(decay or 0))
-    elif (algo == 'ddpg') or (algo == 'ddpg_joint'):  # ddpg
+    elif 'ddpg' in algo:  # ddpg
         return create_args(gamma or 0.95, lrate or 0.001, critic_lrate or 0.001,
                            episode_len or 50,
                            batch_size or 256,
@@ -219,11 +220,12 @@ def create_trainer(algo, model, args):
         policy_gen = lambda: create_policy(args, observation_shape, action_shape, 'cnn')
         trainer = DDPGTrainer('DDPGTrainer', policy_gen, critic_gen,
                               observation_shape, action_shape, args)
-    elif algo == 'ddpg_joint':
+    elif (algo == 'ddpg_joint') or (algo == 'ddpg_alter'):
         assert(model == 'cnn')
         model_gen = lambda: create_joint_model(args, observation_shape, action_shape)
-        trainer = JointTrainer('JointDDPGTrainer', model_gen,
-                               observation_shape, action_shape, args)
+        Trainer = JointTrainer if algo == 'ddpg_joint' else AlterTrainer
+        trainer = Trainer('JointDDPGTrainer', model_gen,
+                           observation_shape, action_shape, args)
     elif algo == 'rdpg':
         # critic can be either "cnn" or "rnn"
         critic_gen = lambda: create_critic(args, single_observation_shape, action_shape, model)
