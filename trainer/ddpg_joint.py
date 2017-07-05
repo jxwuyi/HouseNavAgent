@@ -129,6 +129,7 @@ class JointDDPGTrainer(AgentTrainer):
         q_norm = (current_q * current_q).mean().squeeze()  # l2 norm
         q_loss = F.smooth_l1_loss(current_q, target_q) + self.args['critic_penalty']*q_norm  # huber
         common.debugger.print('>> Q_Loss = {}'.format(q_loss.data.mean()), False)
+        q_loss = q_loss * 50
         q_loss.backward()
 
         # total_loss = q_loss + p_loss
