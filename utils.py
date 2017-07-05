@@ -29,12 +29,12 @@ def sample_n_unique(sampling_f, n):
     """Helper function. Given a function `sampling_f` that returns
     comparable objects, sample n such unique objects.
     """
-    res = []
+    res = set()
     while len(res) < n:
         candidate = sampling_f()
         if candidate not in res:
-            res.append(candidate)
-    return res
+            res.add(candidate)
+    return list(res)
 
 
 def clip_grad_norm(parameters, max_norm):

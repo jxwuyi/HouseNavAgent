@@ -240,7 +240,7 @@ def create_world(houseID):
     jsonFile = prefix + houseID + '/house.json'
     cachedFile = genCacheFile(houseID)
     assert os.path.isfile(cachedFile), '[Warning] No Cached Map File Found for House <{}> (id = {})!'.format(houseID, k)
-    world = World(jsonFile, objFile, csvFile, colorFile, colide_res, CachedFile=cachedFile)
+    world = World(jsonFile, objFile, csvFile, colide_res, CachedFile=cachedFile)
     return world
 
 def create_env(k=0, linearReward=False, hardness=None):
@@ -251,7 +251,7 @@ def create_env(k=0, linearReward=False, hardness=None):
         else:
             houseID = all_houseIDs[k]
         world = create_world(houseID)
-        env = HouseEnv(world, resolution=resolution, linearReward=linearReward,
+        env = HouseEnv(world, colorFile, resolution=resolution, linearReward=linearReward,
                        hardness=hardness, action_degree=action_shape[0])
     else:  # multi-house environment
         k = -k
@@ -261,6 +261,6 @@ def create_env(k=0, linearReward=False, hardness=None):
             k = len(all_houseIDs)
         # use the first k houses
         all_worlds = [create_world(houseID) for houseID in all_houseIDs[:k]]
-        env = MultiHouseEnv(all_worlds, resolution=resolution, linearReward=linearReward,
+        env = MultiHouseEnv(all_worlds, colorFile, resolution=resolution, linearReward=linearReward,
                             hardness=hardness, action_degree=action_shape[0])
     return env

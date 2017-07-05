@@ -70,7 +70,7 @@ class ReplayBuffer(object):
 
         return self.obs_batch, act_batch, rew_batch, self.obs_nxt_batch, done_mask
 
-    def sample(self, batch_size):
+    def sample(self, batch_size, _idxes=None):
         """Sample `batch_size` different transitions.
 
         i-th sample transition is the following:
@@ -104,10 +104,13 @@ class ReplayBuffer(object):
             Array of shape (batch_size,) and dtype np.float32
         """
         assert self.can_sample(batch_size) or (batch_size < 0)
-        if batch_size < 0:
-            idxes = list(range(0, self.num_in_buffer - 1))
+        if _idxes is not None:
+            idxes = _idxes
         else:
-            idxes = sample_n_unique(lambda: random.randint(0, self.num_in_buffer - 2), batch_size)
+            if batch_size < 0:
+                idxes = list(range(0, self.num_in_buffer - 1))
+            else:
+                idxes = sample_n_unique(lambda: random.randint(0, self.num_in_buffer - 2), batch_size)
 
         if (self.batch_size is None) or (len(idxes) != self.batch_size):
             self.batch_size = len(idxes)
@@ -218,6 +221,79 @@ class ReplayBuffer(object):
         self.done[idx]   = done
 
 
+"""
+Replay with extra storage and maintaining partition information (for aux tasks)
+"""
+class FullReplayBuffer(ReplayBuffer):
+    def __init__(self, size, frame_history_len, frame_type = np.uint8,
+                action_shape = [], action_type = np.int32, partition=[]):
+        """
+        @param parition:
+           a list of tuple (n_parition, partition_function)
+           partition_function(info) --> 0...n_partition-1
+        """
+        super(ReplayBuffer, self).__init__(size, frame_history_len, frame_type, action_shape, action_shape)
+        self.infos = [None] * self.size
+        self.n_part = len(partition)
+        if self.n_part > 0:
+            self.part_pos = -1 * np.ones([size, self.n_part, 2], dtype=np.int32)  # partition, part_pos
+        else:
+            self.part_pos = None
+        self.partition = [[[]] * p[0] for p in partition]
+        self.partition_func = [p[1] for p in partition]
+
+    def _remove_part_index(self, idx, part_pos): # remove partition information
+        for i in range(self.n_part):
+            k, p = part_pos[i]
+            partition = self.partition[i]
+            t = partition[k].pop()
+            if t == idx:
+                continue
+            partition[k][p] = t
+            self.part_pos[t,i,1] = p
+
+    def _add_part_index(self, idx, part_pos): # add partition information
+        for i, k in enumerate(part_pos):
+            self.part_pos[idx,i,0]=k
+            partition = self.partition[i]
+            self.part_pos[idx,i,1]=len(partition[k])
+            partition[k].append(idx)
+
+    def store_effect(self, idx, action, reward, done, info):
+        super(FullReplayBuffer, self).store_effect(idx, action, reward, done)
+        self.infos[idx] = info
+        if self.part_pos is not None:
+            if self.part_pos[i,0,0] > -1:  # remove the previous instance from partitions
+                self._remove_part_index(i, self.part_pos[i])
+            new_index = [func(info) for func in self.partition_func]
+            self._add_part_index(i, new_index)
+
+    def sample(self, batch_size, partition=None, partition_sampler=None, collect_info=None):
+        assert batch_size > 0, '[FullReplayBuffer] Currently only support sample for batch_size > 0'
+        if partition is None:  # uniformly sample
+            idxes = sample_n_unique(lambda: random.randint(0, self.num_in_buffer - 2), batch_size)
+        else:
+            assert isinstance(partition, int), '[FullReplayBuffer] partition must be an <int>, the index of the specified partition'
+            k = partition
+            part_size = len(self.partition[k])
+            cur_partition = self.partition[k]
+            if partition_sampler is None:
+                partition_sampler = lambda: np.random.choice(part_size)
+            def sampler():
+                while True:
+                    i = partition_sampler()
+                    if len(cur_partition[i]) > 0: break
+                return np.random.choice(cur_partition[i])
+            idxes = sample_n_unique(sampler, batch_size)
+        if collect_info is not None:
+            infos = [collect_info(self.infos[idx]) for idx in idxes]
+        else
+            infos = None
+        ret_vals = list(super(FullReplayBuffer, self).sample(batch_size, _idxes=idxes))
+        return ret_vals + [infos]
+
+
+#########################################################
 # Replay Buffer for Recurrent Neural Net
 class RNNReplayBuffer(object):
     def __init__(self, size, max_seq_len, frame_type = np.uint8,
@@ -327,7 +403,7 @@ class RNNReplayBuffer(object):
         if total_len <= seq_len:
             start_idx, end_idx = 0, total_len
         else:
-            upper_bound = total_len - seq_len # min(total_len - seq_len, seq_len)
+            upper_bound = total_len - seq_len + 1 # min(total_len - seq_len, seq_len)
             # upper_bound = total_len - seq_len
             start_idx = np.random.choice(upper_bound)
             end_idx = start_idx + seq_len
