@@ -45,6 +45,10 @@ def visualize(args, all_stats, config):
             print(' >>> %d Episode Rendered, Time Elapsed = %.4fs' % (len(episode_images), time.time()-elap))
     dur = time.time()-elap
     print('Total %d Episodes Rendered (Avg %.4fs per Ep.)' % (len(episode_images), dur / (len(episode_images))))
+    if args.save_dir is not None:
+        print('Saving to file <{}>'.format(args.save_dir))
+        with open(args.save_dir, 'wb') as f:
+            pickle.dump(episode_images, f)
     input('>> press any key to continue ...')
     for it, dat in enumerate(episode_images):
         images, stats = dat
@@ -69,6 +73,8 @@ def parse_args():
                         help='Only display those successful runs')
     parser.add_argument("--only-good", action='store_true', default=False,
                         help='Only display those runs where agent reaches the target room')
+    parser.add_argument("--save-dir", type=str,
+                        help='Set when we need to store all the frames into a file')
     return parser.parse_args()
 
 
