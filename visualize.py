@@ -39,10 +39,10 @@ def visualize(args, all_stats, config):
         if 'world_id' in stats:
             env.reset(stats['world_id'])
         episode_images.append((render_episode(env, stats['infos']), stats))
-        if len(episode_images) > args.max_iters:
-            break
         if len(episode_images) % 10 == 0:
             print(' >>> %d Episode Rendered, Time Elapsed = %.4fs' % (len(episode_images), time.time()-elap))
+        if len(episode_images) >= args.max_iters:
+            break
     dur = time.time()-elap
     print('Total %d Episodes Rendered (Avg %.4fs per Ep.)' % (len(episode_images), dur / (len(episode_images))))
     if args.save_dir is not None:

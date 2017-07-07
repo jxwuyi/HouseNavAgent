@@ -1,5 +1,6 @@
 from headers import *
 from utils import *
+from replay_buffer import *
 import numpy as np
 import random
 import torch
@@ -23,7 +24,7 @@ class NOPTrainer(AgentTrainer):
                                 action_type=np.float32)
         self.args = args
 
-    def action(self):
+    def action(self, gumbel_noise=None):
         frames = self.replay_buffer.encode_recent_observation()[np.newaxis, ...]
         raw_x = self._process_frames(frames, volatile=True)
         batched_actions = self.policy(raw_x)

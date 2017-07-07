@@ -206,13 +206,13 @@ def create_joint_model(args, inp_shape, act_shape):
 def create_trainer(algo, model, args):
     # self, name, policy, obs_shape, act_shape, args)
     if algo == 'pg':
-        policy = create_policy(observation_shape, action_shape,
-                               name=model, use_bc=args['use_batch_norm'])
+        policy = create_policy(args, observation_shape, action_shape,
+                               name=model)
         trainer = PGTrainer('PolicyGradientTrainer', policy,
                             observation_shape, action_shape, args)
     elif algo == 'nop':
-        policy = create_policy(observation_shape, action_shape,
-                               name=model, use_bc=args['use_batch_norm'])
+        policy = create_policy(args, observation_shape, action_shape,
+                               name=model)
         trainer = NOPTrainer('NOPTrainer', policy, observation_shape, action_shape, args)
     elif algo == 'ddpg':
         assert(model == 'cnn')
