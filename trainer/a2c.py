@@ -128,7 +128,7 @@ class A2CTrainer(AgentTrainer):
         common.debugger.print('>> Q_Loss = {}'.format(q_loss.data.mean()), False)
         common.debugger.print('>> Q_Norm = {}'.format(q_norm.data.mean()), False)
 
-        total_loss = q_loss
+        total_loss = q_loss.mean()
         if self.args['critic_penalty'] > 1e-10:
             total_loss += self.args['critic_penalty']*q_norm
 
@@ -138,18 +138,10 @@ class A2CTrainer(AgentTrainer):
         #raw_adv_ts = (target_q - current_q).data   # use estimated advantage??
         adv_ts = (raw_adv_ts - raw_adv_ts.mean()) / (raw_adv_ts.std() + 1e-15)
         #current_act.reinforce(adv_ts)
-        p_ent = self.net.entropy()
-        p_loss = self.net.logp(act_n)
-        print(p_loss.size())
-        print(adv_ts.size())
-
-
-        p_loss = p_loss * Variable(adv_ts, volatile=True)
+        p_ent = self.net.entropy().mean()
+        p_loss = self.net.logprob(act_n)
+        p_loss = p_loss * Variable(adv_ts)
         p_loss = p_loss.mean()
-
-        input('press key to cobnt ...')
-
-
         total_loss -= p_loss
         if self.args['ent_penalty'] is not None:
             total_loss -= self.args['ent_penalty'] * p_ent  # encourage exploration
@@ -165,7 +157,7 @@ class A2CTrainer(AgentTrainer):
             utils.clip_grad_norm(self.net.parameters(), self.grad_norm_clip)
         self.optim.step()
         common.debugger.print('Stats of Model (*after* clip and opt)....', False)
-        utils.log_parameter_stats(common.debugger, self.q)
+        utils.log_parameter_stats(common.debugger, self.net)
 
         time_counter[1] += time.time() -tt
         tt =time.time()

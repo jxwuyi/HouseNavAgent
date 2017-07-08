@@ -146,19 +146,22 @@ class DiscreteCNNPolicyCritic(torch.nn.Module):
         # action is a LongTensor!
         if len(action.size()) == 1:
             action = action.view(-1,1)
+        action = action.cpu()
         if logp is None: logp = self.logp
         onehot = torch.zeros(logp.size())
         onehot.scatter_(1, action, 1.0)
+        onehot = Variable(onehot).type(FloatTensor)
         ret = onehot * logp
+        ret = torch.sum(ret, dim=-1)
         return ret
 
     def entropy(self, logits=None):
         if logits is None: logits = self.logits
-        ret = 0
-        for l, d in zip(logits, self.D_out):
-            a0 = l - torch.max(l, dim=1)[0].repeat(1, d)
-            ea0 = torch.exp(a0)
-            z0 = ea0.sum(1).repeat(1, d)
-            p0 = ea0 / z0
-            ret = ret + torch.sum(p0 * (torch.log(z0 + 1e-8) - a0), dim=1)
+        l = logits
+        d = self.out_dim
+        a0 = l - torch.max(l, dim=1)[0].repeat(1, d)
+        ea0 = torch.exp(a0)
+        z0 = ea0.sum(1).repeat(1, d)
+        p0 = ea0 / z0
+        ret = torch.sum(p0 * (torch.log(z0 + 1e-8) - a0), dim=1)
         return ret
