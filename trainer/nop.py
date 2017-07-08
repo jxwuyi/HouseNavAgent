@@ -38,7 +38,7 @@ class NOPTrainer(AgentTrainer):
         idx = self.replay_buffer.store_frame(obs)
         return idx
 
-    def process_experience(self, idx, act, rew, done, terminal):
+    def process_experience(self, idx, act, rew, done, terminal, info):
         pass
 
     def preupdate(self):

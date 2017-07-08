@@ -93,7 +93,7 @@ def train(args=None,
         episode_step += 1
         terminal = (episode_step >= args['episode_len'])
         # collect experience
-        trainer.process_experience(idx, action, rew, done, terminal)
+        trainer.process_experience(idx, action, rew, done, terminal, info)
         episode_rewards[-1] += rew
 
         if done or terminal:
@@ -151,7 +151,7 @@ def parse_args():
                         help="whether to use reward according to distance; o.w. indicator reward")
     parser.add_argument("--action-dim", type=int, help="degree of freedom of agent movement, must be in the range of [2, 4], default=4")
     # Core training parameters
-    parser.add_argument("--algo", choices=['ddpg','pg', 'rdpg', 'ddpg_joint', 'ddpg_alter'], default="ddpg", help="algorithm")
+    parser.add_argument("--algo", choices=['ddpg','pg', 'rdpg', 'ddpg_joint', 'ddpg_alter', 'ddpg_eagle', 'a2c'], default="ddpg", help="algorithm")
     parser.add_argument("--lrate", type=float, help="learning rate for policy")
     parser.add_argument("--critic-lrate", type=float, help="learning rate for critic")
     parser.add_argument('--weight-decay', type=float, help="weight decay for policy")
@@ -180,6 +180,11 @@ def parse_args():
                         help="[RNN-Only] maximum length of an episode in a batch")
     parser.add_argument("--rnn-cell", choices=['lstm', 'gru'],
                         help="[RNN-Only] RNN cell type")
+    # Aux Tasks and Additional Sampling Choice
+    parser.add_argument("--dist-sampling", dest='dist_sample', action="store_true")
+    parser.set_defaults(dist_sample=False)
+    parser.add_argument("--q-loss-coef", type=float,
+                        help="For joint model, the coefficient for q_loss")
     # Checkpointing
     parser.add_argument("--save-dir", type=str, default="./_model_", help="directory in which training state and model should be saved")
     parser.add_argument("--log-dir", type=str, default="./log", help="directory in which logs training stats")
@@ -190,7 +195,6 @@ def parse_args():
     parser.add_argument("--no-debug", action="store_false", dest="debug", help="turn off debug logs")
     parser.set_defaults(debug=False)
     return parser.parse_args()
-
 
 if __name__ == '__main__':
     cmd_args = parse_args()
@@ -232,6 +236,12 @@ if __name__ == '__main__':
 
     if cmd_args.scheduler is not None:
         args['scheduler'] = create_scheduler(cmd_args.scheduler)
+
+    if cmd_args.dist_sample:
+        args['dist_sample'] = True
+
+    if cmd_args.q_loss_coef is not None:
+        args['q_loss_coef'] = cmd_args.q_loss_coef
 
     train(args,
           houseID=cmd_args.house, linearReward=cmd_args.linear_reward,

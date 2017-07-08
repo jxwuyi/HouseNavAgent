@@ -14,12 +14,16 @@ from policy.vanila_random_policy import VanilaRandomPolicy as RandomPolicy
 from policy.ddpg_cnn_critic import DDPGCNNCritic as DDPGCritic
 from policy.rnn_critic import RNNCritic
 from policy.joint_cnn_actor_critic import JointCNNPolicyCritic as JointModel
+from policy.discrete_cnn_actor_critic import DiscreteCNNPolicyCritic as A2CModel
 from trainer.pg import PolicyGradientTrainer as PGTrainer
 from trainer.nop import NOPTrainer
 from trainer.ddpg import DDPGTrainer
+from trainer.ddpg_eagle_view import EagleDDPGTrainer
 from trainer.rdpg import RDPGTrainer
 from trainer.ddpg_joint import JointDDPGTrainer as JointTrainer
 from trainer.ddpg_joint_alter import JointAlterDDPGTrainer as AlterTrainer
+from trainer.a2c import A2CTrainer
+import environment
 from environment import SimpleHouseEnv as HouseEnv
 from multihouse_env import MultiHouseEnv
 from world import World
@@ -54,6 +58,7 @@ observation_shape = (3 * frame_history_len, resolution[0], resolution[1])
 single_observation_shape = (3, resolution[0], resolution[1])
 action_shape = (4, 2)
 colide_res = 1000
+default_eagle_resolution = 100
 
 
 debugger = None
@@ -103,6 +108,16 @@ def create_default_args(algo='pg', gamma=None,
     if algo == 'pg':  # policy gradient
         return create_args(gamma or 0.95, lrate or 0.001, None,
                            episode_len or 10, batch_size or 100, 1000,
+                           decay=(decay or 0))
+    elif algo == 'a2c':  # a2c, discrete action space
+        return create_args(gamma or 0.95, lrate or 0.001,
+                           episode_len = episode_len or 50,
+                           batch_size = batch_size or 256,
+                           replay_buffer_size = replay_buffer_size or int(50000),
+                           update_freq=(update_freq or 50),
+                           use_batch_norm=use_batch_norm,
+                           entropy_penalty=entropy_penalty,
+                           critic_penalty=critic_penalty,
                            decay=(decay or 0))
     elif 'ddpg' in algo:  # ddpg
         return create_args(gamma or 0.95, lrate or 0.001, critic_lrate or 0.001,
@@ -164,10 +179,19 @@ def create_policy(args, inp_shape, act_shape, name='cnn'):
     return policy
 
 
-def create_critic(args, inp_shape, act_shape, model):
+def create_critic(args, inp_shape, act_shape, model, extra_dim=0):
     use_bc = args['use_batch_norm']
     act_dim = act_shape if isinstance(act_shape, int) else sum(act_shape)
-    if model == 'cnn':
+    act_dim += extra_dim
+    if model == 'gate-cnn':
+        critic = DDPGCritic(inp_shape, act_dim,
+                            conv_hiddens=[32, 64, 128, 128],
+                            transform_hiddens=[64,256],
+                            linear_hiddens=[256, 64],
+                            use_action_gating=True,
+                            activation=F.relu,  # F.elu
+                            use_batch_norm=use_bc)
+    elif model == 'cnn':
         critic = DDPGCritic(inp_shape, act_dim,
                             conv_hiddens=[32, 64, 128, 128],
                             linear_hiddens=[256],
@@ -202,6 +226,22 @@ def create_joint_model(args, inp_shape, act_shape):
         model.cuda()
     return model
 
+def create_discrete_model(algo, args, inp_shape):
+    use_bc = args['use_batch_norm']
+    if algo == 'a2c':
+        model = A2CModel(inp_shape, environment.n_discrete_actions,
+                    cnn_hiddens=[64, 64, 128, 128],
+                    linear_hiddens=[200],
+                    critic_hiddens=[100, 32],
+                    act_hiddens=[100, 32],
+                    activation=F.relu,
+                    use_batch_norm = use_bc)
+    else:
+        assert False, 'algo name <{}> currently not supported!'.format(algo)
+    if use_cuda:
+        model.cuda()
+    return model
+
 
 def create_trainer(algo, model, args):
     # self, name, policy, obs_shape, act_shape, args)
@@ -220,6 +260,12 @@ def create_trainer(algo, model, args):
         policy_gen = lambda: create_policy(args, observation_shape, action_shape, 'cnn')
         trainer = DDPGTrainer('DDPGTrainer', policy_gen, critic_gen,
                               observation_shape, action_shape, args)
+    elif algo == 'ddpg_eagle':
+        eagle_shape = (4, default_eagle_resolution, default_eagle_resolution)
+        critic_gen = lambda: create_critic(args, eagle_shape, action_shape, 'gate-cnn', extra_dim=4)  # need to input direction info
+        policy_gen = lambda: create_policy(args, observation_shape, action_shape, 'cnn')
+        trainer = EagleDDPGTrainer('EagleDDPGTrainer', policy_gen, critic_gen,
+                                   observation_shape, eagle_shape, action_shape, args)
     elif (algo == 'ddpg_joint') or (algo == 'ddpg_alter'):
         assert(model == 'cnn')
         model_gen = lambda: create_joint_model(args, observation_shape, action_shape)
@@ -232,6 +278,11 @@ def create_trainer(algo, model, args):
         policy_gen = lambda: create_policy(args, single_observation_shape, action_shape, 'rnn')
         trainer = RDPGTrainer('RDPGTrainer', policy_gen, critic_gen,
                               single_observation_shape, action_shape, args)
+    elif algo == 'a2c':
+        model_gen = lambda: create_discrete_model(algo, args, observation_shape)
+        trainer = A2CTrainer('A2CTrainer', model_gen,
+                             observation_shape,
+                             environment.n_discrete_actions, args)
     else:
         assert False, 'Trainer not defined for <{}>'.format(algo)
     return trainer
@@ -241,8 +292,9 @@ def create_world(houseID):
     objFile = prefix + houseID + '/house.obj'
     jsonFile = prefix + houseID + '/house.json'
     cachedFile = genCacheFile(houseID)
-    assert os.path.isfile(cachedFile), '[Warning] No Cached Map File Found for House <{}> (id = {})!'.format(houseID, k)
-    world = World(jsonFile, objFile, csvFile, colide_res, CachedFile=cachedFile)
+    assert os.path.isfile(cachedFile), '[Warning] No Cached Map File Found for House <{}>!'.format(houseID)
+    world = World(jsonFile, objFile, csvFile, colide_res,
+                  CachedFile=cachedFile, EagleViewRes=default_eagle_resolution)
     return world
 
 def create_env(k=0, linearReward=False, hardness=None):

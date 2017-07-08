@@ -12,7 +12,8 @@ class DDPGCNNCritic(torch.nn.Module):
     def __init__(self, D_shape_in, A_dim,
                 conv_hiddens, kernel_sizes=5, strides=2,
                 linear_hiddens = [], D_out = 1,
-                activation=F.relu, use_batch_norm = True):
+                activation=F.relu, use_batch_norm = True,
+                transform_hiddens = [], use_action_gating = False):
         """
         D_shape_in: tupe of two ints, the shape of input images
         D_out: a int or a list of ints in length of degree of freedoms
@@ -38,6 +39,7 @@ class DDPGCNNCritic(torch.nn.Module):
         self.out_dim = D_out
         self.func = activation
 
+        # Convolution Layers for Image Features
         self.conv_layers = []
         self.bc_layers = []
         prev_hidden = D_shape_in[0]
@@ -55,8 +57,25 @@ class DDPGCNNCritic(torch.nn.Module):
             prev_hidden = h
         self.feat_size = self._get_feature_dim(D_shape_in)
         print('Feature Size = %d' % self.feat_size)
+        # Transformation Layers to change the action dimension
+        self.use_action_gating = use_action_gating
+        self.trans_layers = []
+        if use_action_gating:
+            if transform_hiddens[-1] != self.feat_size:
+                transform_hiddens.append(self.feat_size)
+        for i, d in enumerate(transform_hiddens):
+            self.trans_layers.append(nn.Linear(A_dim, d))
+            setattr(self, 'trans_layer%d'%i, self.trans_layers[-1])
+            utils.initialize_weights(self.trans_layers[-1])
+            A_dim = d
+        # Final Layers for produce final Q value
         self.linear_layers = []
-        prev_dim = self.feat_size + A_dim
+        if not use_action_gating:
+            # concatenate feature and action
+            prev_dim = self.feat_size + A_dim
+        else:
+            # use gating
+            prev_dim = self.feat_size
         linear_hiddens.append(self.out_dim)
         for i, d in enumerate(linear_hiddens):
             self.linear_layers.append(nn.Linear(prev_dim, d))
@@ -95,13 +114,17 @@ class DDPGCNNCritic(torch.nn.Module):
 
         common.debugger.print("------>[C] Forward of Critic, Feature Norm = {}, Var = {}, Max = {}, Min = {}".format(
                                 val.data.norm(), val.data.var(), val.data.max(), val.data.min()), False)
-
         if isinstance(act, list):
-            val = torch.cat([val] + act, dim=1)
-            common.debugger.print("                              Norm of Action = {}".format([a.data.norm() for a in act]) , False)
+            act = torch.cat(act, dim=1)
+        for i, l in enumerate(self.trans_layers):
+            act = l(act)
+            if (i+1 < len(self.trans_layers)) or (not self.use_action_gating):
+                act = self.func(act)
+        if self.use_action_gating:
+            act = F.sigmoid(act)
+            val = act * val
         else:
             val = torch.cat([val, act], dim=1)
-            common.debugger.print("                              Norm of Action = {}".format(act.data.norm()), False)
         for i, l in enumerate(self.linear_layers):
             if i > 0:
                 val = self.func(val)

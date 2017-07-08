@@ -50,10 +50,10 @@ class PolicyGradientTrainer(AgentTrainer):
         idx = self.replay_buffer.store_frame(obs)
         return idx
 
-    def process_experience(self, idx, act, rew, done, terminal):
+    def process_experience(self, idx, act, rew, done, terminal, info):
         # Store transition in the replay buffer.
         full_act = np.concatenate(act).squeeze()
-        self.replay_buffer.store_effect(idx, full_act, rew, done or terminal)
+        self.replay_buffer.store_effect(idx, full_act, rew, (done or terminal), info)
         if done or terminal:
             self.sample_counter += 1
 

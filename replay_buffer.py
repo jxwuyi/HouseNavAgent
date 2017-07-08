@@ -199,7 +199,7 @@ class ReplayBuffer(object):
 
         return ret
 
-    def store_effect(self, idx, action, reward, done):
+    def store_effect(self, idx, action, reward, done, info):
         """Store effects of action taken after obeserving frame stored
         at index idx. The reason `store_frame` and `store_effect` is broken
         up into two functions is so that once can call `encode_recent_observation`
@@ -215,6 +215,7 @@ class ReplayBuffer(object):
             Reward that was received when the actions was performed.
         done: bool
             True if episode was finished after performing that action.
+        info: extra info, ignored
         """
         self.action[idx] = action
         self.reward[idx] = reward
@@ -226,21 +227,29 @@ Replay with extra storage and maintaining partition information (for aux tasks)
 """
 class FullReplayBuffer(ReplayBuffer):
     def __init__(self, size, frame_history_len, frame_type = np.uint8,
-                action_shape = [], action_type = np.int32, partition=[]):
+                action_shape = [], action_type = np.int32, partition=[],
+                default_partition = None,
+                extra_info_shapes=[], extra_info_types=[]):
         """
         @param parition:
            a list of tuple (n_parition, partition_function)
            partition_function(info) --> 0...n_partition-1
         """
-        super(ReplayBuffer, self).__init__(size, frame_history_len, frame_type, action_shape, action_shape)
+        super(FullReplayBuffer, self).__init__(size, frame_history_len, frame_type, action_shape, action_type)
         self.infos = [None] * self.size
         self.n_part = len(partition)
         if self.n_part > 0:
             self.part_pos = -1 * np.ones([size, self.n_part, 2], dtype=np.int32)  # partition, part_pos
         else:
             self.part_pos = None
-        self.partition = [[[]] * p[0] for p in partition]
+        self.partition = [[[] for _ in range(p[0])] for p in partition]
         self.partition_func = [p[1] for p in partition]
+        self.default_partition = default_partition
+        self.extra_info_shapes = extra_info_shapes
+        self.extra_info_types = extra_info_types
+        self.extra_infos = None
+        assert len(self.extra_info_shapes) == len(self.extra_info_types), \
+            '[FullReplayBuffer] Lengths of <extra_info_shapes> and <extra_info_types> must match! Now received {} and {}'.format(extra_info_shapes, extra_info_types)
 
     def _remove_part_index(self, idx, part_pos): # remove partition information
         for i in range(self.n_part):
@@ -259,38 +268,69 @@ class FullReplayBuffer(ReplayBuffer):
             self.part_pos[idx,i,1]=len(partition[k])
             partition[k].append(idx)
 
-    def store_effect(self, idx, action, reward, done, info):
-        super(FullReplayBuffer, self).store_effect(idx, action, reward, done)
+    def _add_extra_info(self, idx, info):
+        if self.extra_infos is None:
+            self.extra_infos = []
+            for i in range(len(info)):
+                if isinstance(info[i], int):
+                    cur = np.empty([self.size], dtype=np.int32)
+                else:
+                    tp = np.float32 if len(self.extra_info_types) <= i else self.extra_info_types[i]
+                    sp = info[i].shape if len(self.extra_info_shapes) <= i else self.extra_info_shapes[i]
+                    cur = np.empty([self.size] + list(sp), dtype=tp)
+                self.extra_infos.append(cur)
+        for i, dat in enumerate(info):
+            self.extra_infos[i][idx] = dat
+
+    def store_effect(self, idx, action, reward, done, info, extra_infos=None):
+        super(FullReplayBuffer, self).store_effect(idx, action, reward, done, None)
         self.infos[idx] = info
         if self.part_pos is not None:
             if self.part_pos[idx,0,0] > -1:  # remove the previous instance from partitions
                 self._remove_part_index(idx, self.part_pos[idx])
             new_index = [func(info) for func in self.partition_func]
             self._add_part_index(idx, new_index)
+        if extra_infos is not None:
+            if not isinstance(extra_infos, list):
+                extra_infos = list(extra_infos)
+            self._add_extra_info(idx, extra_infos)
 
-    def sample(self, batch_size, partition=None, partition_sampler=None, collect_info=None):
+    def sample(self, batch_size, partition=None, partition_sampler=None, collect_info=None,
+               collect_extras=False, collect_extra_next=False):
         assert batch_size > 0, '[FullReplayBuffer] Currently only support sample for batch_size > 0'
+        if partition is None: partition = self.default_partition
         if partition is None:  # uniformly sample
             idxes = sample_n_unique(lambda: random.randint(0, self.num_in_buffer - 2), batch_size)
         else:
             assert isinstance(partition, int), '[FullReplayBuffer] partition must be an <int>, the index of the specified partition'
             k = partition
-            part_size = len(self.partition[k])
             cur_partition = self.partition[k]
             if partition_sampler is None:
-                partition_sampler = lambda: np.random.choice(part_size)
-            def sampler():
-                while True:
-                    i = partition_sampler()
-                    if len(cur_partition[i]) > 0: break
-                return np.random.choice(cur_partition[i])
+                active_chunk = [ch for ch in cur_partition if len(ch) > 0]
+                n_active = len(active_chunk)
+                def sampler():
+                    chunk = active_chunk[np.random.choice(n_active)]
+                    n = len(chunk)
+                    return chunk[np.random.choice(n)]
+            else:
+                def sampler():
+                    while True:
+                        i = partition_sampler()
+                        if len(cur_partition[i]) > 0: break
+                    return np.random.choice(cur_partition[i])
             idxes = sample_n_unique(sampler, batch_size)
+            #idxes = [sampler() for _ in range(batch_size)]  # allow same samples
+        self._idxes = idxes
+        extras = []
         if collect_info is not None:
-            infos = [collect_info(self.infos[idx]) for idx in idxes]
-        else:
-            infos = None
+            extras.append([collect_info(self.infos[idx]) for idx in idxes])
+        if collect_extras:
+            extras.append([ex[idxes] for ex in self.extra_infos])
+        if collect_extra_next:
+            next_idxes = [idx + 1 for idx in idxes]
+            extras.append([ex[next_idxes] for ex in self.extra_infos])
         ret_vals = list(super(FullReplayBuffer, self).sample(batch_size, _idxes=idxes))
-        return ret_vals + [infos]
+        return ret_vals + extras
 
 
 #########################################################
@@ -464,7 +504,7 @@ class RNNReplayBuffer(object):
         self.total_samples += 1
         return ret
 
-    def store_effect(self, idx, action, reward, done):
+    def store_effect(self, idx, action, reward, done, info):
         """Store effects of action taken after obeserving frame stored
         at index idx. The reason `store_frame` and `store_effect` is broken
         up into two functions is so that once can call `encode_recent_observation`

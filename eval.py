@@ -121,7 +121,7 @@ def parse_args():
     parser.add_argument("--hardness", type=float, help="real number from 0 to 1, indicating the hardness of the environment")
     parser.add_argument("--action-dim", type=int, help="degree of freedom of the agent movement, default=4, must be in range of [2,4]")
     # Core parameters
-    parser.add_argument("--algo", choices=['nop','pg','ddpg', 'rdpg'], default="ddpg", help="algorithm for training")
+    parser.add_argument("--algo", choices=['nop','pg','ddpg', 'ddpg_joint', 'rdpg'], default="ddpg", help="algorithm for training")
     parser.add_argument("--max-episode-len", type=int, default=2000, help="maximum episode length")
     parser.add_argument("--max-iters", type=int, default=1000, help="maximum number of eval episodes")
     parser.add_argument("--store-history", action='store_true', default=False, help="whether to store all the episode frames")

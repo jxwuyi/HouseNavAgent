@@ -20,6 +20,7 @@ use_cuda = torch.cuda.is_available()
 if use_cuda:
     print('>>> CUDA used!!!')
 FloatTensor = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
+IntTensor = torch.cuda.IntTensor if use_cuda else torch.IntTensor
 LongTensor = torch.cuda.LongTensor if use_cuda else torch.LongTensor
 ByteTensor = torch.cuda.ByteTensor if use_cuda else torch.ByteTensor
 Tensor = FloatTensor
@@ -35,7 +36,7 @@ class AgentTrainer(object):
     def action(self, obs):
         raise NotImplemented()
 
-    def process_experience(self, obs, act, rew, new_obs, done, terminal):
+    def process_experience(self, obs, act, rew, new_obs, done, terminal, info):
         raise NotImplemented()
 
     def preupdate(self):

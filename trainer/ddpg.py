@@ -23,6 +23,25 @@ def make_update_exp(vals, target_vals, rate=1e-3):
     target_vals.load_state_dict(target_dict)
 
 
+def create_replay_buffer(action_shape, action_type, args):
+    if 'dist_sample' not in args:
+        return ReplayBuffer(
+           args['replay_buffer_size'],
+           args['frame_history_len'],
+           action_shape=action_shape,
+           action_type=action_type)
+    else:
+        n_partition = 20
+        part_func = lambda info: min(int(info['scaled_dist'] * n_partition),n_partition-1)
+        return FullReplayBuffer(
+            args['replay_buffer_size'],
+            args['frame_history_len'],
+            action_shape=action_shape,
+            action_type=action_type,
+            partition=[(n_partition, part_func)],
+            default_partition=0)
+
+
 class DDPGTrainer(AgentTrainer):
     def __init__(self, name, policy_creator, critic_creator,
                  obs_shape, act_shape, args, replay_buffer=None):
@@ -57,12 +76,7 @@ class DDPGTrainer(AgentTrainer):
             self.p_optim = optim.RMSprop(self.p.parameters(), lr=self.lrate, weight_decay=args['weight_decay'])
             self.q_optim = optim.RMSprop(self.q.parameters(), lr=self.critic_lrate, weight_decay=args['critic_weight_decay'])
         self.target_update_rate = args['target_net_update_rate'] or 1e-3
-        self.replay_buffer = replay_buffer or \
-                             ReplayBuffer(
-                                args['replay_buffer_size'],
-                                args['frame_history_len'],
-                                action_shape=[self.act_dim],
-                                action_type=np.float32)
+        self.replay_buffer = replay_buffer or create_replay_buffer([self.act_dim], np.float32, args)
         self.max_episode_len = args['episode_len']
         self.grad_norm_clip = args['grad_clip']
         self.sample_counter = 0
@@ -85,10 +99,10 @@ class DDPGTrainer(AgentTrainer):
         idx = self.replay_buffer.store_frame(obs)
         return idx
 
-    def process_experience(self, idx, act, rew, done, terminal):
+    def process_experience(self, idx, act, rew, done, terminal, info):
         # Store transition in the replay buffer.
         full_act = np.concatenate(act).squeeze()
-        self.replay_buffer.store_effect(idx, full_act, rew, done or terminal)
+        self.replay_buffer.store_effect(idx, full_act, rew, (done or terminal), info)
         self.sample_counter += 1
 
     def preupdate(self):
