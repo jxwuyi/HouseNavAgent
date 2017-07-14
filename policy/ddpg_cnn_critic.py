@@ -13,7 +13,9 @@ class DDPGCNNCritic(torch.nn.Module):
                 conv_hiddens, kernel_sizes=5, strides=2,
                 linear_hiddens = [], D_out = 1,
                 activation=F.relu, use_batch_norm = True,
-                transform_hiddens = [], use_action_gating = False):
+                transform_hiddens = [],
+                use_action_gating = False,
+                use_residual = True):
         """
         D_shape_in: tupe of two ints, the shape of input images
         D_out: a int or a list of ints in length of degree of freedoms
@@ -28,6 +30,7 @@ class DDPGCNNCritic(torch.nn.Module):
         self.hiddens = conv_hiddens
         self.kernel_sizes = kernel_sizes
         self.strides = strides
+        self.use_residual = use_residual
         if len(self.hiddens) == 1: self.hiddens = self.hiddens * self.n_layer
         if len(self.kernel_sizes) == 1: self.kernel_sizes = self.kernel_sizes * self.n_layer
         if len(self.strides) == 1: self.strides = self.strides * self.n_layer
@@ -85,11 +88,14 @@ class DDPGCNNCritic(torch.nn.Module):
 
     ######################
     def _forward_feature(self, x):
-        for conv, bc in zip(self.conv_layers, self.bc_layers):
+        for s, conv, bc in zip(self.strides, self.conv_layers, self.bc_layers):
+            raw_x = x
             x = conv(x)
             if bc is not None:
                 x = bc(x)
             x = self.func(x)
+            if (s == 1) and self.use_residual:
+                x += raw_x  # skip connection
             if common.debugger is not None:
                 common.debugger.print("------>[C] Forward of Conv<{}>, Norm = {}, Var = {}, Max = {}, Min = {}".format(
                                     conv, x.data.norm(), x.data.var(), x.data.max(), x.data.min()), False)

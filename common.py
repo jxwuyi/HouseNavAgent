@@ -15,6 +15,7 @@ from policy.ddpg_cnn_critic import DDPGCNNCritic as DDPGCritic
 from policy.rnn_critic import RNNCritic
 from policy.joint_cnn_actor_critic import JointCNNPolicyCritic as JointModel
 from policy.discrete_cnn_actor_critic import DiscreteCNNPolicyCritic as A2CModel
+from policy.qac_cnn_actor_critic import DiscreteCNNPolicyQFunc as QACModel
 from trainer.pg import PolicyGradientTrainer as PGTrainer
 from trainer.nop import NOPTrainer
 from trainer.ddpg import DDPGTrainer
@@ -23,6 +24,8 @@ from trainer.rdpg import RDPGTrainer
 from trainer.ddpg_joint import JointDDPGTrainer as JointTrainer
 from trainer.ddpg_joint_alter import JointAlterDDPGTrainer as AlterTrainer
 from trainer.a2c import A2CTrainer
+from trainer.qac import QACTrainer
+from trainer.dqn import DQNTrainer
 import environment
 from environment import SimpleHouseEnv as HouseEnv
 from multihouse_env import MultiHouseEnv
@@ -109,11 +112,11 @@ def create_default_args(algo='pg', gamma=None,
         return create_args(gamma or 0.95, lrate or 0.001, None,
                            episode_len or 10, batch_size or 100, 1000,
                            decay=(decay or 0))
-    elif algo == 'a2c':  # a2c, discrete action space
+    elif (algo == 'a2c') or (algo == 'dqn') or (algo == 'qac'):  # a2c, discrete action space
         return create_args(gamma or 0.95, lrate or 0.001,
                            episode_len = episode_len or 50,
                            batch_size = batch_size or 256,
-                           replay_buffer_size = replay_buffer_size or int(50000),
+                           replay_buffer_size = replay_buffer_size or int(100000),
                            update_freq=(update_freq or 50),
                            use_batch_norm=use_batch_norm,
                            entropy_penalty=entropy_penalty,
@@ -186,7 +189,7 @@ def create_critic(args, inp_shape, act_shape, model, extra_dim=0):
     if model == 'gate-cnn':
         critic = DDPGCritic(inp_shape, act_dim,
                             conv_hiddens=[32, 64, 128, 128],
-                            transform_hiddens=[64,256],
+                            transform_hiddens=[32, 256],
                             linear_hiddens=[256, 64],
                             use_action_gating=True,
                             activation=F.relu,  # F.elu
@@ -217,7 +220,7 @@ def create_joint_model(args, inp_shape, act_shape):
     use_bc = args['use_batch_norm']
     model = JointModel(inp_shape, act_shape,
                     cnn_hiddens=[64, 64, 128, 128],
-                    linear_hiddens=[200],
+                    linear_hiddens=[512],
                     critic_hiddens=[100, 32],
                     kernel_sizes=5, strides=2,
                     activation=F.relu,  # F.relu
@@ -231,11 +234,25 @@ def create_discrete_model(algo, args, inp_shape):
     if algo == 'a2c':
         model = A2CModel(inp_shape, environment.n_discrete_actions,
                     cnn_hiddens=[64, 64, 128, 128],
-                    linear_hiddens=[200],
+                    linear_hiddens=[512],
                     critic_hiddens=[100, 32],
                     act_hiddens=[100, 32],
                     activation=F.relu,
                     use_batch_norm = use_bc)
+    elif algo == 'qac':
+        model = QACModel(inp_shape, environment.n_discrete_actions,
+                         cnn_hiddens=[32, 64, 128, 128],
+                         linear_hiddens=[512],
+                         critic_hiddens=[256, 32],
+                         act_hiddens=[256, 32],
+                         activation=F.relu, use_batch_norm=use_bc)
+    elif algo == 'dqn':
+        model = QACModel(inp_shape, environment.n_discrete_actions,
+                         cnn_hiddens=[32, 64, 128, 128],
+                         linear_hiddens=[512],
+                         critic_hiddens=[256, 32],
+                         activation=F.relu, use_batch_norm=use_bc,
+                         only_q_network=True)
     else:
         assert False, 'algo name <{}> currently not supported!'.format(algo)
     if use_cuda:
@@ -282,6 +299,14 @@ def create_trainer(algo, model, args):
         model_gen = lambda: create_discrete_model(algo, args, observation_shape)
         trainer = A2CTrainer('A2CTrainer', model_gen,
                              observation_shape,
+                             environment.n_discrete_actions, args)
+    elif algo == 'qac':
+        model_gen = lambda: create_discrete_model(algo, args, observation_shape)
+        trainer = QACTrainer('QACTrainer', model_gen, observation_shape,
+                             environment.n_discrete_actions, args)
+    elif algo == 'dqn':
+        model_gen = lambda: create_discrete_model(algo, args, observation_shape)
+        trainer = DQNTrainer('DQNTrainer', model_gen, observation_shape,
                              environment.n_discrete_actions, args)
     else:
         assert False, 'Trainer not defined for <{}>'.format(algo)

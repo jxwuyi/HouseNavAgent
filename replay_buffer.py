@@ -309,15 +309,22 @@ class FullReplayBuffer(ReplayBuffer):
                 active_chunk = [ch for ch in cur_partition if len(ch) > 0]
                 n_active = len(active_chunk)
                 def sampler():
-                    chunk = active_chunk[np.random.choice(n_active)]
-                    n = len(chunk)
-                    return chunk[np.random.choice(n)]
+                    while True:
+                        chunk = active_chunk[np.random.choice(n_active)]
+                        n = len(chunk)
+                        ret = chunk[np.random.choice(n)]
+                        if ret < self.num_in_buffer - 1:
+                            return ret
             else:
                 def sampler():
                     while True:
                         i = partition_sampler()
-                        if len(cur_partition[i]) > 0: break
-                    return np.random.choice(cur_partition[i])
+                        cur_part = cur_partition[i]
+                        if len(cur_part) > 0:
+                            m = len(cur_part)
+                            ret = cur_part[np.random.choice(m)]
+                            if ret < self.num_in_buffer - 1:
+                                return ret
             idxes = sample_n_unique(sampler, batch_size)
             #idxes = [sampler() for _ in range(batch_size)]  # allow same samples
         self._idxes = idxes

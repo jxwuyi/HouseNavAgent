@@ -12,7 +12,10 @@ class JointCNNPolicyCritic(torch.nn.Module):
     def __init__(self, D_shape_in, D_out,
                 cnn_hiddens, kernel_sizes=5, strides=2,
                 linear_hiddens=[], critic_hiddens=[],
-                activation=F.relu, use_batch_norm = True):
+                activation=F.relu, use_batch_norm = True,
+                transform_hiddens=[],
+                use_action_gating = False,
+                use_residual = True):
         """
         D_shape_in: tupe of two ints, the shape of input images
         D_out: a int or a list of ints in length of degree of freedoms
@@ -26,6 +29,7 @@ class JointCNNPolicyCritic(torch.nn.Module):
         self.cnn_hiddens = cnn_hiddens
         self.kernel_sizes = kernel_sizes
         self.strides = strides
+        self.use_residual = use_residual
         if len(self.cnn_hiddens) == 1: self.cnn_hiddens = self.cnn_hiddens * self.n_layer
         if len(self.kernel_sizes) == 1: self.kernel_sizes = self.kernel_sizes * self.n_layer
         if len(self.strides) == 1: self.strides = self.strides * self.n_layer
@@ -78,6 +82,7 @@ class JointCNNPolicyCritic(torch.nn.Module):
             setattr(self, 'policy_layer%d'%i, self.policy_layers[-1])
             utils.initialize_weights(self.policy_layers[-1], small_init=True)
         # Output Critic
+        self.use_action_gating = use_action_gating  # TODO: to support gating
         self.critic_size = cur_dim = self.final_size + self.out_dim
         self.critic_layers = []
         if (len(critic_hiddens) == 0) or (critic_hiddens[-1] != 1):
@@ -101,11 +106,14 @@ class JointCNNPolicyCritic(torch.nn.Module):
 
     ######################
     def _forward_feature(self, x):
-        for conv, bc in zip(self.conv_layers, self.bc_layers):
+        for s, conv, bc in zip(self.strides, elf.conv_layers, self.bc_layers):
+            raw_x = x
             x = conv(x)
             if bc is not None:
                 x = bc(x)
             x = self.func(x)
+            if (s == 1) and self.use_residual:
+                x += raw_x  # skip connection
             if common.debugger is not None:
                 common.debugger.print("------>[P] Forward of Conv<{}>, Norm = {}, Var = {}, Max = {}, Min = {}".format(
                                     conv, x.data.norm(), x.data.var(), x.data.max(), x.data.min()), False)

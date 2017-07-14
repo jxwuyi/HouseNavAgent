@@ -21,6 +21,8 @@ def create_scheduler(type='medium'):
         endpoints = [(0, 0), (3000, 0.1), (8000, 0.25), (15000, 0.5), (30000, 1.0)]
     elif type == 'low': # low
         endpoints = [(0, 0), (1000, 0.1), (2000, 0.25), (7000, 0.5), (15000, 1.0)]
+    elif type == 'exp':
+        endpoints = [(0, 0), (1000, 0.01), (5000, 0.1), (8000, 0.5), (10000, 0.75), (12000, 0.9), (20000, 0.95), (30000, 1.0)]
     print('Building PiecewiseScheduler with <endpoints> = {}'.format(endpoints))
     scheduler = utils.PiecewiseSchedule(endpoints, outside_value=1.0)
     return scheduler
@@ -151,7 +153,8 @@ def parse_args():
                         help="whether to use reward according to distance; o.w. indicator reward")
     parser.add_argument("--action-dim", type=int, help="degree of freedom of agent movement, must be in the range of [2, 4], default=4")
     # Core training parameters
-    parser.add_argument("--algo", choices=['ddpg','pg', 'rdpg', 'ddpg_joint', 'ddpg_alter', 'ddpg_eagle', 'a2c'], default="ddpg", help="algorithm")
+    parser.add_argument("--algo", choices=['ddpg','pg', 'rdpg', 'ddpg_joint', 'ddpg_alter', 'ddpg_eagle',
+                                           'a2c', 'qac', 'dqn'], default="ddpg", help="algorithm")
     parser.add_argument("--lrate", type=float, help="learning rate for policy")
     parser.add_argument("--critic-lrate", type=float, help="learning rate for critic")
     parser.add_argument('--weight-decay', type=float, help="weight decay for policy")
@@ -168,7 +171,7 @@ def parse_args():
     parser.add_argument("--entropy-penalty", type=float, help="policy entropy regularizer")
     parser.add_argument("--critic-penalty", type=float, default=0.001, help="critic norm regularizer")
     parser.add_argument("--replay-buffer-size", type=int, help="size of replay buffer")
-    parser.add_argument("--noise-scheduler", choices=['low','medium','high','none','linear'],
+    parser.add_argument("--noise-scheduler", choices=['low','medium','high','none','linear','exp'],
                         dest='scheduler', default='medium',
                         help="Whether to use noise-level scheduler to control the smoothness of action output. default=False.")
     # RNN Parameters
