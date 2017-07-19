@@ -114,9 +114,9 @@ class ReplayBuffer(object):
 
         if (self.batch_size is None) or (len(idxes) != self.batch_size):
             self.batch_size = len(idxes)
-            img_h, img_w = self.obs.shape[1], self.obs.shape[2]
-            self.obs_batch = np.zeros([self.batch_size, self.frame_history_len, img_h, img_w, 3],dtype=self.frame_type)
-            self.obs_nxt_batch = np.zeros([self.batch_size, self.frame_history_len, img_h, img_w, 3],dtype=self.frame_type)
+            img_h, img_w, img_c = self.obs.shape[1], self.obs.shape[2], self.obs.shape[3]
+            self.obs_batch = np.zeros([self.batch_size, self.frame_history_len, img_h, img_w, img_c],dtype=self.frame_type)
+            self.obs_nxt_batch = np.zeros([self.batch_size, self.frame_history_len, img_h, img_w, img_c],dtype=self.frame_type)
 
         return self._encode_sample(idxes)
 
@@ -151,8 +151,8 @@ class ReplayBuffer(object):
         # or we are on the boundry of the buffer
         if start_idx < 0 or missing_context > 0:
             #frames = [np.zeros_like(self.obs[0]) for _ in range(missing_context)]
-            img_h, img_w = self.obs.shape[1], self.obs.shape[2]
-            frames = np.zeros((self.frame_history_len, img_h, img_w, 3), dtype=self.frame_type)
+            img_h, img_w, img_c = self.obs.shape[1], self.obs.shape[2], self.obs.shape[3]
+            frames = np.zeros((self.frame_history_len, img_h, img_w, img_c), dtype=self.frame_type)
             pt = missing_context
             for idx in range(start_idx, end_idx):
                 #frames.append(self.obs[idx % self.size])

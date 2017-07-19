@@ -11,6 +11,7 @@ from torch.autograd import Variable
 
 class NOPTrainer(AgentTrainer):
     def __init__(self, name, policy, obs_shape, act_shape, args):
+        super(NOPTrainer, self).__init__()
         self.name = name
         self.policy = policy  # NOTE: policy must be instantiated before
         assert isinstance(policy, torch.nn.Module), 'policy must be an instantiated instance of torch.nn.Module'

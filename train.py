@@ -47,7 +47,8 @@ def train(args=None,
         print('>>> Hardness Level = {}'.format(hardness))
 
     trainer = common.create_trainer(algo, model_name, args)
-    env = common.create_env(houseID, linearReward, hardness)
+    env = common.create_env(houseID, linearReward, hardness,
+                            args['segment_input'])
     logger = utils.MyLogger(log_dir, True)
 
     if warmstart is not None:
@@ -152,6 +153,13 @@ def parse_args():
     parser.add_argument("--linear-reward", action='store_true', default=False,
                         help="whether to use reward according to distance; o.w. indicator reward")
     parser.add_argument("--action-dim", type=int, help="degree of freedom of agent movement, must be in the range of [2, 4], default=4")
+    parser.add_argument("--segmentation-input", dest='segment_input', action='store_true',
+                        help="whether to use segmentation mask as input; by default we use *pixel* input")
+    parser.set_defaults(segment_input=False)
+    parser.add_argument("--resolution", choices=['normal', 'low', 'tiny', 'high', 'square', 'square_low'], default='normal',
+                        help="resolution of visual input, default normal=[120 * 90]")
+    parser.add_argument("--history-frame-len", type=int, default=4,
+                        help="length of the stacked frames, default=4")
     # Core training parameters
     parser.add_argument("--algo", choices=['ddpg','pg', 'rdpg', 'ddpg_joint', 'ddpg_alter', 'ddpg_eagle',
                                            'a2c', 'qac', 'dqn'], default="ddpg", help="algorithm")
@@ -174,6 +182,12 @@ def parse_args():
     parser.add_argument("--noise-scheduler", choices=['low','medium','high','none','linear','exp'],
                         dest='scheduler', default='medium',
                         help="Whether to use noise-level scheduler to control the smoothness of action output. default=False.")
+    parser.add_argument("--use-action-gating", dest='action_gating', action='store_true',
+                        help="whether to use action gating structure in the critic model")
+    parser.set_defaults(action_gating=False)
+    parser.add_argument("--use-residual-critic", dest='residual_critic', action='store_true',
+                        help="whether to use residual structure for feature extraction in the critic model (N.A. for joint-ac model) ")
+    parser.set_defaults(residual_critic=False)
     # RNN Parameters
     parser.add_argument("--rnn-units", type=int,
                         help="[RNN-Only] number of units in an RNN cell")
@@ -229,7 +243,11 @@ if __name__ == '__main__':
                                cmd_args.replay_buffer_size,
                                # RNN Parameters
                                cmd_args.batch_length, cmd_args.rnn_layers,
-                               cmd_args.rnn_cell, cmd_args.rnn_units)
+                               cmd_args.rnn_cell, cmd_args.rnn_units,
+                               # input type
+                               cmd_args.segment_input,
+                               cmd_args.resolution,
+                               cmd_args.history_frame_len)
 
     if cmd_args.target_net_update_rate is not None:
         args['target_net_update_rate']=cmd_args.target_net_update_rate
@@ -245,6 +263,9 @@ if __name__ == '__main__':
 
     if cmd_args.q_loss_coef is not None:
         args['q_loss_coef'] = cmd_args.q_loss_coef
+
+    args['action_gating'] = cmd_args.action_gating   # gating in ddpg network
+    args['residual_critic'] = cmd_args.residual_critic  # resnet for critic (classical ddpg)
 
     train(args,
           houseID=cmd_args.house, linearReward=cmd_args.linear_reward,

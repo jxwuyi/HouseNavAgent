@@ -18,7 +18,9 @@ def evaluate(house,
              iters = 1000, max_episode_len = 1000, hardness = None, algo='nop',
              model_name='cnn', model_file=None, log_dir='./log/eval',
              store_history=False, use_batch_norm=True,
-             rnn_units=None, rnn_layers=None, rnn_cell=None):
+             rnn_units=None, rnn_layers=None, rnn_cell=None,
+             use_action_gating=False, use_residual_critic=False,
+             segmentation_input=False, resolution='normal', history_len=4):
 
     # Do not need to log detailed computation stats
     common.debugger = utils.FakeLogger()
@@ -26,7 +28,13 @@ def evaluate(house,
     args = common.create_default_args(algo, use_batch_norm=use_batch_norm,
                                       replay_buffer_size=50,
                                       episode_len=max_episode_len,
-                                      rnn_units=rnn_units, rnn_layers=rnn_layers, rnn_cell=rnn_cell)
+                                      rnn_units=rnn_units, rnn_layers=rnn_layers, rnn_cell=rnn_cell,
+                                      segmentation_input=segmentation_input,
+                                      resolution_level=resolution,
+                                      history_frame_len=history_len)
+    args['action_gating'] = use_action_gating
+    args['residual_critic'] = use_residual_critic
+
     trainer = common.create_trainer(algo, model_name, args)
     if model_file is not None:
         trainer.load(model_file)
@@ -34,7 +42,8 @@ def evaluate(house,
 
     if hardness is not None:
         print('>>>> Hardness = {}'.format(hardness))
-    env = common.create_env(house, hardness=hardness)
+    env = common.create_env(house, hardness=hardness,
+                            segment_input=args['segment_input'])
 
     logger = utils.MyLogger(log_dir, True)
     logger.print('Start Evaluating ...')
@@ -120,6 +129,13 @@ def parse_args():
     parser.add_argument("--seed", type=int, default=0, help="random seed")
     parser.add_argument("--hardness", type=float, help="real number from 0 to 1, indicating the hardness of the environment")
     parser.add_argument("--action-dim", type=int, help="degree of freedom of the agent movement, default=4, must be in range of [2,4]")
+    parser.add_argument("--segmentation-input", dest='segment_input', action='store_true',
+                        help="whether to use segmentation mask as input; by default we use *pixel* input")
+    parser.set_defaults(segment_input=False)
+    parser.add_argument("--resolution", choices=['normal', 'low', 'tiny', 'high', 'square', 'square_low'], default='normal',
+                        help="resolution of visual input, default normal=[120 * 90]")
+    parser.add_argument("--history-frame-len", type=int, default=4,
+                        help="length of the stacked frames, default=4")
     # Core parameters
     parser.add_argument("--algo", choices=['ddpg','pg', 'rdpg', 'ddpg_joint', 'ddpg_alter', 'ddpg_eagle',
                                            'a2c', 'qac', 'dqn'], default="ddpg", help="algorithm for training")
@@ -129,6 +145,12 @@ def parse_args():
     parser.add_argument("--batch-norm", action='store_true', dest='use_batch_norm',
                         help="Whether to use batch normalization in the policy network. default=False.")
     parser.set_defaults(use_batch_norm=False)
+    parser.add_argument("--use-action-gating", dest='action_gating', action='store_true',
+                        help="whether to use action gating structure in the critic model")
+    parser.set_defaults(action_gating=False)
+    parser.add_argument("--use-residual-critic", dest='residual_critic', action='store_true',
+                        help="whether to use residual structure for feature extraction in the critic model (N.A. for joint-ac model) ")
+    parser.set_defaults(residual_critic=False)
     # RNN Parameters
     parser.add_argument("--rnn-units", type=int,
                         help="[RNN-Only] number of units in an RNN cell")
@@ -162,7 +184,9 @@ if __name__ == '__main__':
         evaluate(args.house, args.max_iters, args.max_episode_len, args.hardness,
                  args.algo, model_name, args.warmstart, args.log_dir,
                  args.store_history, args.use_batch_norm,
-                 args.rnn_units, args.rnn_layers, args.rnn_cell)
+                 args.rnn_units, args.rnn_layers, args.rnn_cell,
+                 args.action_gating, args.residual_critic,
+                 args.segment_input, args.resolution, args.history_frame_len)
 
     if args.store_history:
         filename = args.log_dir

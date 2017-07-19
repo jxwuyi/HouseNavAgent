@@ -26,6 +26,7 @@ def make_update_exp(vals, target_vals, rate=1e-3):
 class JointAlterDDPGTrainer(AgentTrainer):
     def __init__(self, name, model_creator,
                  obs_shape, act_shape, args, replay_buffer=None):
+        super(JointAlterDDPGTrainer, self).__init__()
         self.name = name
         self.net = model_creator()
         assert isinstance(self.net, torch.nn.Module), \

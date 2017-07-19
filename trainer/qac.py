@@ -42,6 +42,7 @@ def create_replay_buffer(args):
 class QACTrainer(AgentTrainer):
     def __init__(self, name, model_creator,
                  obs_shape, act_dim, args, replay_buffer=None):
+        super(QACTrainer, self).__init__()
         self.name = name
         self.net = model_creator()
         assert isinstance(self.net, torch.nn.Module), \

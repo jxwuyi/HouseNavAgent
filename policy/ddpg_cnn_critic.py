@@ -15,7 +15,7 @@ class DDPGCNNCritic(torch.nn.Module):
                 activation=F.relu, use_batch_norm = True,
                 transform_hiddens = [],
                 use_action_gating = False,
-                use_residual = True):
+                use_residual = False):
         """
         D_shape_in: tupe of two ints, the shape of input images
         D_out: a int or a list of ints in length of degree of freedoms
@@ -31,6 +31,8 @@ class DDPGCNNCritic(torch.nn.Module):
         self.kernel_sizes = kernel_sizes
         self.strides = strides
         self.use_residual = use_residual
+        if use_residual:
+            assert use_batch_norm, 'residual network requires batch norm!'
         if len(self.hiddens) == 1: self.hiddens = self.hiddens * self.n_layer
         if len(self.kernel_sizes) == 1: self.kernel_sizes = self.kernel_sizes * self.n_layer
         if len(self.strides) == 1: self.strides = self.strides * self.n_layer
@@ -48,15 +50,35 @@ class DDPGCNNCritic(torch.nn.Module):
         prev_hidden = D_shape_in[0]
         for i, dat in enumerate(zip(self.hiddens, self.kernel_sizes, self.strides)):
             h, k, s = dat
-            self.conv_layers.append(nn.Conv2d(prev_hidden, h, kernel_size=k, stride=s))
-            setattr(self, 'conv_layer%d'%i, self.conv_layers[-1])
-            utils.initialize_weights(self.conv_layers[-1])
-            if use_batch_norm:
-                self.bc_layers.append(nn.BatchNorm2d(h))
-                setattr(self, 'bc_layer%d'%i, self.bc_layers[-1])
-                utils.initialize_weights(self.bc_layers[-1])
+            if self.use_residual and (i > 0):
+                shortcut = None if (s == 1) and (h == prev_hidden) else nn.Conv2D(prev_hidden, h, kernel_sizes=1, stride=s)
+                if shortcut is not None:
+                    setattr('resconv_block%d_shortcut'%i, shortcut)
+                    utils.initialize_weights(shortcut)
+                conv1=nn.Conv2d(prev_hidden, prev_hidden, kernel_size=k, stride=1)
+                conv2=nn.Conv2d(prev_hidden, h, kernel_size=k, stride=s)
+                setattr(self, 'resconv_block%d_conv1'%i, conv1)
+                setattr(self, 'resconv_block%d_conv2'%i, conv2)
+                utils.initialize_weights(conv1)
+                utils.initialize_weights(conv2)
+                bc1 = nn.BatchNorm2d(prev_hidden)
+                bc2 = nn.BatchNorm2d(h)
+                setattr(self, 'resconv_block%d_bc1'%i, bc1)
+                setattr(self, 'resconv_block%d_bc2'%i, bc2)
+                utils.initialize_weights(bc1)
+                utils.initialize_weights(bc2)
+                self.bc_layers.append((bc1, bc2))
+                self.conv_layers.append((conv1, conv2, shortcut))
             else:
-                self.bc_layers.append(None)
+                self.conv_layers.append(nn.Conv2d(prev_hidden, h, kernel_size=k, stride=s))
+                setattr(self, 'conv_layer%d'%i, self.conv_layers[-1])
+                utils.initialize_weights(self.conv_layers[-1])
+                if use_batch_norm:
+                    self.bc_layers.append(nn.BatchNorm2d(h))
+                    setattr(self, 'bc_layer%d'%i, self.bc_layers[-1])
+                    utils.initialize_weights(self.bc_layers[-1])
+                else:
+                    self.bc_layers.append(None)
             prev_hidden = h
         self.feat_size = self._get_feature_dim(D_shape_in)
         print('Feature Size = %d' % self.feat_size)
@@ -88,14 +110,22 @@ class DDPGCNNCritic(torch.nn.Module):
 
     ######################
     def _forward_feature(self, x):
-        for s, conv, bc in zip(self.strides, self.conv_layers, self.bc_layers):
-            raw_x = x
-            x = conv(x)
-            if bc is not None:
-                x = bc(x)
+        for conv, bc in zip(self.conv_layers, self.bc_layers):
+            if isinstance(conv, tuple):  # residual structure
+                raw_x = x
+                conv1, conv2, shortcut = conv
+                bc1, bc2 = bc
+                x = self.func(bc1(conv1(x)))
+                x = bc2(conv2(x))
+                if shortcut is None:
+                    x += raw_x
+                else:
+                    x += shortcut(raw_x)
+            else:
+                x = conv(x)
+                if bc is not None:
+                    x = bc(x)
             x = self.func(x)
-            if (s == 1) and self.use_residual:
-                x += raw_x  # skip connection
             if common.debugger is not None:
                 common.debugger.print("------>[C] Forward of Conv<{}>, Norm = {}, Var = {}, Max = {}, Min = {}".format(
                                     conv, x.data.norm(), x.data.var(), x.data.max(), x.data.min()), False)

@@ -44,12 +44,12 @@ if "Apple" in sys.version:
     # own mac laptop
     prefix = '/Users/yiw/Downloads/data/house/'
     csvFile = '/Users/yiw/Downloads/data/metadata/ModelCategoryMapping.csv'
-    colorFile = '/Users/yiw/Downloads/data/metadata/colormap.csv'
+    colorFile = '/Users/yiw/Downloads/data/metadata/colormap_coarse.csv'
 elif "Red Hat" in sys.version:
     # dev server
     prefix = '/home/yiw/local/data/houses-yiwu/'
     csvFile = '/home/yiw/local/data/houses-yiwu/ModelCategoryMapping.csv'
-    colorFile = '/home/yiw/local/data/houses-yiwu/colormap.csv'
+    colorFile = '/home/yiw/local/data/houses-yiwu/colormap_coarse.csv'
 else:
     # fair server
     assert False, 'Unable to locate data folder..... Please edit <common.py>'
@@ -57,6 +57,7 @@ else:
 frame_history_len = 4
 #resolution = (200, 150)
 resolution = (120, 90)
+resolution_dict = dict(normal=(120,90),low=(60,45),tiny=(40,30),square=(100,100),square_low=(60,60),high=(160,120))
 observation_shape = (3 * frame_history_len, resolution[0], resolution[1])
 single_observation_shape = (3, resolution[0], resolution[1])
 action_shape = (4, 2)
@@ -82,7 +83,9 @@ def create_args(gamma = 0.9, lrate = 0.001, critic_lrate = 0.001,
                 use_batch_norm = False,
                 entropy_penalty = None,
                 critic_penalty=None,
-                batch_len=None, rnn_layers=None, rnn_cell=None, rnn_units=None):
+                batch_len=None, rnn_layers=None, rnn_cell=None, rnn_units=None,
+                segment_input=False,
+                resolution_level='normal'):
     return dict(gamma=gamma, lrate=lrate, critic_lrate=critic_lrate,
                 weight_decay=decay, critic_weight_decay=critic_decay,
                 episode_len=episode_len,
@@ -96,7 +99,10 @@ def create_args(gamma = 0.9, lrate = 0.001, critic_lrate = 0.001,
                 target_net_update_rate=target_net_update_rate,
                 use_batch_norm=use_batch_norm,
                 # RNN Params
-                batch_len=batch_len, rnn_layers=rnn_layers, rnn_cell=rnn_cell, rnn_units=rnn_units)
+                batch_len=batch_len, rnn_layers=rnn_layers, rnn_cell=rnn_cell, rnn_units=rnn_units,
+                # input type
+                segment_input=segment_input,
+                resolution_level=resolution_level)
 
 
 def create_default_args(algo='pg', gamma=None,
@@ -107,11 +113,28 @@ def create_default_args(algo='pg', gamma=None,
                         entropy_penalty=None, critic_penalty=None,
                         decay=None, critic_decay=None,
                         replay_buffer_size=None,
-                        batch_len=None, rnn_layers=None, rnn_cell=None, rnn_units=None):
+                        batch_len=None, rnn_layers=None, rnn_cell=None, rnn_units=None,
+                        segmentation_input=False,
+                        resolution_level='normal',
+                        history_frame_len=4):
+    global frame_history_len, resolution, observation_shape, single_observation_shape
+    if history_frame_len != 4:
+        frame_history_len = history_frame_len
+        print('>>> Currently Stacked Frames Size = {}'.format(frame_history_len))
+    if resolution_level != 'normal':
+        resolution = resolution_dict[resolution_level]
+        print('>>>> Resolution Changed to {}'.format(resolution))
+        observation_shape = (3 * frame_history_len, resolution[0], resolution[1])
+        single_observation_shape = (3, resolution[0], resolution[1])
+    if segmentation_input:
+        observation_shape = (frame_history_len * n_segmentation_mask, resolution[0], resolution[1])
+        single_observation_shape = (n_segmentation_mask, resolution[0], resolution[1])
     if algo == 'pg':  # policy gradient
         return create_args(gamma or 0.95, lrate or 0.001, None,
                            episode_len or 10, batch_size or 100, 1000,
-                           decay=(decay or 0))
+                           decay=(decay or 0),
+                           segment_input=segmentation_input,
+                           resolution_level=resolution_level)
     elif (algo == 'a2c') or (algo == 'dqn') or (algo == 'qac'):  # a2c, discrete action space
         return create_args(gamma or 0.95, lrate or 0.001,
                            episode_len = episode_len or 50,
@@ -121,7 +144,9 @@ def create_default_args(algo='pg', gamma=None,
                            use_batch_norm=use_batch_norm,
                            entropy_penalty=entropy_penalty,
                            critic_penalty=critic_penalty,
-                           decay=(decay or 0))
+                           decay=(decay or 0),
+                           segment_input=segmentation_input,
+                           resolution_level=resolution_level)
     elif 'ddpg' in algo:  # ddpg
         return create_args(gamma or 0.95, lrate or 0.001, critic_lrate or 0.001,
                            episode_len or 50,
@@ -131,7 +156,9 @@ def create_default_args(algo='pg', gamma=None,
                            use_batch_norm=use_batch_norm,
                            entropy_penalty=entropy_penalty,
                            critic_penalty=critic_penalty,
-                           decay=(decay or 0), critic_decay=(critic_decay or 0))
+                           decay=(decay or 0), critic_decay=(critic_decay or 0),
+                           segment_input=segmentation_input,
+                           resolution_level=resolution_level)
     elif algo == 'rdpg':  # rdpg
         return create_args(gamma or 0.95, lrate or 0.001, critic_lrate or 0.001,
                            episode_len or 50,
@@ -144,9 +171,12 @@ def create_default_args(algo='pg', gamma=None,
                            batch_len=(batch_len or 20),
                            rnn_layers=(rnn_layers or 1),
                            rnn_cell=(rnn_cell or 'lstm'),
-                           rnn_units=(rnn_units or 64))
+                           rnn_units=(rnn_units or 64),
+                           segment_input=segmentation_input,
+                           resolution_level=resolution_level)
     elif algo == 'nop':
-        return create_args()
+        return create_args(segment_input=segmentation_input,
+                           resolution_level=resolution_level)
     else:
         assert (False)
 
@@ -187,13 +217,24 @@ def create_critic(args, inp_shape, act_shape, model, extra_dim=0):
     act_dim = act_shape if isinstance(act_shape, int) else sum(act_shape)
     act_dim += extra_dim
     if model == 'gate-cnn':
-        critic = DDPGCritic(inp_shape, act_dim,
-                            conv_hiddens=[32, 64, 128, 128],
-                            transform_hiddens=[32, 256],
-                            linear_hiddens=[256, 64],
-                            use_action_gating=True,
-                            activation=F.relu,  # F.elu
-                            use_batch_norm=use_bc)
+        if args['residual_critic']:
+            critic = DDPGCritic(inp_shape, act_dim,
+                                conv_hiddens=[32, 32, 32, 64, 64, 64, 128, 128, 128],
+                                kernel_sizes=[5, 3, 3, 3, 3, 3, 3, 3, 3],
+                                strides=[2, 1, 1, 2, 1, 1, 2, 1, 2],
+                                transform_hiddens=[32, 256],
+                                linear_hiddens=[256, 64],
+                                use_action_gating=True,
+                                activation=F.relu,  # F.elu
+                                use_batch_norm=use_bc)
+        else:
+            critic = DDPGCritic(inp_shape, act_dim,
+                                conv_hiddens=[32, 64, 128, 128],
+                                transform_hiddens=[32, 256],
+                                linear_hiddens=[256, 64],
+                                use_action_gating=True,
+                                activation=F.relu,  # F.elu
+                                use_batch_norm=use_bc)
     elif model == 'cnn':
         critic = DDPGCritic(inp_shape, act_dim,
                             conv_hiddens=[32, 64, 128, 128],
@@ -218,13 +259,35 @@ def create_critic(args, inp_shape, act_shape, model, extra_dim=0):
 
 def create_joint_model(args, inp_shape, act_shape):
     use_bc = args['use_batch_norm']
-    model = JointModel(inp_shape, act_shape,
-                    cnn_hiddens=[64, 64, 128, 128],
-                    linear_hiddens=[512],
-                    critic_hiddens=[100, 32],
-                    kernel_sizes=5, strides=2,
-                    activation=F.relu,  # F.relu
-                    use_batch_norm=use_bc)
+    if not args['action_gating']:
+        model = JointModel(inp_shape, act_shape,
+                        cnn_hiddens=[64, 64, 128, 128],
+                        linear_hiddens=[512],
+                        critic_hiddens=[100, 32],
+                        kernel_sizes=5, strides=2,
+                        activation=F.relu,  # F.relu
+                        use_action_gating=False,
+                        use_batch_norm=use_bc)
+    else:
+        if args['resolution_level'] in ['normal', 'square', 'high']:
+            cnn_hiddens=[64, 64, 128, 128]
+            kernel_sizes=5
+            strides=2
+        elif args['resolution_level'] in ['low', 'tiny']:
+            cnn_hiddens=[64, 64, 128, 256, 512]
+            kernel_sizes=[5,3,3,3,3]
+            strides=[1,2,2,2,2]
+        model = JointModel(inp_shape, act_shape,
+                        cnn_hiddens=cnn_hiddens,
+                        linear_hiddens=[512],
+                        policy_hiddens=[64],
+                        transform_hiddens=[32, 128],
+                        critic_hiddens=[128, 64],
+                        kernel_sizes=kernel_sizes,
+                        strides=strides,
+                        activation=F.relu,  # F.relu
+                        use_action_gating=True,
+                        use_batch_norm=use_bc)
     if use_cuda:
         model.cuda()
     return model
@@ -322,7 +385,7 @@ def create_world(houseID):
                   CachedFile=cachedFile, EagleViewRes=default_eagle_resolution)
     return world
 
-def create_env(k=0, linearReward=False, hardness=None):
+def create_env(k=0, linearReward=False, hardness=None, segment_input=False):
     if k >= 0:
         if k >= len(all_houseIDs):
             print('k={} exceeds total number of houses ({})! Randomly Choose One!'.format(k, len(all_houseIDs)))
@@ -331,7 +394,8 @@ def create_env(k=0, linearReward=False, hardness=None):
             houseID = all_houseIDs[k]
         world = create_world(houseID)
         env = HouseEnv(world, colorFile, resolution=resolution, linearReward=linearReward,
-                       hardness=hardness, action_degree=action_shape[0])
+                       hardness=hardness, action_degree=action_shape[0],
+                       segment_input=segment_input)
     else:  # multi-house environment
         k = -k
         print('Multi-House Environment! Total Selected Houses = {}'.format(k))
@@ -341,5 +405,6 @@ def create_env(k=0, linearReward=False, hardness=None):
         # use the first k houses
         all_worlds = [create_world(houseID) for houseID in all_houseIDs[:k]]
         env = MultiHouseEnv(all_worlds, colorFile, resolution=resolution, linearReward=linearReward,
-                            hardness=hardness, action_degree=action_shape[0])
+                            hardness=hardness, action_degree=action_shape[0],
+                            segment_input=segment_input)
     return env

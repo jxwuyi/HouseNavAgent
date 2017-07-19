@@ -11,11 +11,11 @@ from torch.autograd import Variable
 class JointCNNPolicyCritic(torch.nn.Module):
     def __init__(self, D_shape_in, D_out,
                 cnn_hiddens, kernel_sizes=5, strides=2,
-                linear_hiddens=[], critic_hiddens=[],
+                linear_hiddens=[], critic_hiddens=[], policy_hiddens=[],
                 activation=F.relu, use_batch_norm = True,
                 transform_hiddens=[],
                 use_action_gating = False,
-                use_residual = True):
+                use_residual = False):
         """
         D_shape_in: tupe of two ints, the shape of input images
         D_out: a int or a list of ints in length of degree of freedoms
@@ -30,6 +30,7 @@ class JointCNNPolicyCritic(torch.nn.Module):
         self.kernel_sizes = kernel_sizes
         self.strides = strides
         self.use_residual = use_residual
+        assert not use_residual, '[JointCNNPolicyCritic] Current do not support resnet'
         if len(self.cnn_hiddens) == 1: self.cnn_hiddens = self.cnn_hiddens * self.n_layer
         if len(self.kernel_sizes) == 1: self.kernel_sizes = self.kernel_sizes * self.n_layer
         if len(self.strides) == 1: self.strides = self.strides * self.n_layer
@@ -77,13 +78,34 @@ class JointCNNPolicyCritic(torch.nn.Module):
         # Output Action
         self.final_size = cur_dim
         self.policy_layers = []
-        for i, d in enumerate(self.D_out):
-            self.policy_layers.append(nn.Linear(self.final_size, d))
+        for i, d in enumerate(policy_hiddens):
+            self.policy_layers.append(nn.Linear(cur_dim, d))
             setattr(self, 'policy_layer%d'%i, self.policy_layers[-1])
             utils.initialize_weights(self.policy_layers[-1], small_init=True)
+            cur_dim = d
+        self.output_layers = []
+        for i, d in enumerate(self.D_out):
+            self.output_layers.append(nn.Linear(cur_dim, d))
+            setattr(self, 'output_layer%d'%i, self.output_layers[-1])
+            utils.initialize_weights(self.output_layers[-1], small_init=True)
         # Output Critic
-        self.use_action_gating = use_action_gating  # TODO: to support gating
-        self.critic_size = cur_dim = self.final_size + self.out_dim
+        self.use_action_gating = use_action_gating
+        #  >> transform dimension of actions
+        cur_dim = self.out_dim
+        self.trans_layers = []
+        if self.use_action_gating and \
+            ((len(transform_hiddens) == 0) or \
+                (transform_hiddens[-1] != self.final_size)):
+            transform_hiddens.append(self.final_size)
+        for i, d in enumerate(transform_hiddens):
+            self.trans_layers.append(nn.Linear(cur_dim, d))
+            setattr(self, 'transform_layer%d'%i, self.trans_layers[-1])
+            utils.initialize_weights(self.trans_layers[-1])
+            cur_dim = d
+        self.critic_size = self.final_size
+        if not self.use_action_gating:
+            self.critic_size += cur_dim
+        cur_dim = self.critic_size
         self.critic_layers = []
         if (len(critic_hiddens) == 0) or (critic_hiddens[-1] != 1):
             critic_hiddens.append(1)
@@ -95,7 +117,8 @@ class JointCNNPolicyCritic(torch.nn.Module):
 
     ######################
     def clear_critic_specific_grad(self):
-        for l in self.critic_layers:
+        q_layers = self.critic_layers + self.trans_layers
+        for l in q_layers:
             for p in l.parameters():
                 if p.grad is not None:
                     if p.grad.volatile:
@@ -106,7 +129,7 @@ class JointCNNPolicyCritic(torch.nn.Module):
 
     ######################
     def _forward_feature(self, x):
-        for s, conv, bc in zip(self.strides, elf.conv_layers, self.bc_layers):
+        for s, conv, bc in zip(self.strides, self.conv_layers, self.bc_layers):
             raw_x = x
             x = conv(x)
             if bc is not None:
@@ -142,7 +165,7 @@ class JointCNNPolicyCritic(torch.nn.Module):
             logp = F.log_softmax(logits)
         return logits, prob, logp
 
-    def forward(self, x, action=None, gumbel_noise = 1.0, output_critic = True, output_joint=False):
+    def forward(self, x, action=None, gumbel_noise = 1.0, output_critic = True):
         """
         compute the forward pass of the model.
         return logits and the softmax prob w./w.o. gumbel noise
@@ -160,11 +183,13 @@ class JointCNNPolicyCritic(torch.nn.Module):
                                     feat.data.norm(), feat.data.var(), feat.data.max(), feat.data.min()), False)
         raw_feat = feat
         # Compute Action
-        if (action is None) or (output_joint):
+        if action is None:
+            for l in self.policy_layers:
+                feat = self.func(l(feat))
             self.logits = []
             self.logp = []
             self.prob = []
-            for l in self.policy_layers:
+            for l in self.output_layers:
                 _logits, _prob, _logp = self._get_concrete_stats(l, feat, gumbel_noise)
                 self.logits.append(_logits)
 
@@ -179,26 +204,30 @@ class JointCNNPolicyCritic(torch.nn.Module):
             return self.prob
         if action is None:
             action = self.prob
+
         if isinstance(action, list):
-            feat = torch.cat([feat] + action, dim=-1)
+            action = torch.cat(action, dim=-1)  # concatenate actions
+
+        for i, l in enumerate(self.trans_layers):
+            action = l(action)
+            if self.use_action_gating and (i+1 == len(self.trans_layers)):
+                action = F.sigmoid(action)
+            else:
+                action = self.func(action)
+
+        feat = raw_feat
+        if self.use_action_gating:
+            feat = feat * action
         else:
             feat = torch.cat([feat, action], dim=-1)
+
         # compute critic
         for i,l in enumerate(self.critic_layers):
             if i > 0:
                 feat = self.func(feat)
             feat = l(feat)
         val = feat.squeeze()
-        if not output_joint:
-            return val
-        # compute critic on self-output action
-        feat_new = torch.cat([raw_feat] + self.prob, dim=-1)
-        for i, l in enumerate(self.critic_layers):
-            if i > 0:
-                feat_new = self.func(feat_new)
-            feat_new = l(feat_new)
-        val_new = feat_new.squeeze()
-        return val, val_new, self.prob
+        return val
 
     ########################
     def logprob(self, actions, logp = None):

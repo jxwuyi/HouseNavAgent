@@ -24,9 +24,29 @@ def make_update_exp(vals, target_vals, rate=1e-3):
     target_vals.load_state_dict(target_dict)
 
 
+def create_replay_buffer(action_shape, action_type, args):
+    if 'dist_sample' not in args:
+        return ReplayBuffer(
+           args['replay_buffer_size'],
+           args['frame_history_len'],
+           action_shape=action_shape,
+           action_type=action_type)
+    else:
+        n_partition = 20
+        print('Use Distance Sampling, N_Partition = {}'.format(n_partition))
+        part_func = lambda info: min(int(info['scaled_dist'] * n_partition),n_partition-1)
+        return FullReplayBuffer(
+            args['replay_buffer_size'],
+            args['frame_history_len'],
+            action_shape=action_shape,
+            action_type=action_type,
+            partition=[(n_partition, part_func)],
+            default_partition=0)
+
 class JointDDPGTrainer(AgentTrainer):
     def __init__(self, name, model_creator,
                  obs_shape, act_shape, args, replay_buffer=None):
+        super(JointDDPGTrainer, self).__init__()
         self.name = name
         self.net = model_creator()
         assert isinstance(self.net, torch.nn.Module), \
@@ -52,12 +72,7 @@ class JointDDPGTrainer(AgentTrainer):
         else:
             self.optim = optim.RMSprop(self.net.parameters(), lr=self.lrate, weight_decay=args['weight_decay'])
         self.target_update_rate = args['target_net_update_rate'] or 1e-3
-        self.replay_buffer = replay_buffer or \
-                             ReplayBuffer(
-                                args['replay_buffer_size'],
-                                args['frame_history_len'],
-                                action_shape=[self.act_dim],
-                                action_type=np.float32)
+        self.replay_buffer = replay_buffer or create_replay_buffer([self.act_dim], np.float32, args)
         self.max_episode_len = args['episode_len']
         self.grad_norm_clip = args['grad_clip']
         self.sample_counter = 0

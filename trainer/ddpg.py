@@ -45,6 +45,7 @@ def create_replay_buffer(action_shape, action_type, args):
 class DDPGTrainer(AgentTrainer):
     def __init__(self, name, policy_creator, critic_creator,
                  obs_shape, act_shape, args, replay_buffer=None):
+        super(DDPGTrainer, self).__init__()
         self.name = name
         self.p = policy_creator()
         self.q = critic_creator()

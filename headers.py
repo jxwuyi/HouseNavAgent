@@ -2,6 +2,7 @@ import os, sys
 
 time_counter = [0,0,0,0]
 
+n_segmentation_mask = 20  # including unknown, it is 21, we set unknown as 0
 
 if "Apple" in sys.version:
     # own mac PC
@@ -27,8 +28,9 @@ Tensor = FloatTensor
 
 # define AgentTrainer Template
 class AgentTrainer(object):
-    def __init__():
-        pass
+    def __init__(self):
+        self.cachedFrames = None
+        self.cachedSingleFrame = None
 
     def reset_agent(self):
         pass
@@ -54,14 +56,35 @@ class AgentTrainer(object):
         """
         batch_size = raw_frames.shape[0]
         img_h, img_w = raw_frames.shape[2], raw_frames.shape[3]
-        chn = raw_frames.shape[1] * raw_frames.shape[4]
-        if return_variable:
-            frames = Variable(torch.from_numpy(raw_frames), volatile=volatile)
+
+        if self.args['segment_input']:
+            seq_len = raw_frames.shape[1]
+            if (batch_size > 1) and (self.cachedFrames is None):
+                self.cachedFrames = frames = \
+                    torch.zeros(batch_size, seq_len, img_h, img_w,
+                                n_segmentation_mask).type(FloatTensor)
+            elif (batch_size == 1) and (self.cachedSingleFrame is None):
+                self.cachedSingleFrame = frames = \
+                    torch.zeros(batch_size, seq_len, img_h, img_w,
+                                n_segmentation_mask).type(FloatTensor)
+            else:
+                frames = self.cachedFrames if batch_size > 1 else self.cachedSingleFrame
+                frames.zero_()
+            indexes = torch.from_numpy(raw_frames).type(ByteTensor)
+            src = (indexes < n_segmentation_mask).type(ByteTensor).type(FloatTensor)
+            indexes=indexes.type(LongTensor)
+            frames.scatter_(-1,indexes,src)
+            chn = seq_len * n_segmentation_mask
         else:
-            frames = torch.from_numpy(raw_frames)
-        frames = frames.type(ByteTensor).permute(0, 1, 4, 2, 3)
+            chn = raw_frames.shape[1] * raw_frames.shape[4]
+            frames = torch.from_numpy(raw_frames).type(ByteTensor)
+        if return_variable:
+            frames = Variable(frames, volatile=volatile)
+        frames = frames.permute(0, 1, 4, 2, 3)
         if merge_dim: frames = frames.resize(batch_size, chn, img_h, img_w)
-        return (frames.type(FloatTensor) - 128.0) / 128.0
+        if not self.args['segment_input']:
+            frames = (frames.type(FloatTensor) - 128.0) / 128.0
+        return frames
 
     def eval(self):
         self.policy.eval()
