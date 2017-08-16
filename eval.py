@@ -20,7 +20,7 @@ def evaluate(house,
              store_history=False, use_batch_norm=True,
              rnn_units=None, rnn_layers=None, rnn_cell=None,
              use_action_gating=False, use_residual_critic=False,
-             segmentation_input=False, resolution='normal', history_len=4):
+             segmentation_input='none', resolution='normal', history_len=4):
 
     # Do not need to log detailed computation stats
     common.debugger = utils.FakeLogger()
@@ -129,16 +129,15 @@ def parse_args():
     parser.add_argument("--seed", type=int, default=0, help="random seed")
     parser.add_argument("--hardness", type=float, help="real number from 0 to 1, indicating the hardness of the environment")
     parser.add_argument("--action-dim", type=int, help="degree of freedom of the agent movement, default=4, must be in range of [2,4]")
-    parser.add_argument("--segmentation-input", dest='segment_input', action='store_true',
-                        help="whether to use segmentation mask as input; by default we use *pixel* input")
-    parser.set_defaults(segment_input=False)
+    parser.add_argument("--segmentation-input", choices=['none', 'index', 'color', 'joint'], default='none',
+                        help="whether to use segmentation mask as input; default=none; <joint>: use both pixel input and color segment input")
     parser.add_argument("--resolution", choices=['normal', 'low', 'tiny', 'high', 'square', 'square_low'], default='normal',
                         help="resolution of visual input, default normal=[120 * 90]")
     parser.add_argument("--history-frame-len", type=int, default=4,
                         help="length of the stacked frames, default=4")
     # Core parameters
     parser.add_argument("--algo", choices=['ddpg','pg', 'rdpg', 'ddpg_joint', 'ddpg_alter', 'ddpg_eagle',
-                                           'a2c', 'qac', 'dqn'], default="ddpg", help="algorithm for training")
+                                           'a2c', 'qac', 'dqn', 'nop'], default="ddpg", help="algorithm for training")
     parser.add_argument("--max-episode-len", type=int, default=2000, help="maximum episode length")
     parser.add_argument("--max-iters", type=int, default=1000, help="maximum number of eval episodes")
     parser.add_argument("--store-history", action='store_true', default=False, help="whether to store all the episode frames")
@@ -186,7 +185,7 @@ if __name__ == '__main__':
                  args.store_history, args.use_batch_norm,
                  args.rnn_units, args.rnn_layers, args.rnn_cell,
                  args.action_gating, args.residual_critic,
-                 args.segment_input, args.resolution, args.history_frame_len)
+                 args.segmentation_input, args.resolution, args.history_frame_len)
 
     if args.store_history:
         filename = args.log_dir

@@ -84,7 +84,7 @@ def create_args(gamma = 0.9, lrate = 0.001, critic_lrate = 0.001,
                 entropy_penalty = None,
                 critic_penalty=None,
                 batch_len=None, rnn_layers=None, rnn_cell=None, rnn_units=None,
-                segment_input=False,
+                segment_input='none',
                 resolution_level='normal'):
     return dict(gamma=gamma, lrate=lrate, critic_lrate=critic_lrate,
                 weight_decay=decay, critic_weight_decay=critic_decay,
@@ -114,7 +114,7 @@ def create_default_args(algo='pg', gamma=None,
                         decay=None, critic_decay=None,
                         replay_buffer_size=None,
                         batch_len=None, rnn_layers=None, rnn_cell=None, rnn_units=None,
-                        segmentation_input=False,
+                        segmentation_input='none',
                         resolution_level='normal',
                         history_frame_len=4):
     global frame_history_len, resolution, observation_shape, single_observation_shape
@@ -126,9 +126,16 @@ def create_default_args(algo='pg', gamma=None,
         print('>>>> Resolution Changed to {}'.format(resolution))
         observation_shape = (3 * frame_history_len, resolution[0], resolution[1])
         single_observation_shape = (3, resolution[0], resolution[1])
-    if segmentation_input:
-        observation_shape = (frame_history_len * n_segmentation_mask, resolution[0], resolution[1])
-        single_observation_shape = (n_segmentation_mask, resolution[0], resolution[1])
+    if (segmentation_input is not None) and (segmentation_input != 'none'):
+        if segmentation_input == 'index':
+            n_chn = n_segmentation_mask
+        elif segmentation_input == 'color':
+            n_chn = 3
+        else:
+            n_chn = 6
+            assert(segmentation_input == 'joint')
+        observation_shape = (frame_history_len * n_chn, resolution[0], resolution[1])
+        single_observation_shape = (n_chn, resolution[0], resolution[1])
     if algo == 'pg':  # policy gradient
         return create_args(gamma or 0.95, lrate or 0.001, None,
                            episode_len or 10, batch_size or 100, 1000,
@@ -288,13 +295,14 @@ def create_joint_model(args, inp_shape, act_shape):
                         activation=F.relu,  # F.relu
                         use_action_gating=True,
                         use_batch_norm=use_bc)
+    print('create model!!!! cuda = {}'.format(use_cuda))
     if use_cuda:
         model.cuda()
     return model
 
 def create_discrete_model(algo, args, inp_shape):
     use_bc = args['use_batch_norm']
-    if algo == 'a2c':
+    if (algo == 'a2c') or (algo == 'a3c'):
         model = A2CModel(inp_shape, environment.n_discrete_actions,
                     cnn_hiddens=[64, 64, 128, 128],
                     linear_hiddens=[512],
@@ -385,26 +393,38 @@ def create_world(houseID):
                   CachedFile=cachedFile, EagleViewRes=default_eagle_resolution)
     return world
 
-def create_env(k=0, linearReward=False, hardness=None, segment_input=False):
+def create_world_from_index(k):
     if k >= 0:
         if k >= len(all_houseIDs):
             print('k={} exceeds total number of houses ({})! Randomly Choose One!'.format(k, len(all_houseIDs)))
             houseID = random.choice(all_houseIDs)
         else:
             houseID = all_houseIDs[k]
-        world = create_world(houseID)
-        env = HouseEnv(world, colorFile, resolution=resolution, linearReward=linearReward,
-                       hardness=hardness, action_degree=action_shape[0],
-                       segment_input=segment_input)
-    else:  # multi-house environment
+        return create_world(houseID)
+    else:
         k = -k
         print('Multi-House Environment! Total Selected Houses = {}'.format(k))
         if k > len(all_houseIDs):
             print('  >> k={} exceeds total number of houses ({})! use all houses!')
             k = len(all_houseIDs)
         # use the first k houses
-        all_worlds = [create_world(houseID) for houseID in all_houseIDs[:k]]
+        return [create_world(houseID) for houseID in all_houseIDs[:k]]
+
+def create_env(k=0, linearReward=False, hardness=None, segment_input='none'):
+    if segment_input is None:
+        segment_input = 'none'
+    if k >= 0:
+        world = create_world_from_index(k)
+        env = HouseEnv(world, colorFile, resolution=resolution, linearReward=linearReward,
+                       hardness=hardness, action_degree=action_shape[0],
+                       segment_input=(segment_input != 'none'),
+                       use_segment_id=(segment_input == 'index'),
+                       joint_visual_signal=(segment_input == 'joint'))
+    else:  # multi-house environment
+        all_worlds = create_world_from_index(k)
         env = MultiHouseEnv(all_worlds, colorFile, resolution=resolution, linearReward=linearReward,
                             hardness=hardness, action_degree=action_shape[0],
-                            segment_input=segment_input)
+                            segment_input=(segment_input != 'none'),
+                            use_segment_id=(segment_input == 'index'),
+                            joint_visual_signal=(segment_input == 'joint'))
     return env

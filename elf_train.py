@@ -2,6 +2,13 @@ from headers import *
 import common
 import utils
 
+import environment
+import elf_multihouse_env
+from trainer.elf_ddpg_joint import ELF_JointDDPGTrainer as JointTrainer
+from trainer.elf_a3c import ELF_A3CTrainer as A3CTrainer
+
+from elf_python import GCWrapper
+
 import os, sys, time, pickle, json, argparse
 import numpy as np
 import random
@@ -28,28 +35,89 @@ def create_scheduler(type='medium'):
     return scheduler
 
 
-def train(args=None,
-          houseID=0, linearReward=False, algo='pg', model_name='cnn',  # NOTE: optional: model_name='rnn'
-          iters=2000000, report_rate=20, save_rate=1000, eval_range=200,
-          log_dir='./temp', save_dir='./_model_', warmstart=None,
-          log_debug_info=True):
+def create_elf_trainer(algo, model, args):
+    observation_shape = common.observation_shape
+    action_shape = common.action_shape
+    if algo == 'ddpg':
+        model_gen = lambda: common.create_joint_model(args, observation_shape, action_shape)
+        trainer = JointTrainer('JointDDPGTrainer', model_gen,
+                               observation_shape, action_shape, args)
+    elif algo == 'a3c':
+        model_gen = lambda: common.create_discrete_model(algo, args, observation_shape)
+        trainer = A3CTrainer('A2CTrainer', model_gen, observation_shape,
+                             environment.n_discrete_actions, args)
+    else:
+        assert False, '[ELF Trainer] Trainer <{}> is not defined!'.format(algo)
+    return trainer
 
+
+def create_elf_env(houseID, linearReward, hardness, args):
+    worlds = common.create_world_from_index(houseID)
+    segment_input = args['segment_input']
+    act_dim = 1 if args['algo'] == 'a3c' else sum(common.action_shape)
+    gpu_ids = args['render_gpu'].split(',')
+    render_gpus = [int(k) for k in gpu_ids]
+
+    config = dict(
+        worlds=worlds,
+        group_size=args['env_group_size'],
+        render_gpus=render_gpus,
+        seed=args['seed'],
+        color_file=common.colorFile,
+        resolution=common.resolution,
+        linear_reward=linearReward,
+        hardness=hardness,
+        action_degree=common.action_shape[0],
+        use_segment_input=(segment_input != 'none'),
+        use_segment_id=(segment_input == 'index'),
+        use_joint_signal=(segment_input == 'joint'),
+        history_frames=common.frame_history_len,
+        epsiode_length=args['episode_len'],
+        act_dim=act_dim
+    )
+
+    desc = dict(
+        actor=dict(
+            input=dict(s=""),
+            reply=dict(a=""),
+            connector="actor-connector"
+        ),
+        train=dict(
+            input=dict(s="", last_r="", last_next="", last_a="", last_done="", stats_eplen="", stats_rew=""),
+            reply=None,
+            connector="trainer-connector"
+        )
+    )
+    wrapper = GCWrapper(elf_multihouse_env.ELF_MultiHouseEnv, desc, args['num_games'], args['batch_size'], args['elf_T'], config=config)
+    return wrapper
+
+
+def train(args=None, seed=None,
+          houseID=0, linearReward=False, algo='pg',
+          model_name='cnn',  # NOTE: optional: model_name='rnn'
+          iters=2000000, eval_range=200,
+          log_dir='./log', save_dir='./_model_', warmstart=None,
+          log_debug_info=True):
+    """
+    >>>> Do Not Use Scheduler Now
     if 'scheduler' in args:
         scheduler = args['scheduler']
     else:
         scheduler = None
+    """
 
     if args is None:
         args = common.create_default_args(algo)
+    args['algo'] = algo
 
     hardness = args['hardness']
     if hardness is not None:
         print('>>> Hardness Level = {}'.format(hardness))
 
-    trainer = common.create_trainer(algo, model_name, args)
-    env = common.create_env(houseID, linearReward, hardness,
-                            args['segment_input'])
-    logger = utils.MyLogger(log_dir, True)
+    trainer = create_elf_trainer(algo, model_name, args)
+    wrapper = create_elf_env(houseID, linearReward, hardness, args)
+
+    logger = args['logger']
 
     if warmstart is not None:
         if os.path.exists(warmstart):
@@ -66,81 +134,15 @@ def train(args=None,
     else:
         common.debugger = utils.FakeLogger()
 
-    episode_rewards = [0.0]
+    wrapper.reg_callback("train", trainer.update)
+    wrapper.reg_callback("actor", trainer.actor)
 
-    trainer.reset_agent()
-    obs = env.reset()
-    assert not np.any(np.isnan(obs)), 'nan detected in the observation!'
-    obs = obs.transpose([1, 0, 2])
-    logger.print('Observation Shape = {}'.format(obs.shape))
-
-    episode_step = 0
-    t = 0
-    best_res = -1e50
-    elap = time.time()
-    update_times = 0
     print('Starting iterations...')
-    while(len(episode_rewards) <= iters):
-        idx = trainer.process_observation(obs)
-        # get action
-        if scheduler is not None:
-            noise_level = scheduler.value(len(episode_rewards) - 1)
-            action = trainer.action(noise_level)
-        else:
-            action = trainer.action()
-        #proc_action = [np.exp(a) for a in action]
-        # environment step
-        obs, rew, done, info = env.step(action)
-        assert not np.any(np.isnan(obs)), 'nan detected in the observation!'
-        obs = obs.transpose([1, 0, 2])
-        episode_step += 1
-        terminal = (episode_step >= args['episode_len'])
-        # collect experience
-        trainer.process_experience(idx, action, rew, done, terminal, info)
-        episode_rewards[-1] += rew
 
-        if done or terminal:
-            trainer.reset_agent()
-            obs = env.reset()
-            assert not np.any(np.isnan(obs)), 'nan detected in the observation!'
-            obs = obs.transpose([1, 0, 2])
-            episode_step = 0
-            episode_rewards.append(0)
+    for _ in range(iters):
+        wrapper.Run()
 
-        # update all trainers
-        trainer.preupdate()
-        stats = trainer.update()
-        if stats is not None:
-            update_times += 1
-            if common.debugger is not None:
-                common.debugger.print('>>>>>> Update#{} Finished!!!'.format(update_times), False)
-
-        # save results
-        if ((done or terminal) and (len(episode_rewards) % save_rate == 0)) or\
-           (len(episode_rewards) > iters):
-            trainer.save(save_dir)
-            logger.print('Successfully Saved to <{}>'.format(save_dir + '/' + trainer.name + '.pkl'))
-            if np.mean(episode_rewards[-eval_range:]) > best_res:
-                best_res = np.mean(episode_rewards[-eval_range:])
-                trainer.save(save_dir, "best")
-
-        # display training output
-        if ((update_times % report_rate == 0) and (algo != 'pg') and (stats is not None)) or \
-            ((update_times == 0) and (algo != 'pg') and (len(episode_rewards) % 100 == 0) and (done or terminal)) or \
-            ((algo == 'pg') and (stats is not None)):
-            logger.print('Episode#%d, Updates=%d, Time Elapsed = %.3f min' % (len(episode_rewards), update_times, (time.time()-elap) / 60))
-            logger.print('-> Total Samples: %d' % t)
-            logger.print('-> Avg Episode Length: %.4f' % (t / len(episode_rewards)))
-            if stats is not None:
-                for k in stats:
-                    logger.print('  >> %s = %.4f' % (k, stats[k]))
-            logger.print('  >> Reward  = %.4f' % np.mean(episode_rewards[-eval_range:]))
-            print('----> Data Loading Time = %.4f min' % (time_counter[-1] / 60))
-            print('----> GPU Data Transfer Time = %.4f min' % (time_counter[0] / 60))
-            print('----> Training Time = %.4f min' % (time_counter[1] / 60))
-            print('----> Target Net Update Time = %.4f min' % (time_counter[2] / 60))
-
-        t += 1
+    print('>> Done!')
 
 
 def parse_args():
@@ -159,17 +161,22 @@ def parse_args():
                         help="resolution of visual input, default normal=[120 * 90]")
     parser.add_argument("--history-frame-len", type=int, default=4,
                         help="length of the stacked frames, default=4")
-    # Core training parameters
-    parser.add_argument("--algo", choices=['ddpg','pg', 'rdpg', 'ddpg_joint', 'ddpg_alter', 'ddpg_eagle',
-                                           'a2c', 'qac', 'dqn'], default="ddpg", help="algorithm")
-    parser.add_argument("--lrate", type=float, help="learning rate for policy")
-    parser.add_argument("--critic-lrate", type=float, help="learning rate for critic")
-    parser.add_argument('--weight-decay', type=float, help="weight decay for policy")
-    parser.add_argument('--critic-weight-decay', type=float, help="weight decay for critic")
-    parser.add_argument("--gamma", type=float, help="discount")
-    parser.add_argument("--batch-size", type=int, help="batch size")
     parser.add_argument("--max-episode-len", type=int, help="maximum episode length")
-    parser.add_argument("--update-freq", type=int, help="update model parameters once every this many samples collected")
+    # ELF parameters
+    parser.add_argument("--render-gpu", type=str, default="0",
+                        help="[ELF] an integer or a ','-split list of integers, indicating the gpu-id for renderers")
+    parser.add_argument("--num-games", type=int, default=64,
+                        help="[ELF] number of threads for simulating environments in elf (default=20)")
+    parser.add_argument("--env-group-size", type=int, default=10,
+                        help="[ELF] number of threads to split all the houses (default=10)")
+    parser.add_argument("--elf-T", type=int, default=5,
+                        help="[ELF] number of time steps to run in each thread")  # last time step will be dropped
+    parser.add_argument("--batch-size", type=int, default=32, help="[ELF] batch size in elf; True <batchsize> is [elf-T] * [batch-size]")
+    # Core training parameters
+    parser.add_argument("--algo", choices=['ddpg','a3c'], default="ddpg", help="algorithm")
+    parser.add_argument("--lrate", type=float, help="learning rate for policy")
+    parser.add_argument('--weight-decay', type=float, help="weight decay for policy")
+    parser.add_argument("--gamma", type=float, help="discount")
     parser.add_argument("--max-iters", type=int, default=int(2e6), help="maximum number of training episodes")
     parser.add_argument("--target-net-update-rate", type=float, help="update rate for target networks")
     parser.add_argument("--batch-norm", action='store_true', dest='use_batch_norm',
@@ -177,16 +184,12 @@ def parse_args():
     parser.set_defaults(use_batch_norm=False)
     parser.add_argument("--entropy-penalty", type=float, help="policy entropy regularizer")
     parser.add_argument("--critic-penalty", type=float, default=0.001, help="critic norm regularizer")
-    parser.add_argument("--replay-buffer-size", type=int, help="size of replay buffer")
     parser.add_argument("--noise-scheduler", choices=['low','medium','high','none','linear','exp'],
                         dest='scheduler', default='medium',
                         help="Whether to use noise-level scheduler to control the smoothness of action output. default=False.")
     parser.add_argument("--use-action-gating", dest='action_gating', action='store_true',
                         help="whether to use action gating structure in the critic model")
     parser.set_defaults(action_gating=False)
-    parser.add_argument("--use-residual-critic", dest='residual_critic', action='store_true',
-                        help="whether to use residual structure for feature extraction in the critic model (N.A. for joint-ac model) ")
-    parser.set_defaults(residual_critic=False)
     # RNN Parameters
     parser.add_argument("--rnn-units", type=int,
                         help="[RNN-Only] number of units in an RNN cell")
@@ -231,15 +234,15 @@ if __name__ == '__main__':
         os.makedirs(cmd_args.save_dir)
 
     args = common.create_default_args(cmd_args.algo, cmd_args.gamma,
-                               cmd_args.lrate, cmd_args.critic_lrate,
+                               cmd_args.lrate, None,
                                cmd_args.max_episode_len, cmd_args.batch_size,
-                               cmd_args.update_freq,
+                               None,
                                cmd_args.use_batch_norm,
                                cmd_args.entropy_penalty,
                                cmd_args.critic_penalty,
                                cmd_args.weight_decay,
-                               cmd_args.critic_weight_decay,
-                               cmd_args.replay_buffer_size,
+                               None,
+                               None,
                                # RNN Parameters
                                cmd_args.batch_length, cmd_args.rnn_layers,
                                cmd_args.rnn_cell, cmd_args.rnn_units,
@@ -254,8 +257,7 @@ if __name__ == '__main__':
     if cmd_args.hardness is not None:
         args['hardness'] = cmd_args.hardness
 
-    if cmd_args.scheduler is not None:
-        args['scheduler'] = create_scheduler(cmd_args.scheduler)
+    args['scheduler'] = create_scheduler(cmd_args.scheduler or 'none')
 
     if cmd_args.dist_sample:
         args['dist_sample'] = True
@@ -264,12 +266,23 @@ if __name__ == '__main__':
         args['q_loss_coef'] = cmd_args.q_loss_coef
 
     args['action_gating'] = cmd_args.action_gating   # gating in ddpg network
-    args['residual_critic'] = cmd_args.residual_critic  # resnet for critic (classical ddpg)
+
+    args['seed'] = cmd_args.seed
+
+    args['num_games'] = cmd_args.num_games
+    args['env_group_size'] = cmd_args.env_group_size
+    args['elf_T'] = cmd_args.elf_T
+    args['render_gpu'] = cmd_args.render_gpu
+
+    args['report_gap'] = cmd_args.report_rate
+    args['save_rate'] = cmd_args.save_rate
+    args['save_dir'] = cmd_args.save_dir
+    args['logger'] = utils.MyLogger(cmd_args.log_dir, True)
 
     train(args,
           houseID=cmd_args.house, linearReward=cmd_args.linear_reward,
           algo=cmd_args.algo, iters=cmd_args.max_iters,
-          report_rate=cmd_args.report_rate, save_rate=cmd_args.save_rate,
-          log_dir=cmd_args.log_dir, save_dir=cmd_args.save_dir,
+          log_dir = cmd_args.log_dir,
+          save_dir=cmd_args.save_dir,
           warmstart=cmd_args.warmstart,
           log_debug_info=cmd_args.debug)

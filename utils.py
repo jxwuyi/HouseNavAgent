@@ -61,8 +61,8 @@ def initialize_weights(cls, small_init=False):
             if not small_init:
                 m.weight.data.normal_(0, math.sqrt(1. / m.in_features))
             else:
-                #m.weight.data.linear_(-3e-4, 3e-4)
-                m.weight.data.normal_(0, 0.01)
+                m.weight.data.uniform_(-3e-4, 3e-4)
+                #m.weight.data.normal_(0, 0.001)
             m.bias.data.zero_()
         elif isinstance(m, nn.GRU) or isinstance(m, nn.LSTM):
             for key, param in m.named_parameters():

@@ -57,7 +57,7 @@ class AgentTrainer(object):
         batch_size = raw_frames.shape[0]
         img_h, img_w = raw_frames.shape[2], raw_frames.shape[3]
 
-        if self.args['segment_input']:
+        if self.args['segment_input'] == 'index':
             seq_len = raw_frames.shape[1]
             if (batch_size > 1) and (self.cachedFrames is None):
                 self.cachedFrames = frames = \
@@ -82,7 +82,7 @@ class AgentTrainer(object):
             frames = Variable(frames, volatile=volatile)
         frames = frames.permute(0, 1, 4, 2, 3)
         if merge_dim: frames = frames.resize(batch_size, chn, img_h, img_w)
-        if not self.args['segment_input']:
+        if self.args['segment_input'] != 'index':
             frames = (frames.type(FloatTensor) - 128.0) / 128.0
         return frames
 
