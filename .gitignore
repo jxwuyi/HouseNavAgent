@@ -3,3 +3,4 @@ __pycache__/
 temp/
 log/
 _model_/
+.idea/

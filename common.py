@@ -1,6 +1,6 @@
 from headers import *
 
-import sys, os
+import sys, os, platform
 
 import numpy as np
 import random
@@ -50,6 +50,11 @@ elif "Red Hat" in sys.version:
     prefix = '/home/yiw/local/data/houses-yiwu/'
     csvFile = '/home/yiw/local/data/houses-yiwu/ModelCategoryMapping.csv'
     colorFile = '/home/yiw/local/data/houses-yiwu/colormap_coarse.csv'
+elif "Ubuntu" in platform.platform():
+    # ubuntu server
+    colorFile = '/home/jxwuyi/workspace/objrender/metadata/colormap_coarse.csv'
+    csvFile = '/home/jxwuyi/data/fb/data/metadata/ModelCategoryMapping.csv'
+    prefix = '/home/jxwuyi/data/fb/data/house/'
 else:
     # fair server
     assert False, 'Unable to locate data folder..... Please edit <common.py>'

@@ -1,4 +1,4 @@
-import os, sys
+import os, sys, platform
 
 time_counter = [0,0,0,0]
 
@@ -9,8 +9,10 @@ if "Apple" in sys.version:
     path_to_python_repo = '/Users/yiw/workroom/objrender/python'
 elif "Red Hat" in sys.version:
     path_to_python_repo = '/home/yiw/code/objrender/python'
+elif "Ubuntu" in platform.platform():
+    path_to_python_repo = '/home/jxwuyi/workspace/objrender/python'
 else:
-    assert(False)
+    assert False, 'Please specify the path to the environment in <headers.py>'
 sys.path.insert(0, path_to_python_repo)
 
 
