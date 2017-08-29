@@ -415,7 +415,7 @@ def create_world_from_index(k):
         # use the first k houses
         return [create_world(houseID) for houseID in all_houseIDs[:k]]
 
-def create_env(k=0, linearReward=False, hardness=None, segment_input='none'):
+def create_env(k=0, linearReward=True, hardness=None, segment_input='none'):
     if segment_input is None:
         segment_input = 'none'
     if k >= 0:
