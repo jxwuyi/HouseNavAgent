@@ -90,6 +90,7 @@ def create_args(gamma = 0.9, lrate = 0.001, critic_lrate = 0.001,
                 critic_penalty=None,
                 batch_len=None, rnn_layers=None, rnn_cell=None, rnn_units=None,
                 segment_input='none',
+                depth_input=False,
                 resolution_level='normal'):
     return dict(gamma=gamma, lrate=lrate, critic_lrate=critic_lrate,
                 weight_decay=decay, critic_weight_decay=critic_decay,
@@ -107,6 +108,7 @@ def create_args(gamma = 0.9, lrate = 0.001, critic_lrate = 0.001,
                 batch_len=batch_len, rnn_layers=rnn_layers, rnn_cell=rnn_cell, rnn_units=rnn_units,
                 # input type
                 segment_input=segment_input,
+                depth_input=depth_input,
                 resolution_level=resolution_level)
 
 
@@ -120,6 +122,7 @@ def create_default_args(algo='pg', gamma=None,
                         replay_buffer_size=None,
                         batch_len=None, rnn_layers=None, rnn_cell=None, rnn_units=None,
                         segmentation_input='none',
+                        depth_input=False,
                         resolution_level='normal',
                         history_frame_len=4):
     global frame_history_len, resolution, observation_shape, single_observation_shape
@@ -146,6 +149,7 @@ def create_default_args(algo='pg', gamma=None,
                            episode_len or 10, batch_size or 100, 1000,
                            decay=(decay or 0),
                            segment_input=segmentation_input,
+                           depth_input=depth_input,
                            resolution_level=resolution_level)
     elif (algo == 'a2c') or (algo == 'dqn') or (algo == 'qac'):  # a2c, discrete action space
         return create_args(gamma or 0.95, lrate or 0.001,
@@ -158,6 +162,7 @@ def create_default_args(algo='pg', gamma=None,
                            critic_penalty=critic_penalty,
                            decay=(decay or 0),
                            segment_input=segmentation_input,
+                           depth_input=depth_input,
                            resolution_level=resolution_level)
     elif 'ddpg' in algo:  # ddpg
         return create_args(gamma or 0.95, lrate or 0.001, critic_lrate or 0.001,
@@ -170,6 +175,7 @@ def create_default_args(algo='pg', gamma=None,
                            critic_penalty=critic_penalty,
                            decay=(decay or 0), critic_decay=(critic_decay or 0),
                            segment_input=segmentation_input,
+                           depth_input=depth_input,
                            resolution_level=resolution_level)
     elif algo == 'rdpg':  # rdpg
         return create_args(gamma or 0.95, lrate or 0.001, critic_lrate or 0.001,
@@ -185,9 +191,11 @@ def create_default_args(algo='pg', gamma=None,
                            rnn_cell=(rnn_cell or 'lstm'),
                            rnn_units=(rnn_units or 64),
                            segment_input=segmentation_input,
+                           depth_input=depth_input,
                            resolution_level=resolution_level)
     elif algo == 'nop':
         return create_args(segment_input=segmentation_input,
+                           depth_input=depth_input,
                            resolution_level=resolution_level)
     else:
         assert (False)
@@ -415,7 +423,7 @@ def create_world_from_index(k):
         # use the first k houses
         return [create_world(houseID) for houseID in all_houseIDs[:k]]
 
-def create_env(k=0, linearReward=True, hardness=None, segment_input='none'):
+def create_env(k=0, linearReward=True, hardness=None, segment_input='none', depth_input=False):
     if segment_input is None:
         segment_input = 'none'
     if k >= 0:
@@ -424,12 +432,14 @@ def create_env(k=0, linearReward=True, hardness=None, segment_input='none'):
                        hardness=hardness, action_degree=action_shape[0],
                        segment_input=(segment_input != 'none'),
                        use_segment_id=(segment_input == 'index'),
-                       joint_visual_signal=(segment_input == 'joint'))
+                       joint_visual_signal=(segment_input == 'joint'),
+                       depth_signal=depth_input)
     else:  # multi-house environment
         all_worlds = create_world_from_index(k)
         env = MultiHouseEnv(all_worlds, colorFile, resolution=resolution, linearReward=linearReward,
                             hardness=hardness, action_degree=action_shape[0],
                             segment_input=(segment_input != 'none'),
                             use_segment_id=(segment_input == 'index'),
-                            joint_visual_signal=(segment_input == 'joint'))
+                            joint_visual_signal=(segment_input == 'joint'),
+                            depth_signal=depth_input)
     return env

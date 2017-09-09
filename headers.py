@@ -60,6 +60,7 @@ class AgentTrainer(object):
         img_h, img_w = raw_frames.shape[2], raw_frames.shape[3]
 
         if self.args['segment_input'] == 'index':
+            assert not self.args['depth_input'], '[Trainer Error] Currently do not support <index> + <depth> as input!'
             seq_len = raw_frames.shape[1]
             if (batch_size > 1) and (self.cachedFrames is None):
                 self.cachedFrames = frames = \
@@ -85,7 +86,10 @@ class AgentTrainer(object):
         frames = frames.permute(0, 1, 4, 2, 3)
         if merge_dim: frames = frames.resize(batch_size, chn, img_h, img_w)
         if self.args['segment_input'] != 'index':
-            frames = (frames.type(FloatTensor) - 128.0) / 128.0
+            if self.args['depth_input']:
+                frames = frames.type(FloatTensor) / 256.0  # special hack here for depth info
+            else:
+                frames = (frames.type(FloatTensor) - 128.0) / 128.0
         return frames
 
     def eval(self):

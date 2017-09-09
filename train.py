@@ -48,7 +48,8 @@ def train(args=None,
 
     trainer = common.create_trainer(algo, model_name, args)
     env = common.create_env(houseID, linearReward, hardness,
-                            args['segment_input'])
+                            segment_input=args['segment_input'],
+                            depth_input=args['depth_input'])
     logger = utils.MyLogger(log_dir, True)
 
     if warmstart is not None:
@@ -155,6 +156,9 @@ def parse_args():
     parser.add_argument("--action-dim", type=int, help="degree of freedom of agent movement, must be in the range of [2, 4], default=4")
     parser.add_argument("--segmentation-input", choices=['none', 'index', 'color', 'joint'], default='none',
                         help="whether to use segmentation mask as input; default=none; <joint>: use both pixel input and color segment input")
+    parser.add_argument("--depth-input", dest='depth_input', action='store_true',
+                        help="whether to include depth information as part of the input signal")
+    parser.set_defaults(depth_input=False)
     parser.add_argument("--resolution", choices=['normal', 'low', 'tiny', 'high', 'square', 'square_low'], default='normal',
                         help="resolution of visual input, default normal=[120 * 90]")
     parser.add_argument("--history-frame-len", type=int, default=4,
@@ -245,6 +249,7 @@ if __name__ == '__main__':
                                cmd_args.rnn_cell, cmd_args.rnn_units,
                                # input type
                                cmd_args.segmentation_input,
+                               cmd_args.depth_input,
                                cmd_args.resolution,
                                cmd_args.history_frame_len)
 
