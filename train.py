@@ -166,6 +166,7 @@ def parse_args():
     # Core training parameters
     parser.add_argument("--algo", choices=['ddpg','pg', 'rdpg', 'ddpg_joint', 'ddpg_alter', 'ddpg_eagle',
                                            'a2c', 'qac', 'dqn'], default="ddpg", help="algorithm")
+    parser.add_argument("--model", choices=['cnn','rnn','attentive_cnn','random'], default="cnn", help="policy neural net")
     parser.add_argument("--lrate", type=float, help="learning rate for policy")
     parser.add_argument("--critic-lrate", type=float, help="learning rate for critic")
     parser.add_argument('--weight-decay', type=float, help="weight decay for policy")
@@ -191,6 +192,15 @@ def parse_args():
     parser.add_argument("--use-residual-critic", dest='residual_critic', action='store_true',
                         help="whether to use residual structure for feature extraction in the critic model (N.A. for joint-ac model) ")
     parser.set_defaults(residual_critic=False)
+    # Attentive DDPG Parameters
+    parser.add_argument("--att-resolution", choices=['normal','tiny','low','high','row','row_low','row_tiny'], default="low",
+                        help="[Att-CNN-Only] resolution of attention mask (squared input signal not supported yet)")
+    parser.add_argument("--att-shared-cnn", dest="att_shared_cnn", action="store_true",
+                        help="[Att-CNN-Only] to shared the CNN part for both manager and actor")
+    parser.set_defaults(att_shared_cnn=False)
+    parser.add_argument("--att-skip-depth", dest="att_skip_depth", action="store_true",
+                        help="[Att-CNN-Only] do not attend on the depth channel. only effect when --depth-input flag is on")
+    parser.set_defaults(att_skip_depth=False)
     # RNN Parameters
     parser.add_argument("--rnn-units", type=int,
                         help="[RNN-Only] number of units in an RNN cell")
@@ -234,7 +244,7 @@ if __name__ == '__main__':
         print('Directory <{}> does not exist! Creating directory ...'.format(cmd_args.save_dir))
         os.makedirs(cmd_args.save_dir)
 
-    args = common.create_default_args(cmd_args.algo, cmd_args.gamma,
+    args = common.create_default_args(cmd_args.algo, cmd_args.model, cmd_args.gamma,
                                cmd_args.lrate, cmd_args.critic_lrate,
                                cmd_args.max_episode_len, cmd_args.batch_size,
                                cmd_args.update_freq,
@@ -244,6 +254,9 @@ if __name__ == '__main__':
                                cmd_args.weight_decay,
                                cmd_args.critic_weight_decay,
                                cmd_args.replay_buffer_size,
+                               # Att-CNN Parameters
+                               cmd_args.att_resolution,
+                               cmd_args.att_skip_depth,
                                # RNN Parameters
                                cmd_args.batch_length, cmd_args.rnn_layers,
                                cmd_args.rnn_cell, cmd_args.rnn_units,
@@ -271,9 +284,14 @@ if __name__ == '__main__':
     args['action_gating'] = cmd_args.action_gating   # gating in ddpg network
     args['residual_critic'] = cmd_args.residual_critic  # resnet for critic (classical ddpg)
 
+    # attentive-cnn related params
+    args['att_shared_cnn'] = cmd_args.att_shared_cnn
+    if 'attentive' in args['model_name']:
+        assert args['algo'] == 'ddpg_joint', 'Attentive-CNN Model only supported by DDPG_Joint Algo!!!'
+
     train(args,
           houseID=cmd_args.house, linearReward=cmd_args.linear_reward,
-          algo=cmd_args.algo, iters=cmd_args.max_iters,
+          algo=cmd_args.algo, model_name=cmd_args.model, iters=cmd_args.max_iters,
           report_rate=cmd_args.report_rate, save_rate=cmd_args.save_rate,
           log_dir=cmd_args.log_dir, save_dir=cmd_args.save_dir,
           warmstart=cmd_args.warmstart,

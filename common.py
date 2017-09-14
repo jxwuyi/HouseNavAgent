@@ -14,6 +14,7 @@ from policy.vanila_random_policy import VanilaRandomPolicy as RandomPolicy
 from policy.ddpg_cnn_critic import DDPGCNNCritic as DDPGCritic
 from policy.rnn_critic import RNNCritic
 from policy.joint_cnn_actor_critic import JointCNNPolicyCritic as JointModel
+from policy.attentive_cnn_actor_critic import AttentiveJointCNNPolicyCritic as AttJointModel
 from policy.discrete_cnn_actor_critic import DiscreteCNNPolicyCritic as A2CModel
 from policy.qac_cnn_actor_critic import DiscreteCNNPolicyQFunc as QACModel
 from trainer.pg import PolicyGradientTrainer as PGTrainer
@@ -63,6 +64,8 @@ frame_history_len = 4
 #resolution = (200, 150)
 resolution = (120, 90)
 resolution_dict = dict(normal=(120,90),low=(60,45),tiny=(40,30),square=(100,100),square_low=(60,60),high=(160,120))
+attention_resolution = (6, 4)
+attention_resolution_dict = dict(normal=(8,6),low=(6,4),high=(12,9),tiny=(4,3),row=(12,3),row_low=(8,3),row_tiny=(6,2))
 observation_shape = (3 * frame_history_len, resolution[0], resolution[1])
 single_observation_shape = (3, resolution[0], resolution[1])
 action_shape = (4, 2)
@@ -78,7 +81,7 @@ def genCacheFile(houseID):
 #######################
 
 
-def create_args(gamma = 0.9, lrate = 0.001, critic_lrate = 0.001,
+def create_args(model='random', gamma = 0.9, lrate = 0.001, critic_lrate = 0.001,
                 episode_len = 50, batch_size = 256,
                 replay_buffer_size = int(1e6),
                 grad_clip = 2, optimizer = 'adam',
@@ -88,11 +91,13 @@ def create_args(gamma = 0.9, lrate = 0.001, critic_lrate = 0.001,
                 use_batch_norm = False,
                 entropy_penalty = None,
                 critic_penalty=None,
+                att_resolution=None,
+                att_skip=0,
                 batch_len=None, rnn_layers=None, rnn_cell=None, rnn_units=None,
                 segment_input='none',
                 depth_input=False,
                 resolution_level='normal'):
-    return dict(gamma=gamma, lrate=lrate, critic_lrate=critic_lrate,
+    return dict(model_name=model, gamma=gamma, lrate=lrate, critic_lrate=critic_lrate,
                 weight_decay=decay, critic_weight_decay=critic_decay,
                 episode_len=episode_len,
                 batch_size=batch_size, replay_buffer_size=replay_buffer_size,
@@ -104,6 +109,9 @@ def create_args(gamma = 0.9, lrate = 0.001, critic_lrate = 0.001,
                 critic_penalty=critic_penalty,
                 target_net_update_rate=target_net_update_rate,
                 use_batch_norm=use_batch_norm,
+                # Att-CNN Params
+                att_resolution=att_resolution,
+                att_skip=att_skip,
                 # RNN Params
                 batch_len=batch_len, rnn_layers=rnn_layers, rnn_cell=rnn_cell, rnn_units=rnn_units,
                 # input type
@@ -112,7 +120,7 @@ def create_args(gamma = 0.9, lrate = 0.001, critic_lrate = 0.001,
                 resolution_level=resolution_level)
 
 
-def create_default_args(algo='pg', gamma=None,
+def create_default_args(algo='pg', model='cnn', gamma=None,
                         lrate=None, critic_lrate=None,
                         episode_len=None,
                         batch_size=None, update_freq=None,
@@ -120,12 +128,17 @@ def create_default_args(algo='pg', gamma=None,
                         entropy_penalty=None, critic_penalty=None,
                         decay=None, critic_decay=None,
                         replay_buffer_size=None,
+                        # Att-CNN Parameters
+                        att_resolution_level='normal',
+                        att_skip_depth=False,
+                        # RNN Parameters
                         batch_len=None, rnn_layers=None, rnn_cell=None, rnn_units=None,
+                        # Input Type
                         segmentation_input='none',
                         depth_input=False,
                         resolution_level='normal',
                         history_frame_len=4):
-    global frame_history_len, resolution, observation_shape, single_observation_shape
+    global frame_history_len, resolution, attention_resolution, observation_shape, single_observation_shape
     if history_frame_len != 4:
         frame_history_len = history_frame_len
         print('>>> Currently Stacked Frames Size = {}'.format(frame_history_len))
@@ -145,14 +158,14 @@ def create_default_args(algo='pg', gamma=None,
         observation_shape = (frame_history_len * n_chn, resolution[0], resolution[1])
         single_observation_shape = (n_chn, resolution[0], resolution[1])
     if algo == 'pg':  # policy gradient
-        return create_args(gamma or 0.95, lrate or 0.001, None,
+        return create_args(model, gamma or 0.95, lrate or 0.001, None,
                            episode_len or 10, batch_size or 100, 1000,
                            decay=(decay or 0),
                            segment_input=segmentation_input,
                            depth_input=depth_input,
                            resolution_level=resolution_level)
     elif (algo == 'a2c') or (algo == 'dqn') or (algo == 'qac'):  # a2c, discrete action space
-        return create_args(gamma or 0.95, lrate or 0.001,
+        return create_args(model, gamma or 0.95, lrate or 0.001,
                            episode_len = episode_len or 50,
                            batch_size = batch_size or 256,
                            replay_buffer_size = replay_buffer_size or int(100000),
@@ -165,7 +178,8 @@ def create_default_args(algo='pg', gamma=None,
                            depth_input=depth_input,
                            resolution_level=resolution_level)
     elif 'ddpg' in algo:  # ddpg
-        return create_args(gamma or 0.95, lrate or 0.001, critic_lrate or 0.001,
+        attention_resolution = attention_resolution_dict[att_resolution_level]
+        return create_args(model, gamma or 0.95, lrate or 0.001, critic_lrate or 0.001,
                            episode_len or 50,
                            batch_size or 256,
                            replay_buffer_size or int(5e5),
@@ -176,9 +190,12 @@ def create_default_args(algo='pg', gamma=None,
                            decay=(decay or 0), critic_decay=(critic_decay or 0),
                            segment_input=segmentation_input,
                            depth_input=depth_input,
-                           resolution_level=resolution_level)
+                           resolution_level=resolution_level,
+                           # attention params
+                           att_resolution=attention_resolution,
+                           att_skip=(1 if ('attentive' in model) and depth_input else 0))
     elif algo == 'rdpg':  # rdpg
-        return create_args(gamma or 0.95, lrate or 0.001, critic_lrate or 0.001,
+        return create_args(model, gamma or 0.95, lrate or 0.001, critic_lrate or 0.001,
                            episode_len or 50,
                            batch_size or 64,
                            replay_buffer_size or int(20000),
@@ -279,36 +296,61 @@ def create_critic(args, inp_shape, act_shape, model, extra_dim=0):
 
 def create_joint_model(args, inp_shape, act_shape):
     use_bc = args['use_batch_norm']
-    if not args['action_gating']:
-        model = JointModel(inp_shape, act_shape,
-                        cnn_hiddens=[64, 64, 128, 128],
-                        linear_hiddens=[512],
-                        critic_hiddens=[100, 32],
-                        kernel_sizes=5, strides=2,
-                        activation=F.relu,  # F.relu
-                        use_action_gating=False,
-                        use_batch_norm=use_bc)
+    name = args['model_name']
+    if args['resolution_level'] in ['normal', 'square', 'high']:
+        cnn_hiddens = [64, 64, 128, 128]
+        kernel_sizes = 5
+        strides = 2
+    elif args['resolution_level'] in ['low', 'tiny', 'square_low']:
+        cnn_hiddens = [64, 64, 128, 256, 512]
+        kernel_sizes = [5, 3, 3, 3, 3]
+        strides = [1, 2, 2, 2, 2]
     else:
-        if args['resolution_level'] in ['normal', 'square', 'high']:
-            cnn_hiddens=[64, 64, 128, 128]
-            kernel_sizes=5
-            strides=2
-        elif args['resolution_level'] in ['low', 'tiny']:
-            cnn_hiddens=[64, 64, 128, 256, 512]
-            kernel_sizes=[5,3,3,3,3]
-            strides=[1,2,2,2,2]
+        assert False, 'resolution level <{}> not supported!'.format(args['resolution_level'])
+
+    if not args['action_gating']:
+        transform_hiddens = []
+        policy_hiddens=[]
+        critic_hiddens=[100, 32]
+    else:
+        transform_hiddens=[32, 128]
+        critic_hiddens=[128,64]
+        policy_hiddens=[64]
+
+    if name == 'cnn':
         model = JointModel(inp_shape, act_shape,
-                        cnn_hiddens=cnn_hiddens,
-                        linear_hiddens=[512],
-                        policy_hiddens=[64],
-                        transform_hiddens=[32, 128],
-                        critic_hiddens=[128, 64],
-                        kernel_sizes=kernel_sizes,
-                        strides=strides,
-                        activation=F.relu,  # F.relu
-                        use_action_gating=True,
-                        use_batch_norm=use_bc)
-    print('create model!!!! cuda = {}'.format(use_cuda))
+                           cnn_hiddens=cnn_hiddens,
+                           linear_hiddens=[512],
+                           policy_hiddens=policy_hiddens,
+                           transform_hiddens=transform_hiddens,
+                           critic_hiddens=critic_hiddens,
+                           kernel_sizes=kernel_sizes,
+                           strides=strides,
+                           activation=F.relu,  # F.relu
+                           use_action_gating=args['action_gating'],
+                           use_batch_norm=use_bc)
+    elif name == 'attentive_cnn':
+        model = AttJointModel(inp_shape, act_shape,
+                              cnn_hiddens=cnn_hiddens,
+                              linear_hiddens=[512],
+                              policy_hiddens=policy_hiddens,
+                              transform_hiddens=transform_hiddens,
+                              critic_hiddens=critic_hiddens,
+                              kernel_sizes=kernel_sizes,
+                              strides=strides,
+                              activation=F.relu,  # F.relu
+                              use_action_gating=args['action_gating'],
+                              use_batch_norm=use_bc,
+                              attention_dim=args['att_resolution'],
+                              shared_cnn=args['att_shared_cnn'],
+                              attention_chn=args['frame_history_len'],
+                              attention_skip=args['att_skip'],
+                              attention_hiddens=[128]
+                             )
+    else:
+        assert False, 'model name <> not supported'.format(name)
+
+    print('create joint model <{}>!!!! cuda = {}'.format(name, use_cuda))
     if use_cuda:
         model.cuda()
     return model
@@ -368,7 +410,7 @@ def create_trainer(algo, model, args):
         trainer = EagleDDPGTrainer('EagleDDPGTrainer', policy_gen, critic_gen,
                                    observation_shape, eagle_shape, action_shape, args)
     elif (algo == 'ddpg_joint') or (algo == 'ddpg_alter'):
-        assert(model == 'cnn')
+        assert('cnn' in model)
         model_gen = lambda: create_joint_model(args, observation_shape, action_shape)
         Trainer = JointTrainer if algo == 'ddpg_joint' else AlterTrainer
         trainer = Trainer('JointDDPGTrainer', model_gen,

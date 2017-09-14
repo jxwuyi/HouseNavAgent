@@ -63,6 +63,7 @@ class JointDDPGTrainer(AgentTrainer):
         self.lrate = args['lrate']
         self.critic_lrate = args['critic_lrate']
         self.batch_size = args['batch_size']
+        self.start_train_samples = min(256, self.batch_size) * args['episode_len']
         if 'q_loss_coef' in args:
             self.q_loss_coef = args['q_loss_coef']
         else:
@@ -106,7 +107,7 @@ class JointDDPGTrainer(AgentTrainer):
 
     def update(self):
         if (self.sample_counter < self.args['update_freq']) or \
-           not self.replay_buffer.can_sample(self.batch_size * self.args['episode_len']):
+           not self.replay_buffer.can_sample(self.start_train_samples):
             return None
         self.sample_counter = 0
         self.train()

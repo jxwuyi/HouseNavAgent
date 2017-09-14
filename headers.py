@@ -40,13 +40,16 @@ class AgentTrainer(object):
     def action(self, obs):
         raise NotImplemented()
 
-    def process_experience(self, obs, act, rew, new_obs, done, terminal, info):
+    def process_observation(self, obs):
+        raise NotImplemented()
+
+    def process_experience(self, idx, act, rew, done, terminal, info):
         raise NotImplemented()
 
     def preupdate(self):
         raise NotImplemented()
 
-    def update(self, agents):
+    def update(self):
         raise NotImplemented()
 
     def _process_frames(self, raw_frames, volatile=False, merge_dim=True, return_variable=True):
@@ -86,7 +89,7 @@ class AgentTrainer(object):
         frames = frames.permute(0, 1, 4, 2, 3)
         if merge_dim: frames = frames.resize(batch_size, chn, img_h, img_w)
         if self.args['segment_input'] != 'index':
-            if self.args['depth_input']:
+            if self.args['depth_input'] or ('attentive' in self.args['model_name']):
                 frames = frames.type(FloatTensor) / 256.0  # special hack here for depth info
             else:
                 frames = (frames.type(FloatTensor) - 128.0) / 128.0
