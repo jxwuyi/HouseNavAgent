@@ -3,6 +3,7 @@
 # File: config.py
 # Author: Yuxin Wu <ppwwyyxxc@gmail.com>
 
+import os
 import json
 from functools import lru_cache
 
