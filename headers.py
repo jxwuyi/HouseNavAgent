@@ -1,20 +1,25 @@
 import os, sys, platform
 import numpy as np
+from config import get_config
+
+CFG = get_config()
 
 time_counter = [0,0,0,0]
 
 n_segmentation_mask = 20  # including unknown, it is 21, we set unknown as 0
 
-if "Apple" in sys.version:
-    # own mac PC
-    path_to_python_repo = '/Users/yiw/workroom/objrender/python'
-elif "Red Hat" in sys.version:
-    path_to_python_repo = '/home/yiw/code/objrender/python'
-elif "Ubuntu" in platform.platform():
-    path_to_python_repo = '/home/jxwuyi/workspace/objrender/python'
-else:
-    assert False, 'Please specify the path to the environment in <headers.py>'
-sys.path.insert(0, path_to_python_repo)
+#if "Apple" in sys.version:
+    ## own mac PC
+    #path_to_python_repo = '/Users/yiw/workroom/objrender/python'
+#elif "Red Hat" in sys.version:
+    #path_to_python_repo = '/home/yiw/code/objrender/python'
+#elif "Ubuntu" in platform.platform():
+    #path_to_python_repo = '/home/jxwuyi/workspace/objrender/python'
+#else:
+    #assert False, 'Please specify the path to the environment in <headers.py>'
+if CFG.get('python_path'):
+    sys.path.insert(0, CFG['python_path'])
+path_to_python_repo = '/home/yuxinwu/archhome/3D/objrender/python/'
 
 
 import torch

@@ -1,0 +1,6 @@
+{
+    "colorFile": "/home/yuxinwu/archhome/3D/objrender/metadata/colormap_coarse.csv",
+    "csvFile": "/home/yuxinwu/archhome/3D/objrender/metadata/ModelCategoryMapping.csv",
+    "prefix": "/home/yuxinwu/archhome/SUNCGtoolbox/data/houses-yiwu/",
+    "python_path": "/home/yuxinwu/archhome/3D/objrender/python/"
+}

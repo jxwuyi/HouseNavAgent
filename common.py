@@ -32,6 +32,8 @@ from environment import SimpleHouseEnv as HouseEnv
 from multihouse_env import MultiHouseEnv
 from world import World
 
+from config import get_config
+
 all_houseIDs = ['00065ecbdd7300d35ef4328ffe871505',
 'cf57359cd8603c3d9149445fb4040d90', 'ff32675f2527275171555259b4a1b3c3', '775941abe94306edc1b5820e3a992d75',
 '7995c2a93311717a3a9c48d789563590', '8b8c1994f3286bfc444a7527ffacde86', '31966fdc9f9c87862989fae8ae906295',
@@ -41,24 +43,28 @@ all_houseIDs = ['00065ecbdd7300d35ef4328ffe871505',
 '1dba3a1039c6ec1a3c141a1cb0ad0757', 'b814705bc93d428507a516b866efda28', '26e33980e4b4345587d6278460746ec4',
 '5f3f959c7b3e6f091898caa8e828f110', 'b5bd72478fce2a2dbd1beb1baca48abd', '9be4c7bee6c0ba81936ab0e757ab3d61']
 
-if "Apple" in sys.version:
-    # own mac laptop
-    prefix = '/Users/yiw/Downloads/data/house/'
-    csvFile = '/Users/yiw/Downloads/data/metadata/ModelCategoryMapping.csv'
-    colorFile = '/Users/yiw/Downloads/data/metadata/colormap_coarse.csv'
-elif "Red Hat" in sys.version:
-    # dev server
-    prefix = '/home/yiw/local/data/houses-yiwu/'
-    csvFile = '/home/yiw/local/data/houses-yiwu/ModelCategoryMapping.csv'
-    colorFile = '/home/yiw/local/data/houses-yiwu/colormap_coarse.csv'
-elif "Ubuntu" in platform.platform():
-    # ubuntu server
-    colorFile = '/home/jxwuyi/workspace/objrender/metadata/colormap_coarse.csv'
-    csvFile = '/home/jxwuyi/data/fb/data/metadata/ModelCategoryMapping.csv'
-    prefix = '/home/jxwuyi/data/fb/data/house/'
-else:
-    # fair server
-    assert False, 'Unable to locate data folder..... Please edit <common.py>'
+CFG = get_config()
+prefix = CFG['prefix']
+csvFile = CFG['csvFile']
+colorFile = CFG['colorFile']
+#if "Apple" in sys.version:
+    ## own mac laptop
+    #prefix = '/Users/yiw/Downloads/data/house/'
+    #csvFile = '/Users/yiw/Downloads/data/metadata/ModelCategoryMapping.csv'
+    #colorFile = '/Users/yiw/Downloads/data/metadata/colormap_coarse.csv'
+#elif "Red Hat" in sys.version:
+    ## dev server
+    #prefix = '/home/yiw/local/data/houses-yiwu/'
+    #csvFile = '/home/yiw/local/data/houses-yiwu/ModelCategoryMapping.csv'
+    #colorFile = '/home/yiw/local/data/houses-yiwu/colormap_coarse.csv'
+#elif "Ubuntu" in platform.platform():
+    ## ubuntu server
+    #colorFile = '/home/jxwuyi/workspace/objrender/metadata/colormap_coarse.csv'
+    #csvFile = '/home/jxwuyi/data/fb/data/metadata/ModelCategoryMapping.csv'
+    #prefix = '/home/jxwuyi/data/fb/data/house/'
+#else:
+    ## fair server
+    #assert False, 'Unable to locate data folder..... Please edit <common.py>'
 
 frame_history_len = 4
 #resolution = (200, 150)
@@ -489,3 +495,30 @@ def create_env(k=0, linearReward=True, hardness=None, segment_input='none', dept
                             joint_visual_signal=(segment_input == 'joint'),
                             depth_signal=depth_input)
     return env
+
+
+def get_gpus_for_rendering():
+    """
+    Please always use this function to choose rendering device.
+    So that your script can run on clusters.
+
+    Returns:
+        list of int. The device ids that can be used for RenderAPI
+    """
+    def parse_devlist(fname):
+        ret = []
+        with open(fname) as f:
+            for line in f:
+                if line.startswith('c 195:') and ':255' not in line:
+                    gid = line.strip().split(' ')[1].split(':')[1]
+                    ret.append(int(gid))
+        return ret
+
+    jid = os.environ.get('CHRONOS_JOB_INSTANCE_ID', None)
+    if jid:
+        # to work with chronos cluster
+        fname = '/sys/fs/cgroup/devices/chronos.slice/gp/{}/devices.list'.format(jid)
+        return parse_devlist(fname)
+    else:
+        # to respect env var
+        return list(map(int, os.environ['CUDA_VISIBLE_DEVICES'].split(',')))
