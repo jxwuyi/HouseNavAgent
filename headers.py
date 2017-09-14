@@ -1,4 +1,5 @@
 import os, sys, platform
+import numpy as np
 
 time_counter = [0,0,0,0]
 
@@ -59,6 +60,9 @@ class AgentTrainer(object):
         >> merge_dim=True: (batch_size, len * channel_n, n, m), processed as FloatTensor
            merge_dim=False:(batch_size, len, channel_n, n, m), processed as FloatTensor
         """
+        if len(raw_frames.shape) == 4:  # frame_history_len == 1
+            raw_frames = raw_frames[:,np.newaxis,:,:,:]
+
         batch_size = raw_frames.shape[0]
         img_h, img_w = raw_frames.shape[2], raw_frames.shape[3]
 

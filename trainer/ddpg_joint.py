@@ -64,6 +64,7 @@ class JointDDPGTrainer(AgentTrainer):
         self.critic_lrate = args['critic_lrate']
         self.batch_size = args['batch_size']
         self.start_train_samples = min(256, self.batch_size) * args['episode_len']
+        #self.start_train_samples = 4 * self.batch_size # [test-use]
         if 'q_loss_coef' in args:
             self.q_loss_coef = args['q_loss_coef']
         else:

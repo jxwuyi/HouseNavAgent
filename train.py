@@ -266,6 +266,8 @@ if __name__ == '__main__':
                                cmd_args.resolution,
                                cmd_args.history_frame_len)
 
+    args['algo'] = cmd_args.algo
+
     if cmd_args.target_net_update_rate is not None:
         args['target_net_update_rate']=cmd_args.target_net_update_rate
 

@@ -49,11 +49,11 @@ class AttentiveJointCNNPolicyCritic(torch.nn.Module):
         self.att_feat = None
         assert not use_residual, '[AttentiveCNNPolicyCritic] Current do not support resnet'
         assert (self.att_skip >= 0) and (self.att_skip < self.att_chn), \
-            '[AttentiveCNNPolicyCritic] Attention skipped channels must be in range [0, n_channel per frame) '
+            '[AttentiveCNNPolicyCritic] Attention skipped channels (={}) must be in range [0, n_channel (={}) per frame)'.format(self.att_skip,self.att_chn)
         assert (len(attention_dim)==2) and (attention_dim[0] * attention_dim[1] > 0), \
             '[AttentiveCNNPolicyCritic] Attention resolution must be a tuple of positive ints'
         assert (D_shape_in[1] % attention_dim[0] == 0) and (D_shape_in[2] % attention_dim[1] == 0), \
-            '[AttentiveCNNPolicyCritic] Attention resolution must be a divider of input image dimension'
+            '[AttentiveCNNPolicyCritic] Attention resolution (={}) must be a divider of input image dimension (={})'.format(attention_dim, D_shape_in)
         assert (D_shape_in[0] % attention_chn == 0), \
             '[AttentiveCNNPolicyCritic] Attention channel must be a divider of channel of input resolution'
         if len(self.cnn_hiddens) == 1: self.cnn_hiddens = self.cnn_hiddens * self.n_layer
@@ -109,6 +109,7 @@ class AttentiveJointCNNPolicyCritic(torch.nn.Module):
 
         create_conv_net(self, self.act_conv_layers, self.act_bc_layers, 'action')
         if self.shared_cnn:
+            print('Using Shared CNN Encoder for both Manager and Actor!')
             self.att_conv_layers = self.act_conv_layers
             self.att_bc_layers = self.act_bc_layers
         else:
@@ -241,7 +242,8 @@ class AttentiveJointCNNPolicyCritic(torch.nn.Module):
         """
         batch_size = x.size(0)
         if (self.batched_att_index is None) or (self.batched_att_index.size(0) != batch_size):
-            self.batched_att_index = self.att_index.expand(batch_size, -1)
+            self.batched_att_index = Variable(self.att_index)
+            self.batched_att_index = self.batched_att_index.expand(batch_size, self.inp_shape[1] * self.inp_shape[2])
         # att_feat: feature for manager to create attention mask
         self.att_feat = att_feat = self._forward_feature(x, self.att_conv_layers, self.att_bc_layers)
         att_feat = att_feat.view(-1, self.feat_size)
@@ -252,6 +254,7 @@ class AttentiveJointCNNPolicyCritic(torch.nn.Module):
             att_feat = self.func(att_feat)
             #common.debugger.print("------>[P] Forward of Actor Policy, Mid-Feature Norm = {}, Var = {}, Max = {}, Min = {}".format(
             #    att_feat.data.norm(), att_feat.data.var(), att_feat.data.max(), att_feat.data.min()), False)
+        raw_feat = att_feat  # feature for computing critic
         # compute attention mask
         for l in self.att_linear_layers:
             att_feat = self.func(l(att_feat))  # att_feat: [batch, att_heads * att_blocks]
@@ -259,6 +262,7 @@ class AttentiveJointCNNPolicyCritic(torch.nn.Module):
         all_att_mask = F.softmax(att_feat).view(batch_size, self.att_heads, self.att_blocks)
         cur_inp_mask = None
         # compute mask for each channel in each input frame
+        att_x_slides = []
         for c in range(self.inp_shape[0]):  # x.size(1)
             c_i = c % self.att_chn
             c_head = c // self.att_chn
@@ -266,11 +270,15 @@ class AttentiveJointCNNPolicyCritic(torch.nn.Module):
                 cur_att_mask = all_att_mask[:, c_head, :]  # [batch_size, att_blocks]
                 cur_inp_mask = torch.gather(cur_att_mask, 1, self.batched_att_index)  # [batch_size, inp_blocks]
                 cur_inp_mask = cur_inp_mask.view(-1, self.inp_shape[1], self.inp_shape[2])
-            if c_i >= self.att_focus: continue  # skipped channel, no need to attend
-            x[:, c, :, :] *= cur_inp_mask  # apply attention on input signal
+            cur_slide = x[:, c, :, :]
+            if c_i >= self.att_focus: # skipped channel, no need to attend
+                att_x_slides.append(cur_slide)
+            else:  # apply attention to input signal
+                att_x_slides.append(cur_slide * cur_inp_mask)
+        att_x = torch.stack(att_x_slides, dim=1)
 
         # compute forward phase for actor
-        self.feat = feat = self._forward_feature(x, self.act_conv_layers, self.act_bc_layers)
+        self.feat = feat = self._forward_feature(att_x, self.act_conv_layers, self.act_bc_layers)
         feat = feat.view(-1, self.feat_size)
         for l,bc in zip(self.linear_layers, self.l_bc_layers):
             feat = l(feat)
@@ -278,7 +286,6 @@ class AttentiveJointCNNPolicyCritic(torch.nn.Module):
             feat = self.func(feat)
             #common.debugger.print("------>[P] Forward of Actor Policy, Mid-Feature Norm = {}, Var = {}, Max = {}, Min = {}".format(
             #                        feat.data.norm(), feat.data.var(), feat.data.max(), feat.data.min()), False)
-        raw_feat = feat
         # Compute Action
         if action is None:
             for l in self.policy_layers:
@@ -338,9 +345,9 @@ class AttentiveJointCNNPolicyCritic(torch.nn.Module):
         if logits is None: logits = self.logits
         ret = 0
         for l, d in zip(logits, self.D_out):
-            a0 = l - torch.max(l, dim=1)[0].repeat(1, d)
+            a0 = l - torch.max(l, dim=1, keepdim=True)[0].repeat(1, d)
             ea0 = torch.exp(a0)
-            z0 = ea0.sum(1).repeat(1, d)
+            z0 = ea0.sum(1, keepdim=True).repeat(1, d)
             p0 = ea0 / z0
             ret = ret + torch.sum(p0 * (torch.log(z0 + 1e-8) - a0), dim=1)
         return ret

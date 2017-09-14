@@ -65,7 +65,7 @@ frame_history_len = 4
 resolution = (120, 90)
 resolution_dict = dict(normal=(120,90),low=(60,45),tiny=(40,30),square=(100,100),square_low=(60,60),high=(160,120))
 attention_resolution = (6, 4)
-attention_resolution_dict = dict(normal=(8,6),low=(6,4),high=(12,9),tiny=(4,3),row=(12,3),row_low=(8,3),row_tiny=(6,2))
+attention_resolution_dict = dict(normal=(8,6),low=(6,3),high=(12,9),tiny=(4,3),row=(12,3),row_low=(8,3),row_tiny=(6,2))
 observation_shape = (3 * frame_history_len, resolution[0], resolution[1])
 single_observation_shape = (3, resolution[0], resolution[1])
 action_shape = (4, 2)
@@ -145,7 +145,6 @@ def create_default_args(algo='pg', model='cnn', gamma=None,
     if resolution_level != 'normal':
         resolution = resolution_dict[resolution_level]
         print('>>>> Resolution Changed to {}'.format(resolution))
-        observation_shape = (3 * frame_history_len, resolution[0], resolution[1])
         single_observation_shape = (3, resolution[0], resolution[1])
     if (segmentation_input is not None) and (segmentation_input != 'none'):
         if segmentation_input == 'index':
@@ -155,8 +154,12 @@ def create_default_args(algo='pg', model='cnn', gamma=None,
         else:
             n_chn = 6
             assert(segmentation_input == 'joint')
-        observation_shape = (frame_history_len * n_chn, resolution[0], resolution[1])
         single_observation_shape = (n_chn, resolution[0], resolution[1])
+    if depth_input:
+        single_observation_shape = (single_observation_shape[0]+1,
+                                    single_observation_shape[1],
+                                    single_observation_shape[2])
+    observation_shape = (single_observation_shape[0] * frame_history_len, resolution[0], resolution[1])
     if algo == 'pg':  # policy gradient
         return create_args(model, gamma or 0.95, lrate or 0.001, None,
                            episode_len or 10, batch_size or 100, 1000,
@@ -193,7 +196,7 @@ def create_default_args(algo='pg', model='cnn', gamma=None,
                            resolution_level=resolution_level,
                            # attention params
                            att_resolution=attention_resolution,
-                           att_skip=(1 if ('attentive' in model) and depth_input else 0))
+                           att_skip=(1 if ('attentive' in model) and depth_input and att_skip_depth else 0))
     elif algo == 'rdpg':  # rdpg
         return create_args(model, gamma or 0.95, lrate or 0.001, critic_lrate or 0.001,
                            episode_len or 50,
@@ -330,6 +333,7 @@ def create_joint_model(args, inp_shape, act_shape):
                            use_action_gating=args['action_gating'],
                            use_batch_norm=use_bc)
     elif name == 'attentive_cnn':
+        global single_observation_shape
         model = AttJointModel(inp_shape, act_shape,
                               cnn_hiddens=cnn_hiddens,
                               linear_hiddens=[512],
@@ -343,7 +347,7 @@ def create_joint_model(args, inp_shape, act_shape):
                               use_batch_norm=use_bc,
                               attention_dim=args['att_resolution'],
                               shared_cnn=args['att_shared_cnn'],
-                              attention_chn=args['frame_history_len'],
+                              attention_chn=single_observation_shape[0],
                               attention_skip=args['att_skip'],
                               attention_hiddens=[128]
                              )
