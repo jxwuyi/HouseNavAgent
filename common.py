@@ -485,7 +485,8 @@ def create_env(k=0, linearReward=True, hardness=None, segment_input='none', dept
                        segment_input=(segment_input != 'none'),
                        use_segment_id=(segment_input == 'index'),
                        joint_visual_signal=(segment_input == 'joint'),
-                       depth_signal=depth_input)
+                       depth_signal=depth_input,
+                       render_device=get_gpus_for_rendering()[0])
     else:  # multi-house environment
         all_worlds = create_world_from_index(k)
         env = MultiHouseEnv(all_worlds, colorFile, resolution=resolution, linearReward=linearReward,
@@ -493,7 +494,8 @@ def create_env(k=0, linearReward=True, hardness=None, segment_input='none', dept
                             segment_input=(segment_input != 'none'),
                             use_segment_id=(segment_input == 'index'),
                             joint_visual_signal=(segment_input == 'joint'),
-                            depth_signal=depth_input)
+                            depth_signal=depth_input,
+                            render_device=get_gpus_for_rendering()[0])
     return env
 
 
@@ -512,7 +514,7 @@ def get_gpus_for_rendering():
                 if line.startswith('c 195:') and ':255' not in line:
                     gid = line.strip().split(' ')[1].split(':')[1]
                     ret.append(int(gid))
-        return ret
+        return sorted(ret)
 
     jid = os.environ.get('CHRONOS_JOB_INSTANCE_ID', None)
     if jid:

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-CUDA_VISIBLE_DEVICES=0 python3 train.py --algo ddpg_joint --model attentive_cnn --seed 0 --update-freq 10 \
+CUDA_VISIBLE_DEVICES=3 python3 train.py --algo ddpg_joint --model attentive_cnn --seed 0 --update-freq 10 \
     --house -10 \
     --max-episode-len 50 --linear-reward --replay-buffer-size 500000 \
     --lrate 0.0001 --gamma 0.95 \
