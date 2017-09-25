@@ -475,7 +475,9 @@ def create_world_from_index(k):
         # use the first k houses
         return [create_world(houseID) for houseID in all_houseIDs[:k]]
 
-def create_env(k=0, linearReward=True, hardness=None, segment_input='none', depth_input=False, max_steps=-1, render_device=0):
+def create_env(k=0, linearReward=True, hardness=None, segment_input='none', depth_input=False, max_steps=-1, render_device=None):
+    if render_device is None:
+        render_device = get_gpus_for_rendering()[0]   # by default use the first gpu
     if segment_input is None:
         segment_input = 'none'
     if k >= 0:
@@ -514,7 +516,7 @@ def get_gpus_for_rendering():
                 if line.startswith('c 195:') and ':255' not in line:
                     gid = line.strip().split(' ')[1].split(':')[1]
                     ret.append(int(gid))
-        return ret
+        return sorted(ret)
 
     jid = os.environ.get('CHRONOS_JOB_INSTANCE_ID', None)
     if jid:
