@@ -8,7 +8,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torch.autograd import Variable
 
-class DiscreteRNNPolicyCritic(torch.nn.Module):
+class DiscreteRNNPolicy(torch.nn.Module):
     def __init__(self, D_shape_in, D_out,
                  conv_hiddens = [], kernel_sizes=5, strides=2,
                  linear_hiddens = [],
@@ -21,7 +21,7 @@ class DiscreteRNNPolicyCritic(torch.nn.Module):
         D_out: a int or a list of ints in length of degree of freedoms
         hiddens, kernel_sizes, strides: either an int or a list of ints with the same length
         """
-        super(DiscreteRNNPolicyCritic, self).__init__()
+        super(DiscreteRNNPolicy, self).__init__()
         if conv_hiddens is None: conv_hiddens = []
         if kernel_sizes is None: kernel_sizes = []
         if strides is None: strides = []
@@ -37,7 +37,7 @@ class DiscreteRNNPolicyCritic(torch.nn.Module):
 
         assert ((len(self.cnn_kernel_sizes) == len(self.cnn_hiddens)) and (len(self.cnn_hiddens) == len(self.cnn_strides)))
 
-        assert isinstance(D_out, int), '[DiscreteRNNPolicy] D_out must be an interger!'
+        assert isinstance(D_out, int), '[DiscreteRNNPolicy] D_out must be an integer!'
         self.out_dim = D_out
         self.in_shape = D_shape_in
         self.func = activation
@@ -74,6 +74,7 @@ class DiscreteRNNPolicyCritic(torch.nn.Module):
                 utils.initialize_weights(self.bc_layers[-1])
             else:
                 self.bc_layers.append(None)
+            feat_size = d
 
         self.rnn_input_size = feat_size
 
@@ -82,13 +83,12 @@ class DiscreteRNNPolicyCritic(torch.nn.Module):
         cell_obj = nn.LSTM if rnn_cell == 'lstm' else nn.GRU
         self.cell = cell_obj(input_size=self.rnn_input_size,
                              hidden_size=self.rnn_units,
-                             num_layers=self.rnn_layers,
-                             batch_first=True)
+                             num_layers=self.rnn_layers)
         utils.initialize_weights(self.cell)
         self.rnn_output_size = self.rnn_units
 
         # build policy layers
-        policy_hiddens.append(self.D_out)
+        policy_hiddens.append(self.out_dim)
         self.policy_layers = []
         cur_dim = self.rnn_output_size
         for i,d in enumerate(policy_hiddens):
@@ -115,10 +115,6 @@ class DiscreteRNNPolicyCritic(torch.nn.Module):
             if bc is not None:
                 x = bc(x)
             x = self.func(x)
-
-            if common.debugger is not None:
-                common.debugger.print("------>[P] Forward of Conv<{}>, Norm = {}, Var = {}, Max = {}, Min = {}".format(
-                                    conv, x.data.norm(), x.data.var(), x.data.max(), x.data.min()), False)
         return x
 
     def _get_feature_dim(self, D_shape_in):
@@ -128,89 +124,120 @@ class DiscreteRNNPolicyCritic(torch.nn.Module):
         n_size = out_feat.data.view(bs, -1).size(1)
         return n_size
 
-    def _get_zero_state(self, batch):
+    def _get_zero_state(self, batch=1):
         z = Variable(torch.zeros(self.rnn_layers, batch, self.rnn_units)).type(FloatTensor)
         if self.cell_type == 'lstm':
             return (z, z)
         else:  # gru
             return z
+
+    def _pack_hidden_states(self, hiddens):
+        """
+        :param hiddens: a list of hiddens
+        :return: a packed tensor of hidden states, [layers, batch, units]
+        """
+        if self.cell_type == 'lstm':
+            c = torch.cat([h[0] for h in hiddens], dim=1)
+            g = torch.cat([h[1] for h in hiddens], dim=1)
+            return (c, g)
+        return torch.cat(hiddens, dim=1)
+
+    def _unpack_hidden_states(self, hidden):
+        """
+        :param hidden: a tensor of hidden states [layers, batch, units]
+        :return: unpack the states to a list of individual hiddens
+        """
+        if self.cell_type == 'lstm':
+            batch = hidden[0].size(1)
+            c = torch.chunk(hidden[0], batch, dim=1)
+            g = torch.chunk(hidden[1], batch, dim=1)
+            return [(c_i, g_i) for (c_i, g_i) in zip(c, g)]
+        else:
+            batch = hidden.size(1)
+            return torch.chunk(hidden, batch, dim=1)
+
+    def _mark_hidden_states(self, hidden, done):
+        """
+        :param hidden: a tensor of hidden states [layer, batch, units]
+        :param done: a float tensor of 0/1, whether an epis ends, [batch]
+        :return: a marked hidden
+        """
+        done = 1.0 - done
+        done = done.view(1, -1, 1)  # torch 0.2 required
+        if self.cell_type == 'lstm':
+            hidden[0] *= done
+            hidden[1] *= done
+        else:
+            hidden *= done
+        return hidden
+
     #######################
 
-
-    #<<<<<<<< TODO Start From Here <<<<<<<<
-    def forward(self, x, h=None, return_value=True, only_value=False):
+    def forward(self, x, h, return_value=True, sample_action=False, unpack_hidden=False):
         """
         compute the forward pass of the model.
-        return logits and the softmax prob w./w.o. gumbel noise
-        x: (batch, seq_len, channel, n_row, n_col)
-        act: (batch, seq_len, act_dim) or a list of tensors
+        @:param x: [seq_len, batch, n_channel, n_row, n_col]
+        @:param h: [layer, batch, units] or a list of <batch_size> individual hiddens
+        @:param return_value: when False, only return action
+        @:param sample_action: when True, action will be the sampled LongTensor, [seq_len, batch, 1]
+        @:return (action, value, hiddens) or (action, hiddens)
         """
-        seq_len = x.size(1)
-        batch = x.size(0)
+        seq_len = x.size(0)
+        batch = x.size(1)
         packed_x = x.view(-1, self.in_shape[0], self.in_shape[1], self.in_shape[2])
-        self.feat = feat = self._forward_feature(packed_x)
-        feat = feat.view(batch, seq_len, self.feat_size)
+        self.feat = feat = self._forward_feature(packed_x)   # both conv layers and linear layer
+        rnn_input = feat.view(seq_len, batch, self.rnn_input_size)
 
-        common.debugger.print("------>[P] Forward of Policy, Feature Norm = {}, Var = {}, Max = {}, Min = {}".format(
-                                feat.data.norm(), feat.data.var(), feat.data.max(), feat.data.min()), False)
+        if isinstance(h, list): h = self._pack_hidden_states(h)
 
-        if isinstance(act, list):
-            feat = torch.cat([feat] + act, dim=-1)
-        else:
-            if act is None: act = Variable(torch.zeros(batch, seq_len, self.out_dim)).type(FloatTensor)
-            feat = torch.cat([feat, act], dim=-1)
+        rnn_output, final_h = self.cell(rnn_input, h)  # [seq_len, batch, units], [layer, batch, units]
+        self.last_h = final_h
+        if unpack_hidden: final_h = self._unpack_hidden_states(final_h)
 
-        if h is None: h = self._get_zero_state(batch)
-        # output: [batch, seq_len, rnn_output_size]
-        outputs, new_h = self.cell(feat, h)
+        feat = rnn_output.view(-1, self.rnn_output_size)
 
-        feat = outputs.resize(batch * seq_len, self.rnn_output_size)
-        for l,bc in zip(self.linear_layers, self.l_bc_layers):
+        # compute action
+        for i, l in self.policy_layers:
             feat = l(feat)
-            if bc is not None:
-                feat = bc(feat)
-            feat = self.func(feat)
-            common.debugger.print("------>[P] Forward of Policy, Mid-Feature Norm = {}, Var = {}, Max = {}, Min = {}".format(
-                                    feat.data.norm(), feat.data.var(), feat.data.max(), feat.data.min()), False)
-        self.logits = []
-        self.logp = []
-        self.prob = []
-        for l in self.final_layers:
-            _logits, _prob, _logp = self._get_concrete_stats(batch, seq_len, l, feat, gumbel_noise)
-            self.logits.append(_logits)
+            if i < len(self.policy_layers) - 1: feat = self.func(feat)
+        self.logits = feat.view(seq_len, batch, self.out_dim)
+        self.prob = F.softmax(feat).view(seq_len, batch, self.out_dim)
+        self.logp = F.log_softmax(feat).view(seq_len, batch, self.out_dim)
 
-            common.debugger.print("------>[P] Forward of Policy, Logits{}, Norm = {}, Var = {}, Max = {}, Min = {}".format(
-                                    _logits.size(-1), _logits.data.norm(), _logits.data.var(), _logits.data.max(), _logits.data.min()), False)
-            common.debugger.print("------>[P] Forward of Policy, LogP{}, Norm = {}, Var = {}, Max = {}, Min = {}".format(
-                                    _logp.size(-1), _logp.data.norm(), _logp.data.var(), _logp.data.max(), _logp.data.min()), False)
+        if sample_action:
+            ret_act = torch.multinomial(self.prob.view(-1, self.out_dim), 1).view(seq_len, batch, 1)
+        else:
+            ret_act = self.logp
 
-            self.logp.append(_logp)
-            self.prob.append(_prob)
-        return self.prob, new_h  #self.logp
+        if not return_value: return ret_act, final_h
+
+        # compute value
+        for i, l in self.critic_layers:
+            feat = l(feat)
+            if i < len(self.critic_layers) - 1: feat = self.func(feat)
+        self.value = ret_val = feat.view(seq_len, batch)  # torch 0.2 required
+        return ret_act, ret_val, final_h
 
     ########################
-    def logprob(self, actions, logp = None):
+    def logprob(self, actions, logp=None):
+        """
+        :param actions: LongTensor, [seq_len, batch, 1]
+        :param logp: None or [seq_len, batch, D_out]
+        :return: log prob, [seq_len, batch]
+        """
         if logp is None: logp = self.logp
-        ret = 0
-        for a, p in zip(actions, logp):
-            ret += torch.sum(a * p, -1)
+        ret = torch.gather(logp, 2, actions)
         return ret
 
-    def entropy(self, logits=None, weight=None):
+    def entropy(self, logits=None):
         """
-        weight: (batch, seq_len)
+        logits: [seq_len, batch, D_out]
+        return: [seq_len, batch]
         """
         if logits is None: logits = self.logits
-        if weight is not None: weight = weight.view(-1)
-        ret = 0
-        for _l, d in zip(logits, self.D_out):
-            l = _l.view(-1, d)
-            a0 = l - torch.max(l, dim=1)[0].repeat(1, d)
-            ea0 = torch.exp(a0)
-            z0 = ea0.sum(1).repeat(1, d)
-            p0 = ea0 / z0
-            cur_ent = torch.sum(p0 * (torch.log(z0 + 1e-8) - a0), dim=1).squeeze()
-            if weight is not None:
-                cur_ent = cur_ent * weight
-            ret = ret + cur_ent
-        return ret
+        a0 = logits - logits.max(dim=2, keepdim=True)[0]
+        ea0 = torch.exp(a0)
+        z0 = ea0.sum(dim=2, keepdim=True)
+        p0 = ea0 / z0
+        ret = p0 * (torch.log(z0 + 1e-8) - a0)
+        return ret.sum(dim=2)
