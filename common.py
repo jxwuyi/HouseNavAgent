@@ -77,6 +77,7 @@ single_observation_shape = (3, resolution[0], resolution[1])
 action_shape = (4, 2)
 colide_res = 1000
 default_eagle_resolution = 100
+n_discrete_actions = environment.n_discrete_actions
 
 
 debugger = None

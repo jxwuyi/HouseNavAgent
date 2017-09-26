@@ -83,7 +83,8 @@ class DiscreteRNNPolicy(torch.nn.Module):
         cell_obj = nn.LSTM if rnn_cell == 'lstm' else nn.GRU
         self.cell = cell_obj(input_size=self.rnn_input_size,
                              hidden_size=self.rnn_units,
-                             num_layers=self.rnn_layers)
+                             num_layers=self.rnn_layers,
+                             batch_first=True)
         utils.initialize_weights(self.cell)
         self.rnn_output_size = self.rnn_units
 
@@ -124,8 +125,9 @@ class DiscreteRNNPolicy(torch.nn.Module):
         n_size = out_feat.data.view(bs, -1).size(1)
         return n_size
 
-    def _get_zero_state(self, batch=1):
-        z = Variable(torch.zeros(self.rnn_layers, batch, self.rnn_units)).type(FloatTensor)
+    def get_zero_state(self, batch=1, return_variable=False, volatile=False):
+        z = torch.zeros(self.rnn_layers, batch, self.rnn_units).type(FloatTensor)
+        if return_variable: z = Variable(z, volatile=volatile)
         if self.cell_type == 'lstm':
             return (z, z)
         else:  # gru
@@ -156,7 +158,7 @@ class DiscreteRNNPolicy(torch.nn.Module):
             batch = hidden.size(1)
             return torch.chunk(hidden, batch, dim=1)
 
-    def _mark_hidden_states(self, hidden, done):
+    def mark_hidden_states(self, hidden, done):
         """
         :param hidden: a tensor of hidden states [layer, batch, units]
         :param done: a float tensor of 0/1, whether an epis ends, [batch]
@@ -173,7 +175,7 @@ class DiscreteRNNPolicy(torch.nn.Module):
 
     #######################
 
-    def forward(self, x, h, return_value=True, sample_action=False, unpack_hidden=False):
+    def forward(self, x, h, only_value = False, return_value=True, sample_action=False, unpack_hidden=False, return_tensor=False):
         """
         compute the forward pass of the model.
         @:param x: [seq_len, batch, n_channel, n_row, n_col]
@@ -182,48 +184,55 @@ class DiscreteRNNPolicy(torch.nn.Module):
         @:param sample_action: when True, action will be the sampled LongTensor, [seq_len, batch, 1]
         @:return (action, value, hiddens) or (action, hiddens)
         """
-        seq_len = x.size(0)
-        batch = x.size(1)
+        seq_len = x.size(1)
+        batch = x.size(0)
         packed_x = x.view(-1, self.in_shape[0], self.in_shape[1], self.in_shape[2])
         self.feat = feat = self._forward_feature(packed_x)   # both conv layers and linear layer
-        rnn_input = feat.view(seq_len, batch, self.rnn_input_size)
+        rnn_input = feat.view(batch, seq_len, self.rnn_input_size)
 
         if isinstance(h, list): h = self._pack_hidden_states(h)
 
         rnn_output, final_h = self.cell(rnn_input, h)  # [seq_len, batch, units], [layer, batch, units]
         self.last_h = final_h
+        if return_tensor: final_h = final_h.data
         if unpack_hidden: final_h = self._unpack_hidden_states(final_h)
 
-        feat = rnn_output.view(-1, self.rnn_output_size)
+        rnn_feat = rnn_output.view(-1, self.rnn_output_size)
 
         # compute action
-        for i, l in self.policy_layers:
-            feat = l(feat)
-            if i < len(self.policy_layers) - 1: feat = self.func(feat)
-        self.logits = feat.view(seq_len, batch, self.out_dim)
-        self.prob = F.softmax(feat).view(seq_len, batch, self.out_dim)
-        self.logp = F.log_softmax(feat).view(seq_len, batch, self.out_dim)
+        if not only_value:
+            feat = rnn_feat
+            for i, l in self.policy_layers:
+                feat = l(feat)
+                if i < len(self.policy_layers) - 1: feat = self.func(feat)
+            self.logits = feat.view(batch, seq_len, self.out_dim)
+            self.prob = F.softmax(feat).view(batch, seq_len, self.out_dim)
+            self.logp = F.log_softmax(feat).view(batch, seq_len, self.out_dim)
 
-        if sample_action:
-            ret_act = torch.multinomial(self.prob.view(-1, self.out_dim), 1).view(seq_len, batch, 1)
-        else:
-            ret_act = self.logp
+            if sample_action:
+                ret_act = torch.multinomial(self.prob.view(-1, self.out_dim), 1).view(batch, seq_len, 1)
+            else:
+                ret_act = self.logp
 
-        if not return_value: return ret_act, final_h
+            if return_tensor: ret_act = ret_act.data
+            if not return_value: return ret_act, final_h
 
         # compute value
+        feat = rnn_feat
         for i, l in self.critic_layers:
             feat = l(feat)
             if i < len(self.critic_layers) - 1: feat = self.func(feat)
-        self.value = ret_val = feat.view(seq_len, batch)  # torch 0.2 required
+        self.value = ret_val = feat.view(batch, seq_len)  # torch 0.2 required
+        if return_tensor: ret_val = ret_val.data
+        if only_value: return ret_val
         return ret_act, ret_val, final_h
 
     ########################
     def logprob(self, actions, logp=None):
         """
-        :param actions: LongTensor, [seq_len, batch, 1]
-        :param logp: None or [seq_len, batch, D_out]
-        :return: log prob, [seq_len, batch]
+        :param actions: LongTensor, [batch, seq_len, 1]
+        :param logp: None or [batch, seq_len, D_out]
+        :return: log prob, [batch, seq_len]
         """
         if logp is None: logp = self.logp
         ret = torch.gather(logp, 2, actions)
@@ -231,8 +240,8 @@ class DiscreteRNNPolicy(torch.nn.Module):
 
     def entropy(self, logits=None):
         """
-        logits: [seq_len, batch, D_out]
-        return: [seq_len, batch]
+        logits: [batch, seq_len, D_out]
+        return: [batch, seq_len]
         """
         if logits is None: logits = self.logits
         a0 = logits - logits.max(dim=2, keepdim=True)[0]
