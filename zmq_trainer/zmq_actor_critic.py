@@ -171,7 +171,7 @@ class ZMQA3CTrainer(AgentTrainer):
         if self.args['entropy_penalty'] is not None:
             pg_loss -= self.args['entropy_penalty'] * p_ent  # encourage exploration
 
-        loss = critic_loss + pg_loss
+        loss = self.q_loss_coef * critic_loss + pg_loss
 
         # backprop
         loss.backward()

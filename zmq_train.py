@@ -45,9 +45,10 @@ def create_policy(model_name, args, observation_shape, n_action):
                               kernel_sizes=5, strides=2,
                               linear_hiddens=[512],
                               policy_hiddens=[128],
-                              critic_hiddens=[64],
-                              rnn_cell='lstm',
-                              rnn_units=256)
+                              critic_hiddens=[32],
+                              rnn_cell=args['rnn_cell'],
+                              rnn_layers=args['rnn_layers'],
+                              rnn_units=args['rnn_units'])
     if common.use_cuda:
         if 'train_gpu' in args:
             model.cuda(device_id=args['train_gpu'])
@@ -125,8 +126,8 @@ def train(args=None, warmstart=None):
 def parse_args():
     parser = argparse.ArgumentParser("Reinforcement Learning for 3D House Navigation")
     # Environment
-    parser.add_argument("--n_house", type=int, default=1,
-                        help="number of houses to train on")
+    parser.add_argument("--n-house", type=int, default=1,
+                        help="number of houses to train on. Should be no smaller than --n-proc")
     parser.add_argument("--seed", type=int, help="random seed")
     parser.add_argument("--hardness", type=float, help="real number from 0 to 1, indicating the hardness of the environment")
     #parser.add_argument("--linear-reward", action='store_true', default=False,   # by default linear reward
@@ -134,11 +135,14 @@ def parse_args():
     #parser.add_argument("--action-dim", type=int, help="degree of freedom of agent movement, must be in the range of [2, 4], default=4")
     parser.add_argument("--segmentation-input", choices=['none', 'index', 'color', 'joint'], default='none',
                         help="whether to use segmentation mask as input; default=none; <joint>: use both pixel input and color segment input")
+    parser.add_argument("--depth-input", dest='depth_input', action='store_true',
+                        help="whether to include depth information as part of the input signal")
+    parser.set_defaults(depth_input=False)
     #parser.add_argument("--resolution", choices=['normal', 'low', 'tiny', 'high', 'square', 'square_low'], default='normal',
     #                    help="resolution of visual input, default normal=[120 * 90]")
     #parser.add_argument("--history-frame-len", type=int, default=4,
     #                    help="length of the stacked frames, default=4")
-    parser.add_argument("--max-episode-len", type=int, help="maximum episode length")
+    parser.add_argument("--max-episode-len", type=int, default=50, help="maximum episode length")
 
     ########################################################
     # ZMQ training parameters
@@ -146,7 +150,7 @@ def parse_args():
                         help="[ZMQ] an integer indicating the training gpu")
     parser.add_argument("--render-gpu", type=str,
                         help="[ZMQ] an integer or a ','-split list of integers, indicating the gpu-id for renderers")
-    parser.add_argument("--num-proc", type=int, default=32,
+    parser.add_argument("--n-proc", type=int, default=32,
                         help="[ZMQ] number of processes for simulation")
     parser.add_argument("--t-max", type=int, default=5,
                         help="[ZMQ] number of time steps in each batch")

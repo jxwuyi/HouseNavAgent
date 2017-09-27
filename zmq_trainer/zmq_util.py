@@ -106,10 +106,24 @@ class ZMQMaster(SimulatorMaster):
             keys = sorted(stats.keys())
             for key in keys:
                 self.logger.print('  >>> %s = %.5f' % (key, stats[key]))
-        if (self.train_cnt % self.config['save_rate'] == 0) or (self.train_cnt > self.config['iters']):
+        if (self.train_cnt % self.config['save_rate'] == 0) or (self.train_cnt > self.config['max_iters']):
             self.trainer.save(self.config['save_dir'])
-        if self.train_cnt > self.config['iters']:
+        if self.train_cnt > self.config['max_iters']:
+            print('Finished All the Iters!!!')
+            self._evaluate_stats()
             exit(0)
+
+    def _evaluate_stats(self):
+        duration = time.time() - self.start_time
+        self.logger.print("Running Stats <#Samles = {}>".format(self.comm_cnt))
+        self.logger.print("> Time Elapsed = %.4f min".format(duration / 60))
+        self.logger.print(" -> #Episode = {}, #Updates = {}".format(len(self.episode_stats), self.train_cnt))
+        rew_stats = self.episode_stats['rew'][-500:]
+        len_stats = self.episode_stats['len'][-500:]
+        self.logger.print("  > Avg Reward = %.6f, Avg Path Len = %.6f" % (sum(rew_stats) / len(rew_stats), sum(len_stats) / len(len_stats)))
+        self.logger.print("  >>>> Total FPS: ", self.comm_cnt * 1.0 / duration)
+        self.logger.print('   ----> Data Loading Time = %.4f min' % (time_counter[0] / 60))
+        self.logger.print('   ----> Training Time = %.4f min' % (time_counter[1] / 60))
 
     def recv_message(self, ident, state, reward, isOver):
         """
@@ -164,13 +178,4 @@ class ZMQMaster(SimulatorMaster):
 
         # report stats
         if self.comm_cnt % self.config['eval_rate'] == 0:
-            duration = time.time() - self.start_time
-            self.logger.print("Running Stats <#Samles = {}>".format(self.comm_cnt))
-            self.logger.print("> Time Elapsed = %.4f min".format(duration/60))
-            self.logger.print(" -> #Episode = {}, #Updates = {}".format(len(self.episode_stats), self.train_cnt))
-            rew_stats = self.episode_stats['rew'][-500:]
-            len_stats = self.episode_stats['len'][-500:]
-            self.logger.print("  > Avg Reward = %.6f, Avg Path Len = %.6f" % (sum(rew_stats)/len(rew_stats), sum(len_stats)/len(len_stats)))
-            self.logger.print("  >>>> Total FPS: ", self.comm_cnt * 1.0 / duration)
-            self.logger.print('   ----> Data Loading Time = %.4f min' % (time_counter[0] / 60))
-            self.logger.print('   ----> Training Time = %.4f min' % (time_counter[1] / 60))
+            self._evaluate_stats()
