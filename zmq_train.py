@@ -133,7 +133,7 @@ def parse_args():
     #parser.add_argument("--linear-reward", action='store_true', default=False,   # by default linear reward
     #                    help="whether to use reward according to distance; o.w. indicator reward")
     #parser.add_argument("--action-dim", type=int, help="degree of freedom of agent movement, must be in the range of [2, 4], default=4")
-    parser.add_argument("--segmentation-input", choices=['none', 'index', 'color', 'joint'], default='none',
+    parser.add_argument("--segmentation-input", choices=['none', 'index', 'color', 'joint'], default='none', dest='segment_input',
                         help="whether to use segmentation mask as input; default=none; <joint>: use both pixel input and color segment input")
     parser.add_argument("--depth-input", dest='depth_input', action='store_true',
                         help="whether to include depth information as part of the input signal")
@@ -163,6 +163,7 @@ def parse_args():
     parser.add_argument("--lrate", type=float, help="learning rate for policy")
     parser.add_argument('--weight-decay', type=float, help="weight decay for policy")
     parser.add_argument("--gamma", type=float, help="discount")
+    parser.add_argument("--grad-clip", type=float, default = 5.0, help="gradient clipping")
     parser.add_argument("--max-iters", type=int, default=int(1e6), help="maximum number of training episodes")
     parser.add_argument("--batch-norm", action='store_true', dest='use_batch_norm',
                         help="Whether to use batch normalization in the policy network. default=False.")
@@ -191,11 +192,11 @@ def parse_args():
     # Checkpointing
     parser.add_argument("--save-dir", type=str, default="./_model_", help="directory in which training state and model should be saved")
     parser.add_argument("--log-dir", type=str, default="./log", help="directory in which logs training stats")
-    parser.add_argument("--save-rate", type=int, default=1000, help="save model once every time this many episodes are completed")
+    parser.add_argument("--save-rate", type=int, default=1000, help="save model once every time this many training iters are completed")
     parser.add_argument("--report-rate", type=int, default=1,
                         help="report training stats once every time this many training steps are performed")
     parser.add_argument("--eval-rate", type=int, default=50,
-                        help="report evaluation stats once every time this many training steps are performed")
+                        help="report evaluation stats once every time this many *FRAMES* produced")
     parser.add_argument("--warmstart", type=str, help="model to recover from. can be either a directory or a file.")
     return parser.parse_args()
 

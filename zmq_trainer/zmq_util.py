@@ -64,6 +64,7 @@ class ZMQMaster(SimulatorMaster):
         self.episode_stats = dict(len=[], rew=[])
 
     def _rand_select(self, ids):
+        if not isinstance(ids, list): ids = list(ids)
         random.shuffle(ids)
         return ids[:self.batch_size]
 
@@ -117,7 +118,7 @@ class ZMQMaster(SimulatorMaster):
         duration = time.time() - self.start_time
         self.logger.print("Running Stats <#Samles = {}>".format(self.comm_cnt))
         self.logger.print("> Time Elapsed = %.4f min".format(duration / 60))
-        self.logger.print(" -> #Episode = {}, #Updates = {}".format(len(self.episode_stats), self.train_cnt))
+        self.logger.print(" -> #Episode = {}, #Updates = {}".format(len(self.episode_stats['rew']), self.train_cnt))
         rew_stats = self.episode_stats['rew'][-500:]
         len_stats = self.episode_stats['len'][-500:]
         self.logger.print("  > Avg Reward = %.6f, Avg Path Len = %.6f" % (sum(rew_stats) / len(rew_stats), sum(len_stats) / len(len_stats)))
@@ -177,5 +178,6 @@ class ZMQMaster(SimulatorMaster):
                 self.batch_step += 1
 
         # report stats
+        self.comm_cnt += 1
         if self.comm_cnt % self.config['eval_rate'] == 0:
             self._evaluate_stats()

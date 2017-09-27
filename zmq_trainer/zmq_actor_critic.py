@@ -30,7 +30,6 @@ class ZMQA3CTrainer(AgentTrainer):
         self.lrate = args['lrate']
         self.batch_size = args['batch_size']
         self.t_max = args['t_max']
-        self.start_train_samples = min(256, self.batch_size) * args['episode_len']
         if 'q_loss_coef' in args:
             self.q_loss_coef = args['q_loss_coef']
         else:
