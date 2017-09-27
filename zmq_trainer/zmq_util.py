@@ -35,12 +35,13 @@ class ZMQSimulator(SimulatorProcess):
         device_list = config['render_devices']
         device_ind = self.idx % len(device_list)
         device = device_list[device_ind]
-        return ZMQHouseEnvironment(k, True, config['hardness'],
-                                    config['segment_input'], config['depth_input'], device)
+        return ZMQHouseEnvironment(k, config['hardness'],
+                                   config['segment_input'], config['depth_input'],
+                                   config['max_episode_len'], device)
 
 
 class ZMQMaster(SimulatorMaster):
-    def __init__(self, pipe1, pipe2, trainer, scheduler, batch_size, t_max, config):
+    def __init__(self, pipe1, pipe2, trainer, config):
         super(ZMQMaster, self).__init__(pipe1, pipe2)
         self.config = config
         self.logger = utils.MyLogger(config['log_dir'], True)
@@ -49,10 +50,10 @@ class ZMQMaster(SimulatorMaster):
         self.train_cnt = 0
         self.trainer = trainer
         self.n_action = common.n_discrete_actions  # TODO: to allow further modification
-        self.scheduler = scheduler
-        self.batch_size = batch_size
-        self.t_max = t_max
+        self.batch_size = config['batch_size']
+        self.t_max = t_max = config['t_max']
         assert t_max > 1, 't_max must be at least 2!'
+        self.scheduler = config['scheduler']
         self.train_buffer = dict()
         self.pool = set()
         self.hidden_state = dict()
@@ -75,9 +76,8 @@ class ZMQMaster(SimulatorMaster):
         action, next_hidden = self.trainer.action(states, hiddens)
         for i,id in enumerate(self.curr_state.keys()):
             self.cnt += 1
-            if random.random() > self.scheduler.value(self.cnt):
+            if (self.scheduler is not None) and (random.random() > self.scheduler.value(self.cnt)):
                 act = random.randint(self.n_action)
-
             else:
                 act = action[i]
             self.send_message(id, act)  # send action to simulator
@@ -101,13 +101,15 @@ class ZMQMaster(SimulatorMaster):
             done[i] = dat['done']
         self.trainer.train()
         stats = self.trainer.update(obs, hidden, act, rew, done)
-        if self.train_cnt % self.config['train_log_rate'] == 0:
+        if self.train_cnt % self.config['report_rate'] == 0:
             self.logger.print('Training Iter#%d ...' % self.train_cnt)
             keys = sorted(stats.keys())
             for key in keys:
                 self.logger.print('  >>> %s = %.5f' % (key, stats[key]))
-        if self.train_cnt % self.config['save_rate'] == 0:
+        if (self.train_cnt % self.config['save_rate'] == 0) or (self.train_cnt > self.config['iters']):
             self.trainer.save(self.config['save_dir'])
+        if self.train_cnt > self.config['iters']:
+            exit(0)
 
     def recv_message(self, ident, state, reward, isOver):
         """

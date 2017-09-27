@@ -168,8 +168,8 @@ class ZMQA3CTrainer(AgentTrainer):
         critic_loss = F.smooth_l1_loss(V, R)
         # critic_loss = torch.mean((R - V) ** 2)
         pg_loss = torch.mean(self.net.logprob(act, P) * A)
-        if self.args['ent_penalty'] is not None:
-            pg_loss -= self.args['ent_penalty'] * p_ent  # encourage exploration
+        if self.args['entropy_penalty'] is not None:
+            pg_loss -= self.args['entropy_penalty'] * p_ent  # encourage exploration
 
         loss = critic_loss + pg_loss
 
@@ -183,6 +183,7 @@ class ZMQA3CTrainer(AgentTrainer):
 
         time_counter[1] += time.time() - tt
 
+        # TODO: to compute KL divergence
         return dict(pg_loss=pg_loss.data.cpu().numpy()[0],
                      policy_entropy=p_ent.data.cpu().numpy()[0],
                      critic_loss=critic_loss.data.cpu().numpy()[0])
