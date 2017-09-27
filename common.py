@@ -127,6 +127,33 @@ def create_args(model='random', gamma = 0.9, lrate = 0.001, critic_lrate = 0.001
                 resolution_level=resolution_level)
 
 
+def process_observation_shape(model, resolution_level, segmentation_input, depth_input, history_frame_len=4):
+    global frame_history_len, resolution, attention_resolution, observation_shape, single_observation_shape
+    if 'rnn' in model: history_frame_len = 1
+    if history_frame_len != 4:
+        frame_history_len = history_frame_len
+        print('>>> Currently Stacked Frames Size = {}'.format(frame_history_len))
+    if resolution_level != 'normal':
+        resolution = resolution_dict[resolution_level]
+        print('>>>> Resolution Changed to {}'.format(resolution))
+        single_observation_shape = (3, resolution[0], resolution[1])
+    if (segmentation_input is not None) and (segmentation_input != 'none'):
+        if segmentation_input == 'index':
+            n_chn = n_segmentation_mask
+        elif segmentation_input == 'color':
+            n_chn = 3
+        else:
+            n_chn = 6
+            assert (segmentation_input == 'joint')
+        single_observation_shape = (n_chn, resolution[0], resolution[1])
+    if depth_input:
+        single_observation_shape = (single_observation_shape[0] + 1,
+                                    single_observation_shape[1],
+                                    single_observation_shape[2])
+    observation_shape = (single_observation_shape[0] * frame_history_len, resolution[0], resolution[1])
+    print('>> Current Observation Shape = {}'.format(observation_shape))
+
+
 def create_default_args(algo='pg', model='cnn', gamma=None,
                         lrate=None, critic_lrate=None,
                         episode_len=None,
@@ -145,28 +172,11 @@ def create_default_args(algo='pg', model='cnn', gamma=None,
                         depth_input=False,
                         resolution_level='normal',
                         history_frame_len=4):
-    global frame_history_len, resolution, attention_resolution, observation_shape, single_observation_shape
-    if history_frame_len != 4:
-        frame_history_len = history_frame_len
-        print('>>> Currently Stacked Frames Size = {}'.format(frame_history_len))
-    if resolution_level != 'normal':
-        resolution = resolution_dict[resolution_level]
-        print('>>>> Resolution Changed to {}'.format(resolution))
-        single_observation_shape = (3, resolution[0], resolution[1])
-    if (segmentation_input is not None) and (segmentation_input != 'none'):
-        if segmentation_input == 'index':
-            n_chn = n_segmentation_mask
-        elif segmentation_input == 'color':
-            n_chn = 3
-        else:
-            n_chn = 6
-            assert(segmentation_input == 'joint')
-        single_observation_shape = (n_chn, resolution[0], resolution[1])
-    if depth_input:
-        single_observation_shape = (single_observation_shape[0]+1,
-                                    single_observation_shape[1],
-                                    single_observation_shape[2])
-    observation_shape = (single_observation_shape[0] * frame_history_len, resolution[0], resolution[1])
+    process_observation_shape(model,
+                              resolution_level=resolution_level,
+                              segmentation_input=segmentation_input,
+                              depth_input=depth_input,
+                              history_frame_len=history_frame_len)
     if algo == 'pg':  # policy gradient
         return create_args(model, gamma or 0.95, lrate or 0.001, None,
                            episode_len or 10, batch_size or 100, 1000,

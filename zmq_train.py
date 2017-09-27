@@ -93,6 +93,13 @@ def create_zmq_config(args):
 
 def train(args=None, warmstart=None):
 
+    # Process Observation Shape
+    common.process_observation_shape(model='rnn',
+                                     resolution_level=args['resolution_level'],
+                                     segmentation_input=args['segment_input'],
+                                     depth_input=args['depth_input'],
+                                     history_frame_len=1)
+
     trainer = create_zmq_trainer(args['algo'], model='rnn', args=args)
     if warmstart is not None:
         if os.path.exists(warmstart):
@@ -138,8 +145,9 @@ def parse_args():
     parser.add_argument("--depth-input", dest='depth_input', action='store_true',
                         help="whether to include depth information as part of the input signal")
     parser.set_defaults(depth_input=False)
-    #parser.add_argument("--resolution", choices=['normal', 'low', 'tiny', 'high', 'square', 'square_low'], default='normal',
-    #                    help="resolution of visual input, default normal=[120 * 90]")
+    parser.add_argument("--resolution", choices=['normal', 'low', 'tiny', 'high', 'square', 'square_low'],
+                        dest='resolution_level', default='normal',
+                        help="resolution of visual input, default normal=[120 * 90]")
     #parser.add_argument("--history-frame-len", type=int, default=4,
     #                    help="length of the stacked frames, default=4")
     parser.add_argument("--max-episode-len", type=int, default=50, help="maximum episode length")
