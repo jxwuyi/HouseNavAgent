@@ -1,7 +1,7 @@
 from headers import *
 import numpy as np
 import common
-import zmq_util
+import zmq_trainer.zmq_util
 import random
 import utils
 import time
@@ -10,7 +10,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 from torch.autograd import Variable
-from zmqsimulator import SimulatorProcess, SimulatorMaster, ensure_proc_terminate
+from zmq_trainer.zmqsimulator import SimulatorProcess, SimulatorMaster, ensure_proc_terminate
 
 
 class ZMQA3CTrainer(AgentTrainer):

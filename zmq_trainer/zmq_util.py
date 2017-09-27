@@ -8,7 +8,7 @@ import os
 import json
 import utils
 import common
-from zmqsimulator import SimulatorProcess, SimulatorMaster, ensure_proc_terminate
+from zmq_trainer.zmqsimulator import SimulatorProcess, SimulatorMaster, ensure_proc_terminate
 
 class ZMQHouseEnvironment:
     def __init__(self, k=0, hardness=None, segment_input='none', depth_input=False, max_steps=-1, device=0):
