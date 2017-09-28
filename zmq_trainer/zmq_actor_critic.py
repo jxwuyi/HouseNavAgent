@@ -103,7 +103,7 @@ class ZMQA3CTrainer(AgentTrainer):
     def eval(self):
         self.policy.eval()
 
-    def update(self, obs, init_hidden, act, rew, done, return_kl_divergence=False):
+    def update(self, obs, init_hidden, act, rew, done, return_kl_divergence=True):
         """
         :param obs:  list of list of [dims]...
         :param init_hidden: list of [layer, 1, units]
