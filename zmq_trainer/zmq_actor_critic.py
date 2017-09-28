@@ -113,6 +113,9 @@ class ZMQA3CTrainer(AgentTrainer):
         """
         tt = time.time()
 
+        # reward clipping
+        rew = np.clip(rew, -1, 1)
+
         # convert data to Variables
         obs = self._create_gpu_tensor(obs, return_variable=True)  # [batch, t_max+1, dims...]
         init_hidden = self._create_gpu_hidden(init_hidden, return_variable=True)  # [layers, batch, units]
