@@ -137,8 +137,9 @@ class ZMQA3CTrainer(AgentTrainer):
         logits = []
         logprobs = []
         values = []
-        obs = obs.contiguous()
-        obs_slices = torch.chunk(obs, t_max + 1, dim=1)
+        obs = obs
+        t_obs_slices = torch.chunk(obs, t_max + 1, dim=1)
+        obs_slices = [t.contiguous() for t in t_obs_slices]
         cur_h = init_hidden
         for t in range(t_max):
             #cur_obs = obs[:, t:t+1, ...].contiguous()
