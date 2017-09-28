@@ -270,4 +270,5 @@ class DiscreteRNNPolicy(torch.nn.Module):
         :param new_logP: [batch, seq_Len, D_out]
         :return: KL(new_P||old_P) [batch, seq_len]
         """
-        return torch.exp(new_logP) * (new_logP - old_logP)
+        kl = torch.exp(new_logP) * (new_logP - old_logP)
+        return kl.sum(dim=-1)
