@@ -263,3 +263,11 @@ class DiscreteRNNPolicy(torch.nn.Module):
         p0 = ea0 / z0
         ret = p0 * (torch.log(z0 + 1e-8) - a0)
         return ret.sum(dim=2)
+
+    def kl_divergence(self, old_logP, new_logP):
+        """
+        :param old_logP: log probability [batch, seq_len, D_out]
+        :param new_logP: [batch, seq_Len, D_out]
+        :return: KL(new_P||old_P) [batch, seq_len]
+        """
+        return torch.exp(new_logP) * (new_logP - old_logP)

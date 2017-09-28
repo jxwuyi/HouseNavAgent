@@ -103,7 +103,7 @@ class ZMQA3CTrainer(AgentTrainer):
     def eval(self):
         self.policy.eval()
 
-    def update(self, obs, init_hidden, act, rew, done):
+    def update(self, obs, init_hidden, act, rew, done, return_kl_divergence=False):
         """
         :param obs:  list of list of [dims]...
         :param init_hidden: list of [layer, 1, units]
@@ -137,18 +137,19 @@ class ZMQA3CTrainer(AgentTrainer):
         logits = []
         logprobs = []
         values = []
-        cur_h = init_hidden
+        obs = obs.contiguous()
         obs_slices = torch.chunk(obs, t_max + 1, dim=1)
+        cur_h = init_hidden
         for t in range(t_max):
             #cur_obs = obs[:, t:t+1, ...].contiguous()
-            cur_obs = obs_slices[t].contiguous()
+            cur_obs = obs_slices[t]
             cur_logp, cur_val, nxt_h = self.policy(cur_obs, cur_h)
             cur_h = self.policy.mark_hidden_states(nxt_h, mask_var[:, t:t+1])
             values.append(cur_val)
             logprobs.append(cur_logp)
             logits.append(self.policy.logits)
         #cur_obs = obs[:, t_max:t_max + 1, ...].contiguous()
-        cur_obs = obs_slices[-1].contiguous()
+        cur_obs = obs_slices[-1]
         nxt_val = self.policy(cur_obs, cur_h, only_value=True, return_tensor=True)
         V = torch.cat(values, dim=1)  # [batch, t_max]
         P = torch.cat(logprobs, dim=1)  # [batch, t_max, n_act]
@@ -187,9 +188,24 @@ class ZMQA3CTrainer(AgentTrainer):
             utils.clip_grad_norm(self.policy.parameters(), self.grad_norm_clip)
         self.optim.step()
 
+        ret_dict = dict(pg_loss=pg_loss.data.cpu().numpy()[0],
+                    policy_entropy=p_ent.data.cpu().numpy()[0],
+                    critic_loss=critic_loss.data.cpu().numpy()[0])
+
+        if return_kl_divergence:
+            cur_h = init_hidden
+            new_logprobs = []
+            for t in range(t_max):
+                # cur_obs = obs[:, t:t+1, ...].contiguous()
+                cur_obs = obs_slices[t]
+                cur_logp, nxt_h = self.policy(cur_obs, cur_h, return_value=False)
+                cur_h = self.policy.mark_hidden_states(nxt_h, mask_var[:, t:t + 1])
+                new_logprobs.append(cur_logp)
+            new_P = torch.cat(new_logprobs, dim=1)
+            kl = self.policy.kl_divergence(new_P, P).mean().data.cpu()[0]
+            ret_dict['KL(P_new||P_old)'] = kl
+
         time_counter[1] += time.time() - tt
 
         # TODO: to compute KL divergence
-        return dict(pg_loss=pg_loss.data.cpu().numpy()[0],
-                     policy_entropy=p_ent.data.cpu().numpy()[0],
-                     critic_loss=critic_loss.data.cpu().numpy()[0])
+        return ret_dict
