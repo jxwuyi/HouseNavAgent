@@ -44,7 +44,7 @@ class ZMQMaster(SimulatorMaster):
     def __init__(self, pipe1, pipe2, trainer, config):
         super(ZMQMaster, self).__init__(pipe1, pipe2)
         self.config = config
-        self.logger = utils.MyLogger(config['log_dir'], True)
+        self.logger = config['logger']
         self.cnt = 0
         self.comm_cnt = 0
         self.train_cnt = 0

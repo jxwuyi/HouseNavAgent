@@ -13,9 +13,9 @@ from torch.autograd import Variable
 from zmq_trainer.zmqsimulator import SimulatorProcess, SimulatorMaster, ensure_proc_terminate
 
 
-flag_max_lrate = 1e-3
-flag_min_lrate = 1e-6
-flag_max_kl_diff = 5e-3
+flag_max_lrate = 5e-3
+flag_min_lrate = 1e-5
+flag_max_kl_diff = 1e-2
 flag_min_kl_diff = 1e-5
 flag_lrate_coef = 1.5
 
@@ -196,8 +196,8 @@ class ZMQA3CTrainer(AgentTrainer):
         self.optim.step()
 
         ret_dict = dict(pg_loss=pg_loss.data.cpu().numpy()[0],
-                    policy_entropy=p_ent.data.cpu().numpy()[0],
-                    critic_loss=critic_loss.data.cpu().numpy()[0])
+                        policy_entropy=p_ent.data.cpu().numpy()[0],
+                        critic_loss=critic_loss.data.cpu().numpy()[0])
 
         if return_kl_divergence:
             cur_h = init_hidden
@@ -215,11 +215,11 @@ class ZMQA3CTrainer(AgentTrainer):
             if kl > flag_max_kl_diff:
                 self.lrate /= flag_lrate_coef
                 self.optim.__dict__['param_groups'][0]['lr']=self.lrate
-                print('------>>>> KL is too large (%.6f), decrease lrate to %.5f' % (kl, self.lrate))
+                ret_dict['NOTE:'] = ('------>>>> KL is too large (%.6f), decrease lrate to %.5f' % (kl, self.lrate))
             elif (kl < flag_min_kl_diff) and (self.lrate < flag_max_lrate):
                 self.lrate *= flag_lrate_coef
                 self.optim.__dict__['param_groups'][0]['lr'] = self.lrate
-                print('------>>>> KL is too small (%.6f), incrase lrate to %.5f' % (kl, self.lrate))
+                ret_dict['NOTE:'] = ('------>>>> KL is too small (%.6f), incrase lrate to %.5f' % (kl, self.lrate))
 
 
         time_counter[1] += time.time() - tt

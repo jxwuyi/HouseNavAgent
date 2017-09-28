@@ -100,6 +100,7 @@ def train(args=None, warmstart=None):
                                      depth_input=args['depth_input'],
                                      history_frame_len=1)
 
+    args['logger'] = utils.MyLogger(args['log_dir'], True)
     trainer = create_zmq_trainer(args['algo'], model='rnn', args=args)
     if warmstart is not None:
         if os.path.exists(warmstart):
