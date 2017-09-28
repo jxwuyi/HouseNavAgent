@@ -215,11 +215,11 @@ class ZMQA3CTrainer(AgentTrainer):
             if kl > flag_max_kl_diff:
                 self.lrate /= flag_lrate_coef
                 self.optim.__dict__['param_groups'][0]['lr']=self.lrate
-                ret_dict['NOTE:'] = ('------>>>> KL is too large (%.6f), decrease lrate to %.5f' % (kl, self.lrate))
+                ret_dict['!!![NOTE]:'] = ('------>>>> KL is too large (%.6f), decrease lrate to %.5f' % (kl, self.lrate))
             elif (kl < flag_min_kl_diff) and (self.lrate < flag_max_lrate):
                 self.lrate *= flag_lrate_coef
                 self.optim.__dict__['param_groups'][0]['lr'] = self.lrate
-                ret_dict['NOTE:'] = ('------>>>> KL is too small (%.6f), incrase lrate to %.5f' % (kl, self.lrate))
+                ret_dict['!!![NOTE]:'] = ('------>>>> KL is too small (%.6f), increase lrate to %.5f' % (kl, self.lrate))
 
 
         time_counter[1] += time.time() - tt

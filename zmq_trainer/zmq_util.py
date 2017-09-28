@@ -108,7 +108,10 @@ class ZMQMaster(SimulatorMaster):
             self.logger.print('Training Iter#%d ...' % self.train_cnt)
             keys = sorted(stats.keys())
             for key in keys:
-                self.logger.print('  >>> %s = %.5f' % (key, stats[key]))
+                if isinstance(stats[key], str):
+                    self.logger.print('%s = %s' % (key, stats[key]))
+                else:
+                    self.logger.print('  >>> %s = %.5f' % (key, stats[key]))
         if (self.train_cnt % self.config['save_rate'] == 0) or (self.train_cnt > self.config['max_iters']):
             self.trainer.save(self.config['save_dir'])
         if self.train_cnt > self.config['max_iters']:
