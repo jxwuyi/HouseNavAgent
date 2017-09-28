@@ -13,6 +13,12 @@ from torch.autograd import Variable
 from zmq_trainer.zmqsimulator import SimulatorProcess, SimulatorMaster, ensure_proc_terminate
 
 
+flag_max_lrate = 1e-3
+flag_min_lrate = 1e-6
+flag_max_kl_diff = 5e-3
+flag_min_kl_diff = 1e-5
+flag_lrate_coef = 1.5
+
 class ZMQA3CTrainer(AgentTrainer):
     def __init__(self, name, model_creator, obs_shape, act_shape, args):
         super(ZMQA3CTrainer, self).__init__()
@@ -205,6 +211,16 @@ class ZMQA3CTrainer(AgentTrainer):
             new_P = torch.cat(new_logprobs, dim=1)
             kl = self.policy.kl_divergence(new_P, P).mean().data.cpu()[0]
             ret_dict['KL(P_new||P_old)'] = kl
+
+            if kl > flag_max_kl_diff:
+                self.lrate /= flag_lrate_coef
+                self.__dict__['param_groups'][0]['lr']=self.lrate
+                print('------>>>> KL is too large (%.6f), decrease lrate to %.5f' % (kl, self.lrate))
+            elif (kl < flag_min_kl_diff) and (self.lrate < flag_max_lrate):
+                self.lrate *= flag_lrate_coef
+                self.__dict__['param_groups'][0]['lr'] = self.lrate
+                print('------>>>> KL is too small (%.6f), incrase lrate to %.5f' % (kl, self.lrate))
+
 
         time_counter[1] += time.time() - tt
 
