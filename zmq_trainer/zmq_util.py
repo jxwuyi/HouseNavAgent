@@ -71,16 +71,18 @@ class ZMQMaster(SimulatorMaster):
     # TODO: to test whether to use batched_simulation or async-single-proc simulation!
     def _batched_simulate(self):
         # random exploration
-        states = [[self.curr_state[id]] for id in self.curr_state.keys()]
-        hiddens = [self.hidden_state[id] for id in self.curr_state.keys()]
+        batched_ids = list(self.train_buffer.keys())
+        states = [[self.curr_state[id]] for id in batched_ids]
+        hiddens = [self.hidden_state[id] for id in batched_ids]
         self.trainer.eval()  # TODO: check this option
         action, next_hidden = self.trainer.action(states, hiddens)
-        for i,id in enumerate(self.curr_state.keys()):
+        cpu_action = action.squeeze().cpu().numpy()
+        for i,id in enumerate(batched_ids):
             self.cnt += 1
             if (self.scheduler is not None) and (random.random() > self.scheduler.value(self.cnt)):
                 act = random.randint(self.n_action)
             else:
-                act = action[i]
+                act = cpu_action[i]
             self.send_message(id, act)  # send action to simulator
             self.train_buffer[id]['act'].append(act)
             self.hidden_state[id] = next_hidden[i]
@@ -116,15 +118,17 @@ class ZMQMaster(SimulatorMaster):
 
     def _evaluate_stats(self):
         duration = time.time() - self.start_time
+        self.logger.print("+++++++++++++++++++ Eval +++++++++++++++++++++++++++++++")
         self.logger.print("Running Stats <#Samles = {}>".format(self.comm_cnt))
-        self.logger.print("> Time Elapsed = %.4f min".format(duration / 60))
+        self.logger.print("> Time Elapsed = %.4f min"%(duration / 60))
         self.logger.print(" -> #Episode = {}, #Updates = {}".format(len(self.episode_stats['rew']), self.train_cnt))
         rew_stats = self.episode_stats['rew'][-500:]
         len_stats = self.episode_stats['len'][-500:]
         self.logger.print("  > Avg Reward = %.6f, Avg Path Len = %.6f" % (sum(rew_stats) / len(rew_stats), sum(len_stats) / len(len_stats)))
-        self.logger.print("  >>>> Total FPS: ", self.comm_cnt * 1.0 / duration)
+        self.logger.print("  >>>> Total FPS: %.5f"%(self.comm_cnt * 1.0 / duration))
         self.logger.print('   ----> Data Loading Time = %.4f min' % (time_counter[0] / 60))
         self.logger.print('   ----> Training Time = %.4f min' % (time_counter[1] / 60))
+        self.logger.print("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
 
     def recv_message(self, ident, state, reward, isOver):
         """
@@ -140,7 +144,14 @@ class ZMQMaster(SimulatorMaster):
         self.accu_stats[ident]['len'] += 1
 
         if isOver:
-            self.hidden_state[ident] *= 0.0
+            # clear hidden state
+            if isinstance(self.hidden_state[ident], tuple):
+                c, g = self.hidden_state[ident]
+                c *= 0.0
+                g *= 0.0
+                self.hidden_state[ident] = (c, g)
+            else:
+                self.hidden_state[ident] *= 0.0
             # accumulate running stats
             self.episode_stats['rew'].append(self.accu_stats[ident]['rew'])
             self.episode_stats['len'].append(self.accu_stats[ident]['len'])

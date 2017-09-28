@@ -17,8 +17,8 @@ class ZMQA3CTrainer(AgentTrainer):
     def __init__(self, name, model_creator, obs_shape, act_shape, args):
         super(ZMQA3CTrainer, self).__init__()
         self.name = name
-        self.net = model_creator()
-        assert isinstance(self.net, torch.nn.Module), \
+        self.policy = model_creator()
+        assert isinstance(self.policy, torch.nn.Module), \
             'ZMQ_A3C_Network must be an instantiated instance of torch.nn.Module'
 
         self.obs_shape = obs_shape
@@ -35,9 +35,9 @@ class ZMQA3CTrainer(AgentTrainer):
         else:
             self.q_loss_coef = 1.0
         if args['optimizer'] == 'adam':
-            self.optim = optim.Adam(self.net.parameters(), lr=self.lrate, weight_decay=args['weight_decay'])  #,betas=(0.5,0.999))
+            self.optim = optim.Adam(self.policy.parameters(), lr=self.lrate, weight_decay=args['weight_decay'])  #,betas=(0.5,0.999))
         else:
-            self.optim = optim.RMSprop(self.net.parameters(), lr=self.lrate, weight_decay=args['weight_decay'])
+            self.optim = optim.RMSprop(self.policy.parameters(), lr=self.lrate, weight_decay=args['weight_decay'])
         self.grad_norm_clip = args['grad_clip']
 
     def _create_gpu_tensor(self, frames, return_variable=True, volatile=False):
@@ -87,21 +87,21 @@ class ZMQA3CTrainer(AgentTrainer):
             return h
 
     def get_init_hidden(self):
-        return self.net.get_zero_state()
+        return self.policy.get_zero_state()
 
     def action(self, obs, hidden=None):
         assert (hidden is not None), '[ZMQA3CTrainer] Currently only support recurrent policy, please input last hidden state!'
         obs = self._create_gpu_tensor(obs, return_variable=True, volatile=True)  # [batch, 1, n, m, channel]
         hidden = self._create_gpu_hidden(hidden, return_variable=True, volatile=True)  # a list of hidden tensors
-        act, nxt_hidden = self.net(obs, hidden, return_value=False, sample_action=True,
+        act, nxt_hidden = self.policy(obs, hidden, return_value=False, sample_action=True,
                                    unpack_hidden=True, return_tensor=True)
         return act, nxt_hidden   # NOTE: everything remains on gpu!
 
     def train(self):
-        self.net.train()
+        self.policy.train()
 
     def eval(self):
-        self.net.eval()
+        self.policy.eval()
 
     def update(self, obs, init_hidden, act, rew, done):
         """
@@ -116,7 +116,7 @@ class ZMQA3CTrainer(AgentTrainer):
         # convert data to Variables
         obs = self._create_gpu_tensor(obs, return_variable=True)  # [batch, t_max+1, dims...]
         init_hidden = self._create_gpu_hidden(init_hidden, return_variable=True)  # [layers, batch, units]
-        act = Variable(torch.from_numpy(act).type(FloatTensor))  # [batch, t_max]
+        act = Variable(torch.from_numpy(act).type(LongTensor))  # [batch, t_max]
         mask = 1.0 - torch.from_numpy(done).type(FloatTensor) # [batch, t_max]
         mask_var = Variable(mask)
 
@@ -135,18 +135,22 @@ class ZMQA3CTrainer(AgentTrainer):
         logprobs = []
         values = []
         cur_h = init_hidden
+        obs_slices = torch.chunk(obs, t_max + 1, dim=1)
         for t in range(t_max):
-            cur_obs = obs[:, t:t+1, ...]
-            cur_logp, cur_val, nxt_h = self.net(cur_obs, cur_h)
-            cur_h = self.net.mark_hidden_states(nxt_h, mask_var[:, t:t+1])
+            #cur_obs = obs[:, t:t+1, ...].contiguous()
+            cur_obs = obs_slices[t].contiguous()
+            cur_logp, cur_val, nxt_h = self.policy(cur_obs, cur_h)
+            cur_h = self.policy.mark_hidden_states(nxt_h, mask_var[:, t:t+1])
             values.append(cur_val)
             logprobs.append(cur_logp)
-            logits.append(self.net.logits)
-        nxt_val = self.net(obs[:, t_max:t_max + 1, ...], cur_h, only_value=True, return_tensor=True)
+            logits.append(self.policy.logits)
+        #cur_obs = obs[:, t_max:t_max + 1, ...].contiguous()
+        cur_obs = obs_slices[-1].contiguous()
+        nxt_val = self.policy(cur_obs, cur_h, only_value=True, return_tensor=True)
         V = torch.cat(values, dim=1)  # [batch, t_max]
         P = torch.cat(logprobs, dim=1)  # [batch, t_max, n_act]
         L = torch.cat(logits, dim=1)
-        p_ent = torch.mean(self.net.entropy(L))  # compute entropy
+        p_ent = torch.mean(self.policy.entropy(L))  # compute entropy
 
         # estimate accumulative rewards
         rew = torch.from_numpy(rew).type(FloatTensor)  # [batch, t_max]
@@ -166,7 +170,7 @@ class ZMQA3CTrainer(AgentTrainer):
         # compute loss
         critic_loss = F.smooth_l1_loss(V, R)
         # critic_loss = torch.mean((R - V) ** 2)
-        pg_loss = torch.mean(self.net.logprob(act, P) * A)
+        pg_loss = -torch.mean(self.policy.logprob(act, P) * A)
         if self.args['entropy_penalty'] is not None:
             pg_loss -= self.args['entropy_penalty'] * p_ent  # encourage exploration
 
@@ -177,7 +181,7 @@ class ZMQA3CTrainer(AgentTrainer):
 
         # grad clip
         if self.grad_norm_clip is not None:
-            utils.clip_grad_norm(self.net.parameters(), self.grad_norm_clip)
+            utils.clip_grad_norm(self.policy.parameters(), self.grad_norm_clip)
         self.optim.step()
 
         time_counter[1] += time.time() - tt

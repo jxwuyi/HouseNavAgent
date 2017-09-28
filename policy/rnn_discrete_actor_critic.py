@@ -64,16 +64,18 @@ class DiscreteRNNPolicy(torch.nn.Module):
         print('Feature Size = %d' % self.feat_size)
 
         # extra linear layers
+        self.linear_layers = []
+        self.ln_bc_layers = []
         for i, d in enumerate(linear_hiddens):
-            self.conv_layers.append(nn.Linear(feat_size, d))
-            setattr(self, 'linear_layer%d'%i, self.conv_layers[-1])
-            utils.initialize_weights(self.conv_layers[-1])
+            self.linear_layers.append(nn.Linear(feat_size, d))
+            setattr(self, 'linear_layer%d'%i, self.linear_layers[-1])
+            utils.initialize_weights(self.linear_layers[-1])
             if use_batch_norm:
-                self.bc_layers.append(nn.BatchNorm1d(d))
-                setattr(self, 'l_bc_layer%d'%i, self.bc_layers[-1])
-                utils.initialize_weights(self.bc_layers[-1])
+                self.ln_bc_layers.append(nn.BatchNorm1d(d))
+                setattr(self, 'l_bc_layer%d'%i, self.ln_bc_layers[-1])
+                utils.initialize_weights(self.ln_bc_layers[-1])
             else:
-                self.bc_layers.append(None)
+                self.ln_bc_layers.append(None)
             feat_size = d
 
         self.rnn_input_size = feat_size
@@ -110,12 +112,19 @@ class DiscreteRNNPolicy(torch.nn.Module):
 
 
     ######################
-    def _forward_feature(self, x):
+    def _forward_feature(self, x, compute_linear=False):
         for conv, bc in zip(self.conv_layers, self.bc_layers):
             x = conv(x)
             if bc is not None:
                 x = bc(x)
             x = self.func(x)
+        if compute_linear:
+            x = x.view(-1, self.feat_size)
+            for l, bc in zip(self.linear_layers, self.ln_bc_layers):
+                x = l(x)
+                if bc is not None:
+                    x = bc(x)
+                x = self.func(x)
         return x
 
     def _get_feature_dim(self, D_shape_in):
@@ -167,10 +176,9 @@ class DiscreteRNNPolicy(torch.nn.Module):
         done = 1.0 - done
         done = done.view(1, -1, 1)  # torch 0.2 required
         if self.cell_type == 'lstm':
-            hidden[0] *= done
-            hidden[1] *= done
+            hidden = (hidden[0] * done, hidden[1] * done)
         else:
-            hidden *= done
+            hidden = hidden * done
         return hidden
 
     #######################
@@ -187,14 +195,18 @@ class DiscreteRNNPolicy(torch.nn.Module):
         seq_len = x.size(1)
         batch = x.size(0)
         packed_x = x.view(-1, self.in_shape[0], self.in_shape[1], self.in_shape[2])
-        self.feat = feat = self._forward_feature(packed_x)   # both conv layers and linear layer
+        self.feat = feat = self._forward_feature(packed_x, compute_linear=True)   # both conv layers and linear layer
         rnn_input = feat.view(batch, seq_len, self.rnn_input_size)
 
         if isinstance(h, list): h = self._pack_hidden_states(h)
 
         rnn_output, final_h = self.cell(rnn_input, h)  # [seq_len, batch, units], [layer, batch, units]
         self.last_h = final_h
-        if return_tensor: final_h = final_h.data
+        if return_tensor:
+            if isinstance(final_h, tuple):
+                final_h = (final_h[0].data, final_h[1].data)
+            else:
+                final_h = final_h.data
         if unpack_hidden: final_h = self._unpack_hidden_states(final_h)
 
         rnn_feat = rnn_output.view(-1, self.rnn_output_size)
@@ -202,7 +214,7 @@ class DiscreteRNNPolicy(torch.nn.Module):
         # compute action
         if not only_value:
             feat = rnn_feat
-            for i, l in self.policy_layers:
+            for i, l in enumerate(self.policy_layers):
                 feat = l(feat)
                 if i < len(self.policy_layers) - 1: feat = self.func(feat)
             self.logits = feat.view(batch, seq_len, self.out_dim)
@@ -219,7 +231,7 @@ class DiscreteRNNPolicy(torch.nn.Module):
 
         # compute value
         feat = rnn_feat
-        for i, l in self.critic_layers:
+        for i, l in enumerate(self.critic_layers):
             feat = l(feat)
             if i < len(self.critic_layers) - 1: feat = self.func(feat)
         self.value = ret_val = feat.view(batch, seq_len)  # torch 0.2 required
@@ -235,8 +247,9 @@ class DiscreteRNNPolicy(torch.nn.Module):
         :return: log prob, [batch, seq_len]
         """
         if logp is None: logp = self.logp
+        if len(actions.size()) == 2: actions = actions.unsqueeze(2)
         ret = torch.gather(logp, 2, actions)
-        return ret
+        return ret.squeeze(dim=2)
 
     def entropy(self, logits=None):
         """
