@@ -25,7 +25,7 @@ def evaluate(house,
     # Do not need to log detailed computation stats
     common.debugger = utils.FakeLogger()
 
-    args = common.create_default_args(algo, use_batch_norm=use_batch_norm,
+    args = common.create_default_args(algo, model=model_name, use_batch_norm=use_batch_norm,
                                       replay_buffer_size=50,
                                       episode_len=max_episode_len,
                                       rnn_units=rnn_units, rnn_layers=rnn_layers, rnn_cell=rnn_cell,
