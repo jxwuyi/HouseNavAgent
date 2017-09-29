@@ -76,9 +76,13 @@ def evaluate(house,
             cur_stats['world_id'] = env.world._id
         episode_step = 0
         for _st in range(max_episode_len):
-            idx = trainer.process_observation(obs)
             # get action
-            action = trainer.action(True)  # use gumbel noise
+            if trainer.is_rnn():
+                idx = 0
+                action = trainer.action(obs)
+            else:
+                idx = trainer.process_observation(obs)
+                action = trainer.action(True)  # use gumbel noise
             # environment step
             obs, rew, done, info = env.step(action)
             if store_history:

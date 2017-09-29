@@ -51,6 +51,7 @@ class ZMQA3CTrainer(AgentTrainer):
 
     def _create_gpu_tensor(self, frames, return_variable=True, volatile=False):
         # convert to tensor
+        if not isinstance(frames, list): frames=[[frames]]
         """
         for i in range(len(frames)):
             if not isinstance(frames[i], list): frames[i] = [frames[i]]
