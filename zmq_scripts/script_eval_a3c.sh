@@ -1,6 +1,6 @@
 #!/bin/bash
-modelfile='./_model_/joint/house0/linear_reward/medium/bc_eplen50_freq10/JointDDPG_JointDDPGTrainer.pkl'
-logfile='./log/eval/joint/house0/medium/exp_low_joint_ddpg_coef50'
+modelfile='./_model_/zmq_a3c/1house/medium/bn_bc64_tmax5/ZMQA3CTrainer.pkl'
+logfile='./log/eval/zmq_a3c/1house/medium/bn_bc64_tmax5'
 
 CUDA_VISIBLE_DEVICES=1 python eval.py --house 0 --seed 532 --hardness 0.4 \
   --algo a3c --max-episode-len 100 --max-iters 100 \
