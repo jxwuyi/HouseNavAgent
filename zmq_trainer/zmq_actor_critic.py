@@ -15,7 +15,7 @@ from zmq_trainer.zmqsimulator import SimulatorProcess, SimulatorMaster, ensure_p
 
 flag_max_lrate = 1e-3
 flag_min_lrate = 1e-5
-flag_max_kl_diff = 2e-3
+flag_max_kl_diff = 2e-2
 flag_min_kl_diff = 1e-4
 flag_lrate_coef = 1.5
 
