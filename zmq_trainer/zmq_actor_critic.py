@@ -179,8 +179,8 @@ class ZMQA3CTrainer(AgentTrainer):
         # [optional]  A = Variable(rew) - V
 
         # compute loss
-        critic_loss = F.smooth_l1_loss(V, R)
-        # critic_loss = torch.mean((R - V) ** 2)
+        #critic_loss = F.smooth_l1_loss(V, R)
+        critic_loss = torch.mean((R - V) ** 2) * 0.5
         pg_loss = -torch.mean(self.policy.logprob(act, P) * A)
         if self.args['entropy_penalty'] is not None:
             pg_loss -= self.args['entropy_penalty'] * p_ent  # encourage exploration
