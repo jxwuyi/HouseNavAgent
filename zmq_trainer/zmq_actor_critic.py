@@ -35,6 +35,8 @@ class ZMQA3CTrainer(AgentTrainer):
         self.gamma = args['gamma']
         self.lrate = args['lrate']
         self.batch_size = args['batch_size']
+        if 't_max' not in args:
+            args['t_max'] = 5
         self.t_max = args['t_max']
         if 'q_loss_coef' in args:
             self.q_loss_coef = args['q_loss_coef']
@@ -45,6 +47,7 @@ class ZMQA3CTrainer(AgentTrainer):
         else:
             self.optim = optim.RMSprop(self.policy.parameters(), lr=self.lrate, weight_decay=args['weight_decay'])
         self.grad_norm_clip = args['grad_clip']
+        self._hidden = None
 
     def _create_gpu_tensor(self, frames, return_variable=True, volatile=False):
         # convert to tensor
@@ -95,12 +98,20 @@ class ZMQA3CTrainer(AgentTrainer):
     def get_init_hidden(self):
         return self.policy.get_zero_state()
 
+    def reset_agent(self):
+        self._hidden = self.get_init_hidden()
+
     def action(self, obs, hidden=None):
+        if hidden is None:
+            hidden = self._hidden
+            self._hidden = None
         assert (hidden is not None), '[ZMQA3CTrainer] Currently only support recurrent policy, please input last hidden state!'
         obs = self._create_gpu_tensor(obs, return_variable=True, volatile=True)  # [batch, 1, n, m, channel]
         hidden = self._create_gpu_hidden(hidden, return_variable=True, volatile=True)  # a list of hidden tensors
         act, nxt_hidden = self.policy(obs, hidden, return_value=False, sample_action=True,
                                    unpack_hidden=True, return_tensor=True)
+        if self._hidden is None:
+            self._hidden = nxt_hidden
         return act, nxt_hidden   # NOTE: everything remains on gpu!
 
     def train(self):
@@ -108,6 +119,9 @@ class ZMQA3CTrainer(AgentTrainer):
 
     def eval(self):
         self.policy.eval()
+
+    def process_experience(self, idx, act, rew, done, terminal, info):
+        pass
 
     def update(self, obs, init_hidden, act, rew, done, return_kl_divergence=True):
         """
@@ -223,6 +237,7 @@ class ZMQA3CTrainer(AgentTrainer):
 
 
         time_counter[1] += time.time() - tt
-
-        # TODO: to compute KL divergence
         return ret_dict
+
+    def is_rnn(self):
+        return True

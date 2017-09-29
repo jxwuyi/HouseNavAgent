@@ -486,14 +486,14 @@ def create_world_from_index(k):
         # use the first k houses
         return [create_world(houseID) for houseID in all_houseIDs[:k]]
 
-def create_env(k=0, linearReward=True, hardness=None, segment_input='none', depth_input=False, max_steps=-1, render_device=None):
+def create_env(k=0, reward_type='linear', hardness=None, segment_input='none', depth_input=False, max_steps=-1, render_device=None):
     if render_device is None:
         render_device = get_gpus_for_rendering()[0]   # by default use the first gpu
     if segment_input is None:
         segment_input = 'none'
     if k >= 0:
         world = create_world_from_index(k)
-        env = HouseEnv(world, colorFile, resolution=resolution, linearReward=linearReward,
+        env = HouseEnv(world, colorFile, resolution=resolution, reward_type=reward_type,
                        hardness=hardness, action_degree=action_shape[0],
                        segment_input=(segment_input != 'none'),
                        use_segment_id=(segment_input == 'index'),
@@ -502,7 +502,7 @@ def create_env(k=0, linearReward=True, hardness=None, segment_input='none', dept
                        max_steps=max_steps, render_device=render_device)
     else:  # multi-house environment
         all_worlds = create_world_from_index(k)
-        env = MultiHouseEnv(all_worlds, colorFile, resolution=resolution, linearReward=linearReward,
+        env = MultiHouseEnv(all_worlds, colorFile, resolution=resolution, reward_type=reward_type,
                             hardness=hardness, action_degree=action_shape[0],
                             segment_input=(segment_input != 'none'),
                             use_segment_id=(segment_input == 'index'),

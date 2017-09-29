@@ -128,3 +128,6 @@ class AgentTrainer(object):
                 save_dir += '/'
                 filename = save_dir + self.name + version + '.pkl'
         self.policy.load_state_dict(torch.load(filename))
+
+    def is_rnn(self):
+        return False

@@ -20,7 +20,7 @@ def evaluate(house,
              store_history=False, use_batch_norm=True,
              rnn_units=None, rnn_layers=None, rnn_cell=None,
              use_action_gating=False, use_residual_critic=False,
-             segmentation_input='none', resolution='normal', history_len=4):
+             segmentation_input='none', depth_input=False, resolution='normal', history_len=4):
 
     # Do not need to log detailed computation stats
     common.debugger = utils.FakeLogger()
@@ -31,11 +31,16 @@ def evaluate(house,
                                       rnn_units=rnn_units, rnn_layers=rnn_layers, rnn_cell=rnn_cell,
                                       segmentation_input=segmentation_input,
                                       resolution_level=resolution,
+                                      depth_input=depth_input,
                                       history_frame_len=history_len)
     args['action_gating'] = use_action_gating
     args['residual_critic'] = use_residual_critic
 
-    trainer = common.create_trainer(algo, model_name, args)
+    if model_name == 'rnn':
+        import zmq_train
+        trainer = zmq_train.create_zmq_trainer(algo, model_name, args)
+    else:
+        trainer = common.create_trainer(algo, model_name, args)
     if model_file is not None:
         trainer.load(model_file)
     trainer.eval()  # evaluation mode
@@ -43,6 +48,7 @@ def evaluate(house,
     if hardness is not None:
         print('>>>> Hardness = {}'.format(hardness))
     env = common.create_env(house, hardness=hardness,
+                            depth_input=depth_input,
                             segment_input=args['segment_input'])
 
     logger = utils.MyLogger(log_dir, True)
@@ -133,11 +139,14 @@ def parse_args():
                         help="whether to use segmentation mask as input; default=none; <joint>: use both pixel input and color segment input")
     parser.add_argument("--resolution", choices=['normal', 'low', 'tiny', 'high', 'square', 'square_low'], default='normal',
                         help="resolution of visual input, default normal=[120 * 90]")
+    parser.add_argument("--depth-input", dest='depth_input', action='store_true',
+                        help="whether to include depth information as part of the input signal")
+    parser.set_defaults(depth_input=False)
     parser.add_argument("--history-frame-len", type=int, default=4,
                         help="length of the stacked frames, default=4")
     # Core parameters
     parser.add_argument("--algo", choices=['ddpg','pg', 'rdpg', 'ddpg_joint', 'ddpg_alter', 'ddpg_eagle',
-                                           'a2c', 'qac', 'dqn', 'nop'], default="ddpg", help="algorithm for training")
+                                           'a2c', 'qac', 'dqn', 'nop', 'a3c'], default="ddpg", help="algorithm for training")
     parser.add_argument("--max-episode-len", type=int, default=2000, help="maximum episode length")
     parser.add_argument("--max-iters", type=int, default=1000, help="maximum number of eval episodes")
     parser.add_argument("--store-history", action='store_true', default=False, help="whether to store all the episode frames")
@@ -178,14 +187,19 @@ if __name__ == '__main__':
         common.action_shape = (args.action_dim, 2)
         print('degree of freedom of the action set to <{}>'.format(args.action_dim))
 
-    model_name = 'random' if args.warmstart is None else 'cnn'
+    if args.warmstart is None:
+        model_name = 'random'
+    elif args.algo in ['a2c', 'a3c']:
+        model_name = 'rnn'
+    else:
+        model_name = 'cnn'
     episode_stats = \
         evaluate(args.house, args.max_iters, args.max_episode_len, args.hardness,
                  args.algo, model_name, args.warmstart, args.log_dir,
                  args.store_history, args.use_batch_norm,
                  args.rnn_units, args.rnn_layers, args.rnn_cell,
                  args.action_gating, args.residual_critic,
-                 args.segmentation_input, args.resolution, args.history_frame_len)
+                 args.segmentation_input, args.depth_input, args.resolution, args.history_frame_len)
 
     if args.store_history:
         filename = args.log_dir
