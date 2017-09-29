@@ -62,7 +62,7 @@ class ZMQMaster(SimulatorMaster):
         self.accu_stats = dict()
         self.batch_step = 0
         self.start_time = time.time()
-        self.episode_stats = dict(len=[], rew=[])
+        self.episode_stats = dict(len=[], rew=[], succ=[])
 
     def _rand_select(self, ids):
         if not isinstance(ids, list): ids = list(ids)
@@ -128,7 +128,8 @@ class ZMQMaster(SimulatorMaster):
         self.logger.print(" -> #Episode = {}, #Updates = {}".format(len(self.episode_stats['rew']), self.train_cnt))
         rew_stats = self.episode_stats['rew'][-500:]
         len_stats = self.episode_stats['len'][-500:]
-        self.logger.print("  > Avg Reward = %.6f, Avg Path Len = %.6f" % (sum(rew_stats) / len(rew_stats), sum(len_stats) / len(len_stats)))
+        succ_stats = self.episode_stats['succ'][-500:]
+        self.logger.print("  > Avg Reward = %.6f, Avg Path Len = %.6f, Succ Rate = %.2f" % (sum(rew_stats) / len(rew_stats), sum(len_stats) / len(len_stats), sum(succ_stats) / len(succ_stats)))
         self.logger.print("  >>>> Total FPS: %.5f"%(self.comm_cnt * 1.0 / duration))
         self.logger.print('   ----> Data Loading Time = %.4f min' % (time_counter[0] / 60))
         self.logger.print('   ----> Training Time = %.4f min' % (time_counter[1] / 60))
@@ -142,7 +143,7 @@ class ZMQMaster(SimulatorMaster):
         trainer = self.trainer
         if ident not in self.hidden_state:  # new process passed in
             self.hidden_state[ident] = trainer.get_init_hidden()
-            self.accu_stats[ident] = dict(rew=0, len=0)
+            self.accu_stats[ident] = dict(rew=0, len=0, succ=0)
 
         self.accu_stats[ident]['rew'] += reward
         self.accu_stats[ident]['len'] += 1
@@ -157,10 +158,14 @@ class ZMQMaster(SimulatorMaster):
             else:
                 self.hidden_state[ident] *= 0.0
             # accumulate running stats
+            if reward > 5:  # magic number, since when we succeed we have a super large reward
+                self.accu_stats[ident]['succ'] = 1
             self.episode_stats['rew'].append(self.accu_stats[ident]['rew'])
             self.episode_stats['len'].append(self.accu_stats[ident]['len'])
+            self.episode_stats['succ'].append(self.accu_stats[ident]['succ'])
             self.accu_stats[ident]['rew'] = 0
             self.accu_stats[ident]['len'] = 1
+            self.accu_stats[ident]['succ'] = 0
 
         if isinstance(state, np.ndarray): state = torch.from_numpy(state).type(ByteTensor)
         self.curr_state[ident] = state
