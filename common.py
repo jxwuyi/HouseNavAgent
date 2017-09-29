@@ -184,7 +184,7 @@ def create_default_args(algo='pg', model='cnn', gamma=None,
                            segment_input=segmentation_input,
                            depth_input=depth_input,
                            resolution_level=resolution_level)
-    elif (algo == 'a2c') or (algo == 'dqn') or (algo == 'qac'):  # a2c, discrete action space
+    elif (algo == 'a2c') or (algo == 'a3c') or  (algo == 'dqn') or (algo == 'qac'):  # a2c/a3c, discrete action space
         return create_args(model, gamma or 0.95, lrate or 0.001,
                            episode_len = episode_len or 50,
                            batch_size = batch_size or 256,
