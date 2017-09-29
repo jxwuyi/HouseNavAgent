@@ -43,9 +43,9 @@ def create_policy(model_name, args, observation_shape, n_action):
     model = DiscreteRNNPolicy(observation_shape, n_action,
                               conv_hiddens=[64, 64, 128, 128],
                               kernel_sizes=5, strides=2,
-                              linear_hiddens=[512],
-                              policy_hiddens=[128],
-                              critic_hiddens=[32],
+                              linear_hiddens=[256],
+                              policy_hiddens=[128, 64],
+                              critic_hiddens=[64, 32],
                               rnn_cell=args['rnn_cell'],
                               rnn_layers=args['rnn_layers'],
                               rnn_units=args['rnn_units'])

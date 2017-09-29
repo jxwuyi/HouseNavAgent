@@ -93,7 +93,7 @@ class DiscreteRNNPolicy(torch.nn.Module):
         # build policy layers
         policy_hiddens.append(self.out_dim)
         self.policy_layers = []
-        cur_dim = self.rnn_output_size
+        cur_dim = self.rnn_output_size + self.rnn_input_size
         for i,d in enumerate(policy_hiddens):
             self.policy_layers.append(nn.Linear(cur_dim, d))
             setattr(self, 'policy_layer%d'%i, self.policy_layers[-1])
@@ -103,7 +103,7 @@ class DiscreteRNNPolicy(torch.nn.Module):
         # build critic layers
         critic_hiddens.append(1)
         self.critic_layers = []
-        cur_dim = self.rnn_output_size
+        cur_dim = self.rnn_output_size + self.rnn_input_size
         for i,d in enumerate(critic_hiddens):
             self.critic_layers.append(nn.Linear(cur_dim, d))
             setattr(self, 'critic_layers%d'%i, self.critic_layers[-1])
@@ -209,7 +209,7 @@ class DiscreteRNNPolicy(torch.nn.Module):
                 final_h = final_h.data
         if unpack_hidden: final_h = self._unpack_hidden_states(final_h)
 
-        rnn_feat = rnn_output.view(-1, self.rnn_output_size)
+        rnn_feat = torch.cat([rnn_output.view(-1, self.rnn_output_size), rnn_input.view(-1, self.rnn_input_size)], dim=1)
 
         # compute action
         if not only_value:

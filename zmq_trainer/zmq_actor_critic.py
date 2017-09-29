@@ -13,9 +13,9 @@ from torch.autograd import Variable
 from zmq_trainer.zmqsimulator import SimulatorProcess, SimulatorMaster, ensure_proc_terminate
 
 
-flag_max_lrate = 5e-3
+flag_max_lrate = 1e-3
 flag_min_lrate = 1e-5
-flag_max_kl_diff = 1e-2
+flag_max_kl_diff = 2e-3
 flag_min_kl_diff = 1e-4
 flag_lrate_coef = 1.5
 
@@ -180,7 +180,7 @@ class ZMQA3CTrainer(AgentTrainer):
 
         # compute loss
         #critic_loss = F.smooth_l1_loss(V, R)
-        critic_loss = torch.mean((R - V) ** 2) * 0.5
+        critic_loss = torch.mean((R - V) ** 2)
         pg_loss = -torch.mean(self.policy.logprob(act, P) * A)
         if self.args['entropy_penalty'] is not None:
             pg_loss -= self.args['entropy_penalty'] * p_ent  # encourage exploration
