@@ -141,7 +141,7 @@ def parse_args():
     parser.add_argument("--hardness", type=float, help="real number from 0 to 1, indicating the hardness of the environment")
     parser.add_argument("--linear-reward", action='store_true', default=False,
                         help="[Deprecated] whether to use reward according to distance; o.w. indicator reward")
-    parser.add_argument("--reward-type", choices=['none', 'linear', 'indicator', 'delta'], default='indicator',
+    parser.add_argument("--reward-type", choices=['none', 'linear', 'indicator', 'delta', 'speed'], default='indicator',
                         help="Reward shaping type")
     #parser.add_argument("--action-dim", type=int, help="degree of freedom of agent movement, must be in the range of [2, 4], default=4")
     parser.add_argument("--segmentation-input", choices=['none', 'index', 'color', 'joint'], default='none', dest='segment_input',
