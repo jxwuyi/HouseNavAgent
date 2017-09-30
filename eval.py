@@ -79,7 +79,8 @@ def evaluate(house,
             # get action
             if trainer.is_rnn():
                 idx = 0
-                action = trainer.action(obs)
+                action, _ = trainer.action(obs, return_numpy=True)
+                action = int(action.squeeze())
             else:
                 idx = trainer.process_observation(obs)
                 action = trainer.action(True)  # use gumbel noise

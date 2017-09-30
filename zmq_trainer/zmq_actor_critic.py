@@ -51,6 +51,7 @@ class ZMQA3CTrainer(AgentTrainer):
 
     def _create_gpu_tensor(self, frames, return_variable=True, volatile=False):
         # convert to tensor
+        if isinstance(frames, np.ndarray): frames = [[torch.from_numpy(frames).type(ByteTensor)]]
         if not isinstance(frames, list): frames=[[frames]]
         """
         for i in range(len(frames)):
@@ -102,7 +103,7 @@ class ZMQA3CTrainer(AgentTrainer):
     def reset_agent(self):
         self._hidden = self.get_init_hidden()
 
-    def action(self, obs, hidden=None):
+    def action(self, obs, hidden=None, return_numpy=False):
         if hidden is None:
             hidden = self._hidden
             self._hidden = None
@@ -113,6 +114,8 @@ class ZMQA3CTrainer(AgentTrainer):
                                    unpack_hidden=True, return_tensor=True)
         if self._hidden is None:
             self._hidden = nxt_hidden
+        if return_numpy: # currently only for action
+            act = act.cpu().numpy()
         return act, nxt_hidden   # NOTE: everything remains on gpu!
 
     def train(self):
