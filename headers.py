@@ -1,4 +1,5 @@
-import os, sys, platform
+import os, sys
+import json
 import numpy as np
 from config import get_config
 
@@ -110,13 +111,18 @@ class AgentTrainer(object):
     def train(self):
         self.policy.train()
 
-    def save(self, save_dir, version=""):
+    def save(self, save_dir, version="", target_dict_data=None):
         if len(version) > 0:
             version = "_" + version
         if save_dir[-1] != '/':
             save_dir += '/'
-        filename = save_dir + self.name + version + '.pkl'
-        torch.save(self.policy.state_dict(), filename)
+        if target_dict_data is None:
+            filename = save_dir + self.name + version + '.pkl'
+            torch.save(self.policy.state_dict(), filename)
+        else:
+            filename = save_dir + self.name + version + '.json'
+            with open(filename, 'w') as fp:
+                json.dump(target_dict_data, fp)
 
     def load(self, save_dir, version=""):
         if os.path.isfile(save_dir) or (version is None):

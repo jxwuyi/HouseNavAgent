@@ -63,6 +63,8 @@ class ZMQMaster(SimulatorMaster):
         self.batch_step = 0
         self.start_time = time.time()
         self.episode_stats = dict(len=[], rew=[], succ=[])
+        self.update_stats = dict(lrate=[])
+        self.best_avg_reward = -1e50
 
     def _rand_select(self, ids):
         if not isinstance(ids, list): ids = list(ids)
@@ -105,6 +107,12 @@ class ZMQMaster(SimulatorMaster):
             done[i] = dat['done']
         self.trainer.train()
         stats = self.trainer.update(obs, hidden, act, rew, done)
+        for key in stats.keys():
+            if key not in self.update_stats:
+                self.update_stats[key] = []
+            self.update_stats[key].append(stats[key])
+        if len(self.update_stats['lrate']) != self.train_cnt:
+            self.update_stats['lrate'].append(self.trainer.lrate)
         if self.train_cnt % self.config['report_rate'] == 0:
             self.logger.print('Training Iter#%d ...' % self.train_cnt)
             keys = sorted(stats.keys())
@@ -113,12 +121,18 @@ class ZMQMaster(SimulatorMaster):
                     self.logger.print('%s = %s' % (key, stats[key]))
                 else:
                     self.logger.print('  >>> %s = %.5f' % (key, stats[key]))
-        if (self.train_cnt % self.config['save_rate'] == 0) or (self.train_cnt > self.config['max_iters']):
+        if self.train_cnt % self.config['save_rate'] == 0:
             self.trainer.save(self.config['save_dir'])
         if self.train_cnt > self.config['max_iters']:
             print('Finished All the Iters!!!')
             self._evaluate_stats()
+            self.save_all(version='final')
             exit(0)
+
+    def save_all(self, version=''):
+        self.trainer.save(self.config['save_dir'], version=version)
+        self.trainer.save(self.config['save_dir'], version=version+'_epis_stats', target_dict_data=self.episode_stats)
+        self.trainer.save(self.config['save_dir'], version=version+'_update_stats', target_dict_data=self.update_stats)
 
     def _evaluate_stats(self):
         duration = time.time() - self.start_time
@@ -129,10 +143,19 @@ class ZMQMaster(SimulatorMaster):
         rew_stats = self.episode_stats['rew'][-500:]
         len_stats = self.episode_stats['len'][-500:]
         succ_stats = self.episode_stats['succ'][-500:]
-        self.logger.print("  > Avg Reward = %.6f, Avg Path Len = %.6f, Succ Rate = %.2f" % (sum(rew_stats) / len(rew_stats), sum(len_stats) / len(len_stats), sum(succ_stats) / len(succ_stats)))
+        avg_rew = sum(rew_stats) / len(rew_stats)
+        avg_len = sum(len_stats) / len(len_stats)
+        avg_succ = sum(succ_stats) / len(succ_stats)
+        self.logger.print("  > Avg Reward = %.6f, Avg Path Len = %.6f, Succ Rate = %.2f" % (avg_rew, avg_len, avg_succ))
         self.logger.print("  >>>> Total FPS: %.5f"%(self.comm_cnt * 1.0 / duration))
         self.logger.print('   ----> Data Loading Time = %.4f min' % (time_counter[0] / 60))
         self.logger.print('   ----> Training Time = %.4f min' % (time_counter[1] / 60))
+        self.logger.print('   ----> Update Time Per Iter = %.4f s' % (duration / self.train_cnt))
+        if avg_rew > self.best_avg_reward:
+            self.logger.print('   ===========>>>>>>> Best Avg Reward! Model Saved!!!')
+            self.trainer.save(self.config['save_dir'], version='best')
+            stats_dict = dict(avg_rew=avg_rew, avg_len=avg_len, avg_succ=avg_succ, iter=self.train_cnt)
+            self.trainer.save(self.config['save_dir'], version='best_stats', target_dict_data=stats_dict)
         self.logger.print("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
 
     def recv_message(self, ident, state, reward, isOver):

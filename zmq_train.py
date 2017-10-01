@@ -114,7 +114,6 @@ def train(args=None, warmstart=None):
 
     name = 'ipc://whatever'
     name2 = 'ipc://whatever2'
-
     n_proc = args['n_proc']
     config = create_zmq_config(args)
     procs = [ZMQSimulator(k, name, name2, config) for k in range(n_proc)]
@@ -123,13 +122,17 @@ def train(args=None, warmstart=None):
 
     master = ZMQMaster(name, name2, trainer=trainer, config=args)
 
-    # both loops must be running
-    print('Start Iterations ....')
-    send_thread = threading.Thread(target=master.send_loop, daemon=True)
-    send_thread.start()
-    master.recv_loop()
-    print('Done!')
-    trainer.save(args['save_dir'], version='final')
+    try:
+        # both loops must be running
+        print('Start Iterations ....')
+        send_thread = threading.Thread(target=master.send_loop, daemon=True)
+        send_thread.start()
+        master.recv_loop()
+        print('Done!')
+        trainer.save(args['save_dir'], version='final')
+    except KeyboardInterrupt:
+        master.save_all(version='last')
+        raise
 
 
 def parse_args():
