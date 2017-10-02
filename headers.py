@@ -1,5 +1,5 @@
 import os, sys
-import json
+import pickle
 import numpy as np
 from config import get_config
 
@@ -120,9 +120,9 @@ class AgentTrainer(object):
             filename = save_dir + self.name + version + '.pkl'
             torch.save(self.policy.state_dict(), filename)
         else:
-            filename = save_dir + self.name + version + '.json'
-            with open(filename, 'w') as fp:
-                json.dump(target_dict_data, fp)
+            filename = save_dir + self.name + version + '.pkl'
+            with open(filename, 'wb') as fp:
+                pickle.dump(target_dict_data, fp)
 
     def load(self, save_dir, version=""):
         if os.path.isfile(save_dir) or (version is None):
