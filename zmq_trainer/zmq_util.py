@@ -35,6 +35,8 @@ class ZMQSimulator(SimulatorProcess):
     def _build_player(self):
         config = self.config
         k = self.idx % config['n_house']
+        # set random seed
+        np.random.seed(self.idx)
         device_list = config['render_devices']
         device_ind = self.idx % len(device_list)
         device = device_list[device_ind]
