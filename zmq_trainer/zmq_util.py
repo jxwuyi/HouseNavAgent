@@ -152,6 +152,7 @@ class ZMQMaster(SimulatorMaster):
         self.logger.print('   ----> Training Time = %.4f min' % (time_counter[1] / 60))
         self.logger.print('   ----> Update Time Per Iter = %.4f s' % (duration / self.train_cnt))
         if avg_rew > self.best_avg_reward:
+            self.best_avg_reward = avg_rew
             self.logger.print('   ===========>>>>>>> Best Avg Reward! Model Saved!!!')
             self.trainer.save(self.config['save_dir'], version='best')
             stats_dict = dict(avg_rew=avg_rew, avg_len=avg_len, avg_succ=avg_succ, iter=self.train_cnt)
