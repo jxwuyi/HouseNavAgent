@@ -66,7 +66,7 @@ def evaluate(house,
         if store_history:
             cur_infos.append(proc_info(env.cam_info))
             #cur_images.append(env.render(renderMapLoc=env.cam_info['loc'], display=False))
-        obs = obs.transpose([1, 0, 2])
+        if model_name != 'rnn': obs = obs.transpose([1, 0, 2])
         episode_success.append(0)
         episode_good.append(0)
         cur_stats = dict(best_dist=1e50,
@@ -89,7 +89,7 @@ def evaluate(house,
             if store_history:
                 cur_infos.append(proc_info(info))
                 #cur_images.append(env.render(renderMapLoc=env.cam_info['loc'], display=False))
-            obs = obs.transpose([1, 0, 2])
+            if model_name != 'rnn': obs = obs.transpose([1, 0, 2])
             cur_dist = env.cam_info['dist']
             if cur_dist == 0:
                 cur_stats['good'] += 1
