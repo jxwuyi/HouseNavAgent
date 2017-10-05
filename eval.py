@@ -15,8 +15,10 @@ def proc_info(info):
                 dist=info['dist'])
 
 def evaluate(house,
-             iters = 1000, max_episode_len = 1000, hardness = None, algo='nop',
-             model_name='cnn', model_file=None, log_dir='./log/eval',
+             iters = 1000, max_episode_len = 1000,
+             hardness = None, success_measure = 'center',
+             algo='nop', model_name='cnn',
+             model_file=None, log_dir='./log/eval',
              store_history=False, use_batch_norm=True,
              rnn_units=None, rnn_layers=None, rnn_cell=None,
              use_action_gating=False, use_residual_critic=False,
@@ -47,7 +49,7 @@ def evaluate(house,
 
     if hardness is not None:
         print('>>>> Hardness = {}'.format(hardness))
-    env = common.create_env(house, hardness=hardness,
+    env = common.create_env(house, hardness=hardness, success_measure=success_measure,
                             depth_input=depth_input,
                             segment_input=args['segment_input'])
 
@@ -149,6 +151,8 @@ def parse_args():
     parser.set_defaults(depth_input=False)
     parser.add_argument("--history-frame-len", type=int, default=4,
                         help="length of the stacked frames, default=4")
+    parser.add_argument("--success-measure", choices=['center', 'stay', 'see'], default='center',
+                        help="criteria for a successful episode")
     # Core parameters
     parser.add_argument("--algo", choices=['ddpg','pg', 'rdpg', 'ddpg_joint', 'ddpg_alter', 'ddpg_eagle',
                                            'a2c', 'qac', 'dqn', 'nop', 'a3c'], default="ddpg", help="algorithm for training")
@@ -199,7 +203,8 @@ if __name__ == '__main__':
     else:
         model_name = 'cnn'
     episode_stats = \
-        evaluate(args.house, args.max_iters, args.max_episode_len, args.hardness,
+        evaluate(args.house, args.max_iters, args.max_episode_len,
+                 args.hardness, args.success_measure,
                  args.algo, model_name, args.warmstart, args.log_dir,
                  args.store_history, args.use_batch_norm,
                  args.rnn_units, args.rnn_layers, args.rnn_cell,
