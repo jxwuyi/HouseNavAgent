@@ -47,6 +47,7 @@ CFG = get_config()
 prefix = CFG['prefix']
 csvFile = CFG['csvFile']
 colorFile = CFG['colorFile']
+roomTargetFile = CFG['roomTargetFile']
 #if "Apple" in sys.version:
     ## own mac laptop
     #prefix = '/Users/yiw/Downloads/data/house/'
@@ -489,7 +490,11 @@ def create_world_from_index(k):
         # use the first k houses
         return [create_world(houseID) for houseID in all_houseIDs[:k]]
 
-def create_env(k=0, reward_type='linear', hardness=None, segment_input='none', depth_input=False, max_steps=-1, render_device=None):
+def create_env(k=0,
+               reward_type='linear', hardness=None, success_measure='center',
+               segment_input='none', depth_input=False,
+               max_steps=-1,
+               render_device=None):
     if render_device is None:
         render_device = get_gpus_for_rendering()[0]   # by default use the first gpu
     if segment_input is None:
@@ -502,6 +507,7 @@ def create_env(k=0, reward_type='linear', hardness=None, segment_input='none', d
                        use_segment_id=(segment_input == 'index'),
                        joint_visual_signal=(segment_input == 'joint'),
                        depth_signal=depth_input,
+                       success_measure=success_measure, RoomTargetFile=roomTargetFile,
                        max_steps=max_steps, render_device=render_device)
     else:  # multi-house environment
         all_worlds = create_world_from_index(k)
@@ -511,6 +517,7 @@ def create_env(k=0, reward_type='linear', hardness=None, segment_input='none', d
                             use_segment_id=(segment_input == 'index'),
                             joint_visual_signal=(segment_input == 'joint'),
                             depth_signal=depth_input,
+                            success_measure=success_measure, RoomTargetFile=roomTargetFile,
                             max_steps=max_steps, render_device=render_device)
     return env
 

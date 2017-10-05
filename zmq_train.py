@@ -89,6 +89,7 @@ def create_zmq_config(args):
     config['segment_input'] = args['segment_input']
     config['depth_input'] = args['depth_input']
     config['max_episode_len'] = args['max_episode_len']
+    config['success_measure'] = args['success_measure']
     return config
 
 
@@ -158,6 +159,8 @@ def parse_args():
     #parser.add_argument("--history-frame-len", type=int, default=4,
     #                    help="length of the stacked frames, default=4")
     parser.add_argument("--max-episode-len", type=int, default=50, help="maximum episode length")
+    parser.add_argument("--success-measure", choices=['center', 'stay', 'see'], default='center',
+                        help="criteria for a successful episode")
 
     ########################################################
     # ZMQ training parameters

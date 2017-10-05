@@ -29,7 +29,8 @@ def create_scheduler(type='medium'):
 
 
 def train(args=None,
-          houseID=0, reward_type='indicator', algo='pg', model_name='cnn',  # NOTE: optional: model_name='rnn'
+          houseID=0, reward_type='indicator', success_measure='center',
+          algo='pg', model_name='cnn',  # NOTE: optional: model_name='rnn'
           iters=2000000, report_rate=20, save_rate=1000, eval_range=200,
           log_dir='./temp', save_dir='./_model_', warmstart=None,
           log_debug_info=True):
@@ -48,6 +49,7 @@ def train(args=None,
 
     trainer = common.create_trainer(algo, model_name, args)
     env = common.create_env(houseID, reward_type, hardness,
+                            success_measure=success_measure,
                             segment_input=args['segment_input'],
                             depth_input=args['depth_input'])
     logger = utils.MyLogger(log_dir, True)
@@ -165,6 +167,8 @@ def parse_args():
                         help="resolution of visual input, default normal=[120 * 90]")
     parser.add_argument("--history-frame-len", type=int, default=4,
                         help="length of the stacked frames, default=4")
+    parser.add_argument("--success-measure", choices=['center', 'stay', 'see'], default='center',
+                        help="criteria for a successful episode")
     # Core training parameters
     parser.add_argument("--algo", choices=['ddpg','pg', 'rdpg', 'ddpg_joint', 'ddpg_alter', 'ddpg_eagle',
                                            'a2c', 'qac', 'dqn'], default="ddpg", help="algorithm")
@@ -248,26 +252,27 @@ if __name__ == '__main__':
         os.makedirs(cmd_args.save_dir)
 
     args = common.create_default_args(cmd_args.algo, cmd_args.model, cmd_args.gamma,
-                               cmd_args.lrate, cmd_args.critic_lrate,
-                               cmd_args.max_episode_len, cmd_args.batch_size,
-                               cmd_args.update_freq,
-                               cmd_args.use_batch_norm,
-                               cmd_args.entropy_penalty,
-                               cmd_args.critic_penalty,
-                               cmd_args.weight_decay,
-                               cmd_args.critic_weight_decay,
-                               cmd_args.replay_buffer_size,
-                               # Att-CNN Parameters
-                               cmd_args.att_resolution,
-                               cmd_args.att_skip_depth,
-                               # RNN Parameters
-                               cmd_args.batch_length, cmd_args.rnn_layers,
-                               cmd_args.rnn_cell, cmd_args.rnn_units,
-                               # input type
-                               cmd_args.segmentation_input,
-                               cmd_args.depth_input,
-                               cmd_args.resolution,
-                               cmd_args.history_frame_len)
+                                      cmd_args.lrate, cmd_args.critic_lrate,
+                                      cmd_args.max_episode_len, cmd_args.batch_size,
+                                      cmd_args.update_freq,
+                                      cmd_args.use_batch_norm,
+                                      cmd_args.entropy_penalty,
+                                      cmd_args.critic_penalty,
+                                      cmd_args.weight_decay,
+                                      cmd_args.critic_weight_decay,
+                                      cmd_args.replay_buffer_size,
+                                      # Att-CNN Parameters
+                                      cmd_args.att_resolution,
+                                      cmd_args.att_skip_depth,
+                                      # RNN Parameters
+                                      cmd_args.batch_length, cmd_args.rnn_layers,
+                                      cmd_args.rnn_cell, cmd_args.rnn_units,
+                                      # input type
+                                      cmd_args.segmentation_input,
+                                      cmd_args.depth_input,
+                                      cmd_args.resolution,
+                                      cmd_args.history_frame_len
+                                      )
 
     args['algo'] = cmd_args.algo
 
@@ -295,7 +300,9 @@ if __name__ == '__main__':
         assert args['algo'] == 'ddpg_joint', 'Attentive-CNN Model only supported by DDPG_Joint Algo!!!'
 
     train(args,
-          houseID=cmd_args.house, reward_type=cmd_args.reward_type,
+          houseID=cmd_args.house,
+          reward_type=cmd_args.reward_type,
+          success_measure=cmd_args.success_measure,
           algo=cmd_args.algo, model_name=cmd_args.model, iters=cmd_args.max_iters,
           report_rate=cmd_args.report_rate, save_rate=cmd_args.save_rate,
           log_dir=cmd_args.log_dir, save_dir=cmd_args.save_dir,

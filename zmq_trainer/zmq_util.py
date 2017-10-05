@@ -13,9 +13,10 @@ from zmq_trainer.zmqsimulator import SimulatorProcess, SimulatorMaster, ensure_p
 n_episode_evaluation = 300
 
 class ZMQHouseEnvironment:
-    def __init__(self, k=0, reward_type='indicator', hardness=None, segment_input='none', depth_input=False, max_steps=-1, device=0):
+    def __init__(self, k=0, reward_type='indicator', success_measure='center',
+                 hardness=None, segment_input='none', depth_input=False, max_steps=-1, device=0):
         assert k >= 0
-        self.env = common.create_env(k, reward_type=reward_type, hardness=hardness,
+        self.env = common.create_env(k, reward_type=reward_type, hardness=hardness, success_measure=success_measure,
                                      segment_input=segment_input, depth_input=depth_input,
                                      max_steps=max_steps, render_device=device)
         self.obs = self.env.reset()
@@ -40,7 +41,8 @@ class ZMQSimulator(SimulatorProcess):
         device_list = config['render_devices']
         device_ind = self.idx % len(device_list)
         device = device_list[device_ind]
-        return ZMQHouseEnvironment(k, config['reward_type'], config['hardness'],
+        return ZMQHouseEnvironment(k, config['reward_type'], config['success_measure'],
+                                   config['hardness'],
                                    config['segment_input'], config['depth_input'],
                                    config['max_episode_len'], device)
 
