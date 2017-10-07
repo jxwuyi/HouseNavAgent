@@ -27,7 +27,7 @@ class DQNTrainer(QACTrainer):
             self.target_buffer = np.zeros(args['replay_buffer_size'], dtype=np.uint8)
 
     def set_target(self, target):
-        self._target = target
+        self._target = common.target_instruction_dict[target]
 
     def process_experience(self, idx, act, rew, done, terminal, info):
         super(DQNTrainer, self).process_experience(idx, act, rew, done, terminal, info)
