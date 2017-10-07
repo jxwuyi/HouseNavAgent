@@ -66,7 +66,7 @@ class QACTrainer(AgentTrainer):
             self.optim = optim.Adam(self.net.parameters(), lr=self.lrate, weight_decay=args['weight_decay'])  #,betas=(0.5,0.999))
         else:
             self.optim = optim.RMSprop(self.net.parameters(), lr=self.lrate, weight_decay=args['weight_decay'])
-        self.target_update_rate = args['target_net_update_rate'] or 1e-3
+        self.target_update_rate = args['target_net_update_rate'] or 1e-4
         self.replay_buffer = replay_buffer or create_replay_buffer(args)
         self.max_episode_len = args['episode_len']
         self.grad_norm_clip = args['grad_clip']

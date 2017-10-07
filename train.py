@@ -22,7 +22,7 @@ def create_scheduler(type='medium'):
     elif type == 'low': # low
         endpoints = [(0, 0), (1000, 0.1), (2000, 0.25), (7000, 0.5), (15000, 1.0)]
     elif type == 'exp':
-        endpoints = [(0, 0), (1000, 0.01), (5000, 0.1), (8000, 0.5), (10000, 0.75), (12000, 0.9), (20000, 0.95), (30000, 1.0)]
+        endpoints = [(0, 0), (1000, 0.01), (5000, 0.1), (10000, 0.5), (13000, 0.75), (17000, 0.9), (22000, 0.95), (30000, 1.0)]
     print('Building PiecewiseScheduler with <endpoints> = {}'.format(endpoints))
     scheduler = utils.PiecewiseSchedule(endpoints, outside_value=1.0)
     return scheduler
