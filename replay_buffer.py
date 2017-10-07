@@ -112,6 +112,8 @@ class ReplayBuffer(object):
             else:
                 idxes = sample_n_unique(lambda: random.randint(0, self.num_in_buffer - 2), batch_size)
 
+        self._idxes = idxes
+
         if (self.batch_size is None) or (len(idxes) != self.batch_size):
             self.batch_size = len(idxes)
             img_h, img_w, img_c = self.obs.shape[1], self.obs.shape[2], self.obs.shape[3]

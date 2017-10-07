@@ -30,6 +30,7 @@ def create_scheduler(type='medium'):
 
 def train(args=None,
           houseID=0, reward_type='indicator', success_measure='center',
+          multi_target=False,
           algo='pg', model_name='cnn',  # NOTE: optional: model_name='rnn'
           iters=2000000, report_rate=20, save_rate=1000, eval_range=200,
           log_dir='./temp', save_dir='./_model_', warmstart=None,
@@ -53,6 +54,8 @@ def train(args=None,
                             segment_input=args['segment_input'],
                             depth_input=args['depth_input'])
     logger = utils.MyLogger(log_dir, True)
+    if multi_target:
+        assert hasattr(trainer, 'set_target')
 
     if warmstart is not None:
         if os.path.exists(warmstart):
@@ -70,9 +73,13 @@ def train(args=None,
         common.debugger = utils.FakeLogger()
 
     episode_rewards = [0.0]
+    episode_success = [0.0]
+    episode_length = [0.0]
+    episode_targets = ['kitchen']
 
     trainer.reset_agent()
     obs = env.reset()
+    if multi_target: trainer.set_target(env.get_current_target())
     assert not np.any(np.isnan(obs)), 'nan detected in the observation!'
     obs = obs.transpose([1, 0, 2])
     logger.print('Observation Shape = {}'.format(obs.shape))
@@ -83,68 +90,100 @@ def train(args=None,
     elap = time.time()
     update_times = 0
     print('Starting iterations...')
-    while(len(episode_rewards) <= iters):
-        idx = trainer.process_observation(obs)
-        # get action
-        if scheduler is not None:
-            noise_level = scheduler.value(len(episode_rewards) - 1)
-            action = trainer.action(noise_level)
-        else:
-            action = trainer.action()
-        #proc_action = [np.exp(a) for a in action]
-        # environment step
-        obs, rew, done, info = env.step(action)
-        assert not np.any(np.isnan(obs)), 'nan detected in the observation!'
-        obs = obs.transpose([1, 0, 2])
-        episode_step += 1
-        terminal = (episode_step >= args['episode_len'])
-        # collect experience
-        trainer.process_experience(idx, action, rew, done, terminal, info)
-        episode_rewards[-1] += rew
-
-        if done or terminal:
-            trainer.reset_agent()
-            obs = env.reset()
+    try:
+        while(len(episode_rewards) <= iters):
+            idx = trainer.process_observation(obs)
+            # get action
+            if scheduler is not None:
+                noise_level = scheduler.value(len(episode_rewards) - 1)
+                action = trainer.action(noise_level)
+            else:
+                action = trainer.action()
+            #proc_action = [np.exp(a) for a in action]
+            # environment step
+            obs, rew, done, info = env.step(action)
             assert not np.any(np.isnan(obs)), 'nan detected in the observation!'
             obs = obs.transpose([1, 0, 2])
-            episode_step = 0
-            episode_rewards.append(0)
+            episode_step += 1
+            episode_length[-1] += 1
+            terminal = (episode_step >= args['episode_len'])
+            # collect experience
+            trainer.process_experience(idx, action, rew, done, terminal, info)
+            episode_rewards[-1] += rew
+            if rew > 5:  # magic number
+                episode_success[-1] = 1.0
 
-        # update all trainers
-        trainer.preupdate()
-        stats = trainer.update()
-        if stats is not None:
-            update_times += 1
-            if common.debugger is not None:
-                common.debugger.print('>>>>>> Update#{} Finished!!!'.format(update_times), False)
+            if done or terminal:
+                trainer.reset_agent()
+                if multi_target:
+                    obs = env.reset(reset_target=True)
+                    trainer.set_target(env.get_current_target())
+                else:
+                    obs = env.reset()
+                assert not np.any(np.isnan(obs)), 'nan detected in the observation!'
+                obs = obs.transpose([1, 0, 2])
+                episode_step = 0
+                episode_rewards.append(0)
+                episode_success.append(0)
+                episode_length.append(0)
+                if multi_target:
+                    episode_targets.append(env.get_current_target())
 
-        # save results
-        if ((done or terminal) and (len(episode_rewards) % save_rate == 0)) or\
-           (len(episode_rewards) > iters):
-            trainer.save(save_dir)
-            logger.print('Successfully Saved to <{}>'.format(save_dir + '/' + trainer.name + '.pkl'))
-            if np.mean(episode_rewards[-eval_range:]) > best_res:
-                best_res = np.mean(episode_rewards[-eval_range:])
-                trainer.save(save_dir, "best")
-
-        # display training output
-        if ((update_times % report_rate == 0) and (algo != 'pg') and (stats is not None)) or \
-            ((update_times == 0) and (algo != 'pg') and (len(episode_rewards) % 100 == 0) and (done or terminal)) or \
-            ((algo == 'pg') and (stats is not None)):
-            logger.print('Episode#%d, Updates=%d, Time Elapsed = %.3f min' % (len(episode_rewards), update_times, (time.time()-elap) / 60))
-            logger.print('-> Total Samples: %d' % t)
-            logger.print('-> Avg Episode Length: %.4f' % (t / len(episode_rewards)))
+            # update all trainers
+            trainer.preupdate()
+            stats = trainer.update()
             if stats is not None:
-                for k in stats:
-                    logger.print('  >> %s = %.4f' % (k, stats[k]))
-            logger.print('  >> Reward  = %.4f' % np.mean(episode_rewards[-eval_range:]))
-            print('----> Data Loading Time = %.4f min' % (time_counter[-1] / 60))
-            print('----> GPU Data Transfer Time = %.4f min' % (time_counter[0] / 60))
-            print('----> Training Time = %.4f min' % (time_counter[1] / 60))
-            print('----> Target Net Update Time = %.4f min' % (time_counter[2] / 60))
+                update_times += 1
+                if common.debugger is not None:
+                    common.debugger.print('>>>>>> Update#{} Finished!!!'.format(update_times), False)
 
-        t += 1
+            # save results
+            if ((done or terminal) and (len(episode_rewards) % save_rate == 0)) or\
+               (len(episode_rewards) > iters):
+                trainer.save(save_dir)
+                logger.print('Successfully Saved to <{}>'.format(save_dir + '/' + trainer.name + '.pkl'))
+                if np.mean(episode_rewards[-eval_range:]) > best_res:
+                    best_res = np.mean(episode_rewards[-eval_range:])
+                    trainer.save(save_dir, "best")
 
+            # display training output
+            if ((update_times % report_rate == 0) and (algo != 'pg') and (stats is not None)) or \
+                ((update_times == 0) and (algo != 'pg') and (len(episode_rewards) % 100 == 0) and (done or terminal)) or \
+                ((algo == 'pg') and (stats is not None)):
+                logger.print('Episode#%d, Updates=%d, Time Elapsed = %.3f min' % (len(episode_rewards), update_times, (time.time()-elap) / 60))
+                logger.print('-> Total Samples: %d' % t)
+                logger.print('-> Avg Episode Length: %.4f' % (t / len(episode_rewards)))
+                if stats is not None:
+                    for k in stats:
+                        logger.print('  >> %s = %.4f' % (k, stats[k]))
+                logger.print('  >> Reward  = %.4f' % np.mean(episode_rewards[-eval_range:]))
+                logger.print('  >> Success Rate  = %.4f' % np.mean(episode_success[-eval_range:]))
+                if multi_target:
+                    ep_rew = episode_rewards[-eval_range:]
+                    ep_suc = episode_rewards[-eval_range:]
+                    ep_tar = episode_targets[-eval_range:]
+                    total_n = len(ep_rew)
+                    tar_stats = dict()
+                    for t,r,s in zip(ep_tar,ep_rew,ep_suc):
+                        if t not in tar_stats:
+                            tar_stats[t] = [0.0, 0.0, 0.0]
+                        tar_stats[t][0] += 1
+                        tar_stats[t][1] += r
+                        tar_stats[t][2] += s
+                    for t in tar_stats.keys():
+                        n, r, s = tar_stats[t]
+                        logger.print('  --> Multi-Room<%s> Freq = %.4f, Rew = %.4f, Succ = %.4f' % (t,n / total_n, r / n, s / n))
+                print('----> Data Loading Time = %.4f min' % (time_counter[-1] / 60))
+                print('----> GPU Data Transfer Time = %.4f min' % (time_counter[0] / 60))
+                print('----> Training Time = %.4f min' % (time_counter[1] / 60))
+                print('----> Target Net Update Time = %.4f min' % (time_counter[2] / 60))
+
+            t += 1
+    except KeyboardInterrupt:
+        print('Keyboard Interrupt!!!!!!')
+    trainer.save(save_dir, "final")
+    with open(save_dir+'/final_training_stats.pkl', 'wb') as f:
+        pickle.dump([episode_rewards, episode_success, episode_targets, episode_length], f)
 
 def parse_args():
     parser = argparse.ArgumentParser("Reinforcement Learning for 3D House Navigation")
@@ -169,6 +208,9 @@ def parse_args():
                         help="length of the stacked frames, default=4")
     parser.add_argument("--success-measure", choices=['center', 'stay', 'see'], default='center',
                         help="criteria for a successful episode")
+    parser.add_argument("--multi-target", dest='multi_target', action='store_true',
+                        help="when this flag is set, a new target room will be selected per episode")
+    parser.set_defaults(multi_target=False)
     # Core training parameters
     parser.add_argument("--algo", choices=['ddpg','pg', 'rdpg', 'ddpg_joint', 'ddpg_alter', 'ddpg_eagle',
                                            'a2c', 'qac', 'dqn'], default="ddpg", help="algorithm")
@@ -195,6 +237,9 @@ def parse_args():
     parser.add_argument("--use-action-gating", dest='action_gating', action='store_true',
                         help="whether to use action gating structure in the critic model")
     parser.set_defaults(action_gating=False)
+    parser.add_argument("--use-target-gating", dest='target_gating', action='store_true',
+                        help="[only affect when --multi-target] whether to use target instruction gating structure in the model")
+    parser.set_defaults(target_gating=False)
     parser.add_argument("--use-residual-critic", dest='residual_critic', action='store_true',
                         help="whether to use residual structure for feature extraction in the critic model (N.A. for joint-ac model) ")
     parser.set_defaults(residual_critic=False)
@@ -287,22 +332,27 @@ if __name__ == '__main__':
 
     if cmd_args.dist_sample:
         args['dist_sample'] = True
+        assert not cmd_args.multi_target, 'Dist-Sampling is not supported in Multi-Target Training!'
 
     if cmd_args.q_loss_coef is not None:
         args['q_loss_coef'] = cmd_args.q_loss_coef
 
     args['action_gating'] = cmd_args.action_gating   # gating in ddpg network
     args['residual_critic'] = cmd_args.residual_critic  # resnet for critic (classical ddpg)
+    args['multi_target'] = cmd_args.multi_target  # multi-target learning
+    args['target_gating'] = cmd_args.target_gating
 
     # attentive-cnn related params
     args['att_shared_cnn'] = cmd_args.att_shared_cnn
     if 'attentive' in args['model_name']:
         assert args['algo'] == 'ddpg_joint', 'Attentive-CNN Model only supported by DDPG_Joint Algo!!!'
+        assert not cmd_args.multi_target, 'Attentive Model is not supported by Multi-Target Training'
 
     train(args,
           houseID=cmd_args.house,
           reward_type=cmd_args.reward_type,
           success_measure=cmd_args.success_measure,
+          multi_target=cmd_args.multi_target,
           algo=cmd_args.algo, model_name=cmd_args.model, iters=cmd_args.max_iters,
           report_rate=cmd_args.report_rate, save_rate=cmd_args.save_rate,
           log_dir=cmd_args.log_dir, save_dir=cmd_args.save_dir,

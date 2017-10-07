@@ -15,7 +15,11 @@ class DiscreteRNNPolicy(torch.nn.Module):
                  policy_hiddens = [],
                  critic_hiddens = [],
                  rnn_cell = 'lstm', rnn_layers=1, rnn_units=128,
-                 activation=F.relu, use_batch_norm = True):
+                 activation=F.relu, use_batch_norm=True,
+                 multi_target=False,  # whether to train target embedding
+                 target_embedding_dim=25,  # embedding dimension of target instruction
+                 use_target_gating=False
+                 ):
         """
         D_shape_in: (n_channel, n_row, n_col)
         D_out: a int or a list of ints in length of degree of freedoms
@@ -32,6 +36,9 @@ class DiscreteRNNPolicy(torch.nn.Module):
         self.cnn_hiddens = conv_hiddens
         self.cnn_kernel_sizes = kernel_sizes
         self.cnn_strides = strides
+        self.multi_target = multi_target
+        self.use_target_gating = multi_target and use_target_gating
+        self.target_embed_dim = target_embedding_dim
         if len(self.cnn_kernel_sizes) == 1: self.cnn_kernel_sizes = self.cnn_kernel_sizes * self.cnn_layers
         if len(self.cnn_strides) == 1: self.cnn_strides = self.cnn_strides * self.cnn_layers
 
@@ -78,7 +85,19 @@ class DiscreteRNNPolicy(torch.nn.Module):
                 self.ln_bc_layers.append(None)
             feat_size = d
 
+        self.feat_size = feat_size
         self.rnn_input_size = feat_size
+
+        # multi target instructions
+        if self.multi_target:
+            self.target_embed = nn.Linear(common.n_target_instructions, target_embedding_dim, bias=False)
+            utils.initialize_weights(self.target_embed)
+            self.target_trans = []
+            if use_target_gating:
+                self.target_trans.append(nn.Linear(target_embedding_dim, self.feat_size))
+                setattr(self, 'target_transform_layer0', self.target_trans[-1])
+                utils.initialize_weights(self.target_trans[-1])
+            self.rnn_input_size += target_embedding_dim  # feat instruction to rnn!
 
         # build rnn
         self.cell_type = rnn_cell
@@ -93,7 +112,7 @@ class DiscreteRNNPolicy(torch.nn.Module):
         # build policy layers
         policy_hiddens.append(self.out_dim)
         self.policy_layers = []
-        cur_dim = self.rnn_output_size + self.rnn_input_size
+        cur_dim = self.rnn_output_size + self.feat_size
         for i,d in enumerate(policy_hiddens):
             self.policy_layers.append(nn.Linear(cur_dim, d))
             setattr(self, 'policy_layer%d'%i, self.policy_layers[-1])
@@ -103,7 +122,7 @@ class DiscreteRNNPolicy(torch.nn.Module):
         # build critic layers
         critic_hiddens.append(1)
         self.critic_layers = []
-        cur_dim = self.rnn_output_size + self.rnn_input_size
+        cur_dim = self.rnn_output_size + self.feat_size
         for i,d in enumerate(critic_hiddens):
             self.critic_layers.append(nn.Linear(cur_dim, d))
             setattr(self, 'critic_layers%d'%i, self.critic_layers[-1])
@@ -183,20 +202,35 @@ class DiscreteRNNPolicy(torch.nn.Module):
 
     #######################
 
-    def forward(self, x, h, only_value = False, return_value=True, sample_action=False, unpack_hidden=False, return_tensor=False):
+    def forward(self, x, h, only_value = False, return_value=True, sample_action=False,
+                unpack_hidden=False, return_tensor=False, target=None):
         """
         compute the forward pass of the model.
         @:param x: [seq_len, batch, n_channel, n_row, n_col]
         @:param h: [layer, batch, units] or a list of <batch_size> individual hiddens
         @:param return_value: when False, only return action
-        @:param sample_action: when True, action will be the sampled LongTensor, [seq_len, batch, 1]
+        @:param sample_action: when True, action will be the sampled LongTensor, [batch, seq_len, 1]
+        @:param target: when self.multi_target, target will be one-hot matrix of [batch, seq_len, n_target_instructions]
         @:return (action, value, hiddens) or (action, hiddens)
         """
         seq_len = x.size(1)
         batch = x.size(0)
         packed_x = x.view(-1, self.in_shape[0], self.in_shape[1], self.in_shape[2])
         self.feat = feat = self._forward_feature(packed_x, compute_linear=True)   # both conv layers and linear layer
-        rnn_input = feat.view(batch, seq_len, self.rnn_input_size)
+        if self.multi_target:
+            assert target is not None
+            target = self.target_embed(target.view(-1, common.n_target_instructions))
+            if self.use_target_gating:
+                alpha = target
+                for i, l in self.target_trans:
+                    alpha = l(alpha)
+                    if i + 1 < len(self.target_trans):
+                        alpha = F.relu(alpha)
+                self.feat = feat = feat * F.sigmoid(alpha)
+        rnn_input = feat.view(batch, seq_len, self.feat_size)
+        if self.multi_target:
+            target = target.view(batch, seq_len, self.target_embed_dim)
+            rnn_input = torch.cat([rnn_input, target], dim=-1)
 
         if isinstance(h, list): h = self._pack_hidden_states(h)
 
@@ -209,7 +243,7 @@ class DiscreteRNNPolicy(torch.nn.Module):
                 final_h = final_h.data
         if unpack_hidden: final_h = self._unpack_hidden_states(final_h)
 
-        rnn_feat = torch.cat([rnn_output.view(-1, self.rnn_output_size), rnn_input.view(-1, self.rnn_input_size)], dim=1)
+        rnn_feat = torch.cat([rnn_output.view(-1, self.rnn_output_size), self.feat], dim=1)
 
         # compute action
         if not only_value:

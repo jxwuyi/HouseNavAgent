@@ -48,10 +48,12 @@ def create_policy(model_name, args, observation_shape, n_action):
                               critic_hiddens=[64, 32],
                               rnn_cell=args['rnn_cell'],
                               rnn_layers=args['rnn_layers'],
-                              rnn_units=args['rnn_units'])
+                              rnn_units=args['rnn_units'],
+                              multi_target=args['multi_target'],
+                              use_target_gating=args['target_gating'])
     if common.use_cuda:
         if 'train_gpu' in args:
-            model.cuda(device_id=args['train_gpu'])
+            model.cuda(device_id=args['train_gpu'])  # TODO: Actually we only supprt training on gpu_id=0
         else:
             model.cuda()
     return model
@@ -90,6 +92,7 @@ def create_zmq_config(args):
     config['depth_input'] = args['depth_input']
     config['max_episode_len'] = args['max_episode_len']
     config['success_measure'] = args['success_measure']
+    config['multi_target'] = args['multi_target']
     return config
 
 
@@ -161,7 +164,9 @@ def parse_args():
     parser.add_argument("--max-episode-len", type=int, default=50, help="maximum episode length")
     parser.add_argument("--success-measure", choices=['center', 'stay', 'see'], default='center',
                         help="criteria for a successful episode")
-
+    parser.add_argument("--multi-target", dest='multi_target', action='store_true',
+                        help="when this flag is set, a new target room will be selected per episode")
+    parser.set_defaults(multi_target=False)
     ########################################################
     # ZMQ training parameters
     parser.add_argument("--train-gpu", type=int,
@@ -191,6 +196,9 @@ def parse_args():
     parser.add_argument("--exploration-scheduler", choices=['low', 'medium', 'high', 'none', 'linear', 'exp'],
                         dest='scheduler', default='none',
                         help="Whether to use eps-greedy scheduler to execute exploration. Default none")
+    parser.add_argument("--use-target-gating", dest='target_gating', action='store_true',
+                        help="[only affect when --multi-target] whether to use target instruction gating structure in the model")
+    parser.set_defaults(target_gating=False)
 
     ####################################################
     # RNN Parameters

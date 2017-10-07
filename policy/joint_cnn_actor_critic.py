@@ -10,12 +10,16 @@ from torch.autograd import Variable
 
 class JointCNNPolicyCritic(torch.nn.Module):
     def __init__(self, D_shape_in, D_out,
-                cnn_hiddens, kernel_sizes=5, strides=2,
-                linear_hiddens=[], critic_hiddens=[], policy_hiddens=[],
-                activation=F.relu, use_batch_norm = True,
-                transform_hiddens=[],
-                use_action_gating = False,
-                use_residual = False):
+                 cnn_hiddens, kernel_sizes=5, strides=2,
+                 linear_hiddens=[], critic_hiddens=[], policy_hiddens=[],
+                 activation=F.relu, use_batch_norm=True,
+                 transform_hiddens=[],
+                 use_action_gating=False,
+                 use_residual=False,
+                 multi_target=False,  # whether to train target embedding
+                 target_embedding_dim=25,  # embedding dimension of target instruction
+                 use_target_gating=False
+                 ):
         """
         D_shape_in: tupe of two ints, the shape of input images
         D_out: a int or a list of ints in length of degree of freedoms
@@ -30,6 +34,8 @@ class JointCNNPolicyCritic(torch.nn.Module):
         self.kernel_sizes = kernel_sizes
         self.strides = strides
         self.use_residual = use_residual
+        self.multi_target = multi_target
+        self.use_target_gating = multi_target and use_target_gating
         assert not use_residual, '[JointCNNPolicyCritic] Current do not support resnet'
         if len(self.cnn_hiddens) == 1: self.cnn_hiddens = self.cnn_hiddens * self.n_layer
         if len(self.kernel_sizes) == 1: self.kernel_sizes = self.kernel_sizes * self.n_layer
@@ -75,8 +81,22 @@ class JointCNNPolicyCritic(torch.nn.Module):
             else:
                 self.l_bc_layers.append(None)
             cur_dim = d
-        # Output Action
         self.final_size = cur_dim
+
+        # Multi-Target Instructions
+        if multi_target:
+            self.target_embed = nn.Linear(common.n_target_instructions, target_embedding_dim, bias=False)
+            utils.initialize_weights(self.target_embed)
+            self.target_trans = []
+            if use_target_gating:
+                self.target_trans.append(nn.Linear(target_embedding_dim, cur_dim))
+                setattr(self, 'target_transform_layer0', self.target_trans[-1])
+                utils.initialize_weights(self.target_trans[-1])
+            else:
+                self.final_size += target_embedding_dim
+
+        # Output Action
+        cur_dim = self.final_size
         self.policy_layers = []
         for i, d in enumerate(policy_hiddens):
             self.policy_layers.append(nn.Linear(cur_dim, d))
@@ -165,9 +185,10 @@ class JointCNNPolicyCritic(torch.nn.Module):
             logp = F.log_softmax(logits)
         return logits, prob, logp
 
-    def forward(self, x, action=None, gumbel_noise = 1.0, output_critic = True):
+    def forward(self, x, action=None, gumbel_noise=1.0, output_critic=True, target=None):
         """
         compute the forward pass of the model.
+        target: one-hot encoding of instructions, [batch, n_instruction]
         return logits and the softmax prob w./w.o. gumbel noise
         """
         self.feat = feat = self._forward_feature(x)
@@ -182,6 +203,20 @@ class JointCNNPolicyCritic(torch.nn.Module):
             common.debugger.print("------>[P] Forward of Policy, Mid-Feature Norm = {}, Var = {}, Max = {}, Min = {}".format(
                                     feat.data.norm(), feat.data.var(), feat.data.max(), feat.data.min()), False)
         raw_feat = feat
+        # insert target instruction
+        if self.multi_target:
+            assert target is not None
+            target = self.target_embed(target)
+            if self.use_target_gating:
+                for i,l in enumerate(self.target_trans):
+                    target = l(target)
+                    if i + 1 < len(self.target_trans):
+                        target = F.relu(target)
+                target = F.sigmoid(target)
+                raw_feat = feat = feat * target
+            else:
+                raw_feat = feat = torch.cat([feat, target], dim=-1)
+
         # Compute Action
         if action is None:
             for l in self.policy_layers:

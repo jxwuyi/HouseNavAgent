@@ -49,6 +49,16 @@ class ZMQA3CTrainer(AgentTrainer):
         self.grad_norm_clip = args['grad_clip']
         self._hidden = None
 
+    def _create_target_tensor(self, targets, return_variable=True, volatile=False):
+        batch = len(targets)
+        seq_len = len(targets[0])
+        target_n = torch.zeros(batch, seq_len, common.n_target_instructions).type(FloatTensor)
+        ids = torch.from_numpy(np.array(targets)).type(LongTensor).view(batch, seq_len, 1)
+        target_n.scatter_(2, ids, 1.0)
+        if return_variable:
+            target_n = Variable(target_n, volatile=volatile)
+        return target_n
+
     def _create_gpu_tensor(self, frames, return_variable=True, volatile=False):
         # convert to tensor
         if isinstance(frames, np.ndarray): frames = [[torch.from_numpy(frames).type(ByteTensor)]]
@@ -103,15 +113,17 @@ class ZMQA3CTrainer(AgentTrainer):
     def reset_agent(self):
         self._hidden = self.get_init_hidden()
 
-    def action(self, obs, hidden=None, return_numpy=False):
+    def action(self, obs, hidden=None, return_numpy=False, target=None):
         if hidden is None:
             hidden = self._hidden
             self._hidden = None
         assert (hidden is not None), '[ZMQA3CTrainer] Currently only support recurrent policy, please input last hidden state!'
         obs = self._create_gpu_tensor(obs, return_variable=True, volatile=True)  # [batch, 1, n, m, channel]
         hidden = self._create_gpu_hidden(hidden, return_variable=True, volatile=True)  # a list of hidden tensors
+        if target is not None:
+            target = self._create_target_tensor(target, return_variable=True, volatile=True)
         act, nxt_hidden = self.policy(obs, hidden, return_value=False, sample_action=True,
-                                   unpack_hidden=True, return_tensor=True)
+                                      unpack_hidden=True, return_tensor=True, target=target)
         if self._hidden is None:
             self._hidden = nxt_hidden
         if return_numpy: # currently only for action
@@ -127,13 +139,14 @@ class ZMQA3CTrainer(AgentTrainer):
     def process_experience(self, idx, act, rew, done, terminal, info):
         pass
 
-    def update(self, obs, init_hidden, act, rew, done, return_kl_divergence=True):
+    def update(self, obs, init_hidden, act, rew, done, target=None, return_kl_divergence=True):
         """
         :param obs:  list of list of [dims]...
         :param init_hidden: list of [layer, 1, units]
         :param act: [batch, seq_len]
         :param rew: [batch, seq_len]
-        :param done: [batch_seq_len]
+        :param done: [batch, seq_len]
+        :param target: [batch, seq_len, n_instruction] or None (when single-target)
         """
         tt = time.time()
 
@@ -143,6 +156,8 @@ class ZMQA3CTrainer(AgentTrainer):
         # convert data to Variables
         obs = self._create_gpu_tensor(obs, return_variable=True)  # [batch, t_max+1, dims...]
         init_hidden = self._create_gpu_hidden(init_hidden, return_variable=True)  # [layers, batch, units]
+        if target is not None:
+            target = self._create_target_tensor(target, return_variable=True)
         act = Variable(torch.from_numpy(act).type(LongTensor))  # [batch, t_max]
         mask = 1.0 - torch.from_numpy(done).type(FloatTensor) # [batch, t_max]
         mask_var = Variable(mask)
@@ -164,18 +179,27 @@ class ZMQA3CTrainer(AgentTrainer):
         obs = obs
         t_obs_slices = torch.chunk(obs, t_max + 1, dim=1)
         obs_slices = [t.contiguous() for t in t_obs_slices]
+        if target is not None:
+            t_target_slices = torch.chunk(target, t_max + 1, dim=1)
+            target_slices = [t.contiguous() for t in t_target_slices]
         cur_h = init_hidden
         for t in range(t_max):
             #cur_obs = obs[:, t:t+1, ...].contiguous()
             cur_obs = obs_slices[t]
-            cur_logp, cur_val, nxt_h = self.policy(cur_obs, cur_h)
+            if target is not None:
+                cur_logp, cur_val, nxt_h = self.policy(cur_obs, cur_h, target=target_slices[t])
+            else:
+                cur_logp, cur_val, nxt_h = self.policy(cur_obs, cur_h)
             cur_h = self.policy.mark_hidden_states(nxt_h, mask_var[:, t:t+1])
             values.append(cur_val)
             logprobs.append(cur_logp)
             logits.append(self.policy.logits)
         #cur_obs = obs[:, t_max:t_max + 1, ...].contiguous()
         cur_obs = obs_slices[-1]
-        nxt_val = self.policy(cur_obs, cur_h, only_value=True, return_tensor=True)
+        if target is not None:
+            nxt_val = self.policy(cur_obs, cur_h, only_value=True, return_tensor=True, target=target_slices[-1])
+        else:
+            nxt_val = self.policy(cur_obs, cur_h, only_value=True, return_tensor=True)
         V = torch.cat(values, dim=1)  # [batch, t_max]
         P = torch.cat(logprobs, dim=1)  # [batch, t_max, n_act]
         L = torch.cat(logits, dim=1)

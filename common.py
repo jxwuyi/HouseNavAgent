@@ -30,7 +30,7 @@ from trainer.dqn import DQNTrainer
 import environment
 from environment import SimpleHouseEnv as HouseEnv
 from multihouse_env import MultiHouseEnv
-from world import World
+from world import World, all_allowed_target_room_types
 
 from config import get_config
 
@@ -79,7 +79,11 @@ action_shape = (4, 2)
 colide_res = 1000
 default_eagle_resolution = 100
 n_discrete_actions = environment.n_discrete_actions
-
+n_target_instructions = len(all_allowed_target_room_types)
+all_target_instructions = all_allowed_target_room_types
+target_instruction_dict = dict()
+for i, tp in enumerate(all_allowed_target_room_types):
+    target_instruction_dict[tp] = i
 
 debugger = None
 
@@ -352,8 +356,11 @@ def create_joint_model(args, inp_shape, act_shape):
                            strides=strides,
                            activation=F.relu,  # F.relu
                            use_action_gating=args['action_gating'],
-                           use_batch_norm=use_bc)
+                           use_batch_norm=use_bc,
+                           multi_target=args['multi_target'],
+                           use_target_gating=args['target_gating'])
     elif name == 'attentive_cnn':
+        assert not args['multi_target'], 'Attentive Model currently does not support Multi-Target Training'
         global single_observation_shape
         model = AttJointModel(inp_shape, act_shape,
                               cnn_hiddens=cnn_hiddens,
@@ -382,21 +389,25 @@ def create_joint_model(args, inp_shape, act_shape):
 
 def create_discrete_model(algo, args, inp_shape):
     use_bc = args['use_batch_norm']
+    if args['multi_target']:
+        assert algo in ['dqn'], '[Error] Multi-Target Learning only supports <DQN> and <Recurrent-A3C>'
     if (algo == 'a2c') or (algo == 'a3c'):
         model = A2CModel(inp_shape, environment.n_discrete_actions,
-                    cnn_hiddens=[64, 64, 128, 128],
-                    linear_hiddens=[512],
-                    critic_hiddens=[100, 32],
-                    act_hiddens=[100, 32],
-                    activation=F.relu,
-                    use_batch_norm = use_bc)
+                         cnn_hiddens=[64, 64, 128, 128],
+                         linear_hiddens=[512],
+                         critic_hiddens=[100, 32],
+                         act_hiddens=[100, 32],
+                         activation=F.relu,
+                         use_batch_norm=use_bc)
     elif algo == 'qac':
         model = QACModel(inp_shape, environment.n_discrete_actions,
                          cnn_hiddens=[32, 64, 128, 128],
                          linear_hiddens=[512],
                          critic_hiddens=[256, 32],
                          act_hiddens=[256, 32],
-                         activation=F.relu, use_batch_norm=use_bc)
+                         activation=F.relu, use_batch_norm=use_bc,
+                         multi_target=args['multi_target'],
+                         use_target_gating=args['target_gating'])
     elif algo == 'dqn':
         model = QACModel(inp_shape, environment.n_discrete_actions,
                          cnn_hiddens=[32, 64, 128, 128],
@@ -410,9 +421,9 @@ def create_discrete_model(algo, args, inp_shape):
         model.cuda()
     return model
 
-
 def create_trainer(algo, model, args):
-    # self, name, policy, obs_shape, act_shape, args)
+    if ('multi_target' in args) and args['multi_target']:
+        assert algo in ['ddpg_joint', 'dqn', 'nop'], '[Error] Multi-Target Training only support for <ddpg_joint> and <dqn>'
     if algo == 'pg':
         policy = create_policy(args, observation_shape, action_shape,
                                name=model)

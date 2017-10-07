@@ -10,12 +10,16 @@ from torch.autograd import Variable
 
 class DiscreteCNNPolicyQFunc(torch.nn.Module):
     def __init__(self, D_shape_in, D_out,
-                cnn_hiddens, kernel_sizes=5, strides=2,
-                linear_hiddens=[],
-                critic_hiddens=[],
-                act_hiddens=[],
-                activation=F.relu, use_batch_norm = True,
-                only_q_network=False):
+                 cnn_hiddens, kernel_sizes=5, strides=2,
+                 linear_hiddens=[],
+                 critic_hiddens=[],
+                 act_hiddens=[],
+                 activation=F.relu, use_batch_norm=True,
+                 only_q_network=False,
+                 multi_target=False,  # whether to train target embedding
+                 target_embedding_dim=25,  # embedding dimension of target instruction
+                 use_target_gating=False
+                 ):
         """
         D_shape_in: tupe of two ints, the shape of input images
         D_out: a int or a list of ints in length of degree of freedoms
@@ -29,6 +33,8 @@ class DiscreteCNNPolicyQFunc(torch.nn.Module):
         self.cnn_hiddens = cnn_hiddens
         self.kernel_sizes = kernel_sizes
         self.strides = strides
+        self.multi_target = multi_target
+        self.use_target_gating = multi_target and use_target_gating
         if len(self.cnn_hiddens) == 1: self.cnn_hiddens = self.cnn_hiddens * self.n_layer
         if len(self.kernel_sizes) == 1: self.kernel_sizes = self.kernel_sizes * self.n_layer
         if len(self.strides) == 1: self.strides = self.strides * self.n_layer
@@ -63,8 +69,20 @@ class DiscreteCNNPolicyQFunc(torch.nn.Module):
             setattr(self, 'linear_layer%d'%i, self.linear_layers[-1])
             utils.initialize_weights(self.linear_layers[-1])
             cur_dim = d
-        # Output Action
         self.final_size = cur_dim
+        # multi-target instructions
+        if multi_target:
+            self.target_embed = nn.Linear(common.n_target_instructions, target_embedding_dim, bias=False)
+            utils.initialize_weights(self.target_embed)
+            self.target_trans = []
+            if use_target_gating:
+                self.target_trans.append(nn.Linear(target_embedding_dim, cur_dim))
+                setattr(self, 'target_transform_layer0', self.target_trans[-1])
+                utils.initialize_weights(self.target_trans[-1])
+            else:
+                self.final_size += target_embedding_dim
+        # Output Action
+        cur_dim = self.final_size
         self.policy_layers = []
         if not only_q_network:
             act_hiddens.append(D_out)
@@ -111,7 +129,7 @@ class DiscreteCNNPolicyQFunc(torch.nn.Module):
         return n_size
 
     #######################
-    def forward(self, x, return_q_value=True, only_q_value=False, sample_action=True, return_act_prob=False):
+    def forward(self, x, return_q_value=True, only_q_value=False, sample_action=True, return_act_prob=False, target=None):
         """
         compute the forward pass of the model.
         return logits and the softmax prob w./w.o. gumbel noise
@@ -126,6 +144,19 @@ class DiscreteCNNPolicyQFunc(torch.nn.Module):
             common.debugger.print("------>[P] Forward of Policy, Mid-Feature Norm = {}, Var = {}, Max = {}, Min = {}".format(
                                     feat.data.norm(), feat.data.var(), feat.data.max(), feat.data.min()), False)
         raw_feat = feat
+        # Insert Multi-Target Instruction
+        if self.multi_target:
+            assert target is not None
+            target = self.target_embed(target)
+            if self.use_target_gating:
+                for i, l in enumerate(self.target_trans):
+                    target = l(target)
+                    if i + 1 < len(self.target_trans):
+                        target = F.relu(target)
+                target = F.sigmoid(target)
+                raw_feat = feat = feat * target
+            else:
+                raw_feat = feat = torch.cat([feat, target], dim=-1)
         # Compute Critic
         # >> Dueling Network
         #    -> compute value

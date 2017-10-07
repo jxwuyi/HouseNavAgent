@@ -59,6 +59,7 @@ class JointDDPGTrainer(AgentTrainer):
         self.act_dim = sum(act_shape)
         # training args
         self.args = args
+        self.multi_target = args['multi_target']
         self.gamma = args['gamma']
         self.lrate = args['lrate']
         self.critic_lrate = args['critic_lrate']
@@ -75,6 +76,9 @@ class JointDDPGTrainer(AgentTrainer):
             self.optim = optim.RMSprop(self.net.parameters(), lr=self.lrate, weight_decay=args['weight_decay'])
         self.target_update_rate = args['target_net_update_rate'] or 1e-3
         self.replay_buffer = replay_buffer or create_replay_buffer([self.act_dim], np.float32, args)
+        if self.multi_target:
+            self.target_buffer = np.zeros(args['reply_buffer_size'], dtype=np.uint8)
+            self._target = 0
         self.max_episode_len = args['episode_len']
         self.grad_norm_clip = args['grad_clip']
         self.sample_counter = 0
@@ -83,10 +87,16 @@ class JointDDPGTrainer(AgentTrainer):
         self.eval()
         frames = self.replay_buffer.encode_recent_observation()[np.newaxis, ...]
         frames = self._process_frames(frames, volatile=True)
-        if gumbel_noise is not None:
-            batched_actions = self.net(frames, action=None, gumbel_noise=gumbel_noise, output_critic=False)
+        if self.multi_target:
+            target = np.zeros([1, common.n_target_instructions], dtype=np.uint8)
+            target[0, self._target] = 1
+            target_n = Variable(torch.from_numpy(target).type(FloatTensor), volatile=True)
         else:
-            batched_actions = self.net(frames, action=None, gumbel_noise=None, output_critic=False)
+            target_n = None
+        if gumbel_noise is not None:
+            batched_actions = self.net(frames, action=None, gumbel_noise=gumbel_noise, output_critic=False, target=target_n)
+        else:
+            batched_actions = self.net(frames, action=None, gumbel_noise=None, output_critic=False, target=target_n)
         if use_cuda:
             cpu_actions = [a.cpu() for a in batched_actions]
         else:
@@ -97,11 +107,16 @@ class JointDDPGTrainer(AgentTrainer):
         idx = self.replay_buffer.store_frame(obs)
         return idx
 
+    def set_target(self, target):
+        self._target = common.target_instruction_dict[target]
+
     def process_experience(self, idx, act, rew, done, terminal, info):
         # Store transition in the replay buffer.
         full_act = np.concatenate(act).squeeze()
         self.replay_buffer.store_effect(idx, full_act, rew, (done or terminal), info)
         self.sample_counter += 1
+        if self.multi_target:
+            self.target_buffer[idx] = common.target_instruction_dict[info['target_room']]
 
     def preupdate(self):
         pass
@@ -116,6 +131,10 @@ class JointDDPGTrainer(AgentTrainer):
 
         obs, full_act, rew, obs_next, done = \
             self.replay_buffer.sample(self.batch_size)
+        if self.multi_target:
+            target_idx = self.target_buffer[self.replay_buffer._idxes]
+            targets = np.zeros((self.batch_size, common.n_target_instructions), dtype=np.uint8)
+            targets[list(range(self.batch_size)), target_idx] = 1
         #act = split_batched_array(full_act, self.act_shape)
         time_counter[-1] += time.time() - tt
         tt = time.time()
@@ -126,6 +145,10 @@ class JointDDPGTrainer(AgentTrainer):
         full_act_n = Variable(torch.from_numpy(full_act)).type(FloatTensor)
         rew_n = Variable(torch.from_numpy(rew), volatile=True).type(FloatTensor)
         done_n = Variable(torch.from_numpy(done), volatile=True).type(FloatTensor)
+        if self.multi_target:
+            target_n = Variable(torch.from_numpy(targets).type(FloatTensor))
+        else:
+            target_n = None
 
         time_counter[0] += time.time() - tt
         tt = time.time()
@@ -133,7 +156,7 @@ class JointDDPGTrainer(AgentTrainer):
         self.optim.zero_grad()
 
         # train p network
-        q_val = self.net(obs_n, action=None, output_critic=True)
+        q_val = self.net(obs_n, action=None, output_critic=True, target=target_n)
         p_loss = -q_val.mean().squeeze()
         p_ent = self.net.entropy().mean().squeeze()
         if self.args['ent_penalty'] is not None:
@@ -144,10 +167,10 @@ class JointDDPGTrainer(AgentTrainer):
 
         # train q network
         common.debugger.print('Grad Stats of Q Update ...', False)
-        target_q_next = self.target_net(obs_next_n, output_critic=True)
+        target_q_next = self.target_net(obs_next_n, output_critic=True, target=target_n)
         target_q = rew_n + self.gamma * (1.0 - done_n) * target_q_next
         target_q.volatile = False
-        current_q = self.net(obs_n, action=full_act_n, output_critic=True)
+        current_q = self.net(obs_n, action=full_act_n, output_critic=True, target=target_n)
         q_norm = (current_q * current_q).mean().squeeze()  # l2 norm
         q_loss = F.smooth_l1_loss(current_q, target_q) + self.args['critic_penalty']*q_norm  # huber
         common.debugger.print('>> Q_Loss = {}'.format(q_loss.data.mean()), False)
