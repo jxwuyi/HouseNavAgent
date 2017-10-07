@@ -173,9 +173,9 @@ class DiscreteCNNPolicyQFunc(torch.nn.Module):
             feat = l(feat)
         self.adv = feat
         # compute final q_value
-        adv_mean = feat.mean(dim=1)  # [batch, 1]
+        adv_mean = feat.mean(dim=1, keepdim=True)  # [batch, 1]
         dim = self.out_dim
-        self.q_val = self.val.repeat(1, dim) + self.adv - adv_mean.repeat(1, dim)
+        self.q_val = self.val + self.adv - adv_mean
         if only_q_value:
             return self.q_val
         # Compute Action
@@ -190,7 +190,7 @@ class DiscreteCNNPolicyQFunc(torch.nn.Module):
         if sample_action:
             self.act = self.prob.multinomial()
         else:
-            self.act = self.logits.max(dim=1)[1]
+            self.act = self.logits.max(dim=1, keepdim=True)[1]
         ret_act = self.prob if return_act_prob else self.act
         if return_q_value:
             return ret_act, self.q_val
