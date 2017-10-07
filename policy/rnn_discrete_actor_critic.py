@@ -67,8 +67,8 @@ class DiscreteRNNPolicy(torch.nn.Module):
             else:
                 self.bc_layers.append(None)
             prev_hidden = h
-        self.feat_size = feat_size = self._get_feature_dim(D_shape_in)
-        print('Feature Size = %d' % self.feat_size)
+        self.conv_out_size = feat_size = self._get_feature_dim(D_shape_in)
+        print('Output of Convlution Feature Size = %d' % self.conv_out_size)
 
         # extra linear layers
         self.linear_layers = []
@@ -138,7 +138,7 @@ class DiscreteRNNPolicy(torch.nn.Module):
                 x = bc(x)
             x = self.func(x)
         if compute_linear:
-            x = x.view(-1, self.feat_size)
+            x = x.view(-1, self.conv_out_size)
             for l, bc in zip(self.linear_layers, self.ln_bc_layers):
                 x = l(x)
                 if bc is not None:
