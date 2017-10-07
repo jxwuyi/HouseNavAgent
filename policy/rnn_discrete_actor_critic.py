@@ -222,7 +222,7 @@ class DiscreteRNNPolicy(torch.nn.Module):
             target = self.target_embed(target.view(-1, common.n_target_instructions))
             if self.use_target_gating:
                 alpha = target
-                for i, l in self.target_trans:
+                for i, l in enumerate(self.target_trans):
                     alpha = l(alpha)
                     if i + 1 < len(self.target_trans):
                         alpha = F.relu(alpha)
