@@ -56,6 +56,7 @@ def train(args=None,
     logger = utils.MyLogger(log_dir, True)
     if multi_target:
         assert hasattr(trainer, 'set_target')
+        env.cache_all_target()  # cache all the target maps
 
     if warmstart is not None:
         if os.path.exists(warmstart):

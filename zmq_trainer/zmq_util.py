@@ -22,6 +22,8 @@ class ZMQHouseEnvironment:
         self.obs = self.env.reset()
         self.done = False
         self.multi_target = multi_target
+        if multi_target:
+            self.env.cache_all_target()
         self._target = common.target_instruction_dict[self.env.get_current_target()]
 
     def current_state(self):

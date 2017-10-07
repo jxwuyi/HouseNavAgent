@@ -16,12 +16,12 @@ def proc_info(info):
 
 def evaluate(house,
              iters = 1000, max_episode_len = 1000,
-             hardness = None, success_measure = 'center',
+             hardness = None, success_measure = 'center', multi_target=False,
              algo='nop', model_name='cnn',
              model_file=None, log_dir='./log/eval',
              store_history=False, use_batch_norm=True,
              rnn_units=None, rnn_layers=None, rnn_cell=None,
-             use_action_gating=False, use_residual_critic=False,
+             use_action_gating=False, use_residual_critic=False, use_target_gating=False,
              segmentation_input='none', depth_input=False, resolution='normal', history_len=4):
 
     # Do not need to log detailed computation stats
@@ -37,6 +37,8 @@ def evaluate(house,
                                       history_frame_len=history_len)
     args['action_gating'] = use_action_gating
     args['residual_critic'] = use_residual_critic
+    args['multi_target'] = multi_target
+    args['target_gating'] = use_target_gating
 
     if model_name == 'rnn':
         import zmq_train
@@ -64,7 +66,10 @@ def evaluate(house,
     for it in range(iters):
         cur_infos = []
         trainer.reset_agent()
-        obs = env.reset()
+        obs = env.reset(reset_target=multi_target)
+        target_id = common.target_instruction_dict(env.get_current_target())
+        if multi_target and hasattr(trainer, 'set_target'):
+            trainer.set_target(env.get_current_target())
         if store_history:
             cur_infos.append(proc_info(env.cam_info))
             #cur_images.append(env.render(renderMapLoc=env.cam_info['loc'], display=False))
@@ -72,7 +77,7 @@ def evaluate(house,
         episode_success.append(0)
         episode_good.append(0)
         cur_stats = dict(best_dist=1e50,
-                         success=0, good=0, reward=0,
+                         success=0, good=0, reward=0, target=env.get_current_target(),
                          length=max_episode_len, images=None)
         if hasattr(env.world, "_id"):
             cur_stats['world_id'] = env.world._id
@@ -81,7 +86,10 @@ def evaluate(house,
             # get action
             if trainer.is_rnn():
                 idx = 0
-                action, _ = trainer.action(obs, return_numpy=True)
+                if multi_target:
+                    action, _ = trainer.action(obs, return_numpy=True, target=[[target_id]])
+                else:
+                    action, _ = trainer.action(obs, return_numpy=True)
                 action = int(action.squeeze())
             else:
                 idx = trainer.process_observation(obs)
@@ -113,6 +121,8 @@ def evaluate(house,
 
         dur = time.time() - elap
         logger.print('Episode#%d, Elapsed = %.3f min' % (it+1, dur/60))
+        if multi_target:
+            logger.print('  ---> Target Room = {}'.format(cur_stats['target']))
         logger.print('  ---> Total Samples = {}'.format(t))
         logger.print('  ---> Success = %d  (rate = %.3f)'
                      % (cur_stats['success'], np.mean(episode_success)))
@@ -125,6 +135,19 @@ def evaluate(house,
     logger.print('Avg Length per Success = %.3f' % np.mean([s['length'] for s in episode_stats if s['success'] > 0]))
     logger.print('Reaching Target Rate = %.3f' % np.mean(episode_good))
     logger.print('Avg Length per Target Reach = %.3f' % np.mean([s['length'] for s in episode_stats if s['good'] > 0]))
+    if multi_target:
+        all_targets = list(set([s['target'] for s in episode_stats]))
+        for tar in all_targets:
+            n = sum([1 for s in episode_stats if s['target'] == tar])
+            succ = [s['success'] for s in episode_stats if s['target'] == tar]
+            good = [s['good'] for s in episode_stats if s['target'] == tar]
+            length = [s['length'] for s in episode_stats if s['target'] == tar]
+            good_len = np.mean([l for l,g in zip(length, good) if g > 0.5])
+            succ_len = np.mean([l for l,s in zip(length, succ) if s > 0.5])
+            logger.print(
+                '>>>>> Multi-Target <%s>: Rate = %.3f (n=%d), Good = %.3f (AvgLen=%.3f), Succ = %.3f (AvgLen=%.3f)'
+                % (tar, n/len(episode_stats), n, np.mean(good), good_len, np.mean(succ), succ_len))
+
 
     return episode_stats
 
@@ -153,6 +176,9 @@ def parse_args():
                         help="length of the stacked frames, default=4")
     parser.add_argument("--success-measure", choices=['center', 'stay', 'see'], default='center',
                         help="criteria for a successful episode")
+    parser.add_argument("--multi-target", dest='multi_target', action='store_true',
+                        help="when this flag is set, a new target room will be selected per episode")
+    parser.set_defaults(multi_target=False)
     # Core parameters
     parser.add_argument("--algo", choices=['ddpg','pg', 'rdpg', 'ddpg_joint', 'ddpg_alter', 'ddpg_eagle',
                                            'a2c', 'qac', 'dqn', 'nop', 'a3c'], default="ddpg", help="algorithm for training")
@@ -165,6 +191,9 @@ def parse_args():
     parser.add_argument("--use-action-gating", dest='action_gating', action='store_true',
                         help="whether to use action gating structure in the critic model")
     parser.set_defaults(action_gating=False)
+    parser.add_argument("--use-target-gating", dest='target_gating', action='store_true',
+                        help="[only affect when --multi-target] whether to use target instruction gating structure in the model")
+    parser.set_defaults(target_gating=False)
     parser.add_argument("--use-residual-critic", dest='residual_critic', action='store_true',
                         help="whether to use residual structure for feature extraction in the critic model (N.A. for joint-ac model) ")
     parser.set_defaults(residual_critic=False)
@@ -204,11 +233,11 @@ if __name__ == '__main__':
         model_name = 'cnn'
     episode_stats = \
         evaluate(args.house, args.max_iters, args.max_episode_len,
-                 args.hardness, args.success_measure,
+                 args.hardness, args.success_measure, args.multi_target,
                  args.algo, model_name, args.warmstart, args.log_dir,
                  args.store_history, args.use_batch_norm,
                  args.rnn_units, args.rnn_layers, args.rnn_cell,
-                 args.action_gating, args.residual_critic,
+                 args.action_gating, args.residual_critic, args.target_gating,
                  args.segmentation_input, args.depth_input, args.resolution, args.history_frame_len)
 
     if args.store_history:
