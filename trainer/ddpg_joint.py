@@ -77,7 +77,7 @@ class JointDDPGTrainer(AgentTrainer):
         self.target_update_rate = args['target_net_update_rate'] or 1e-3
         self.replay_buffer = replay_buffer or create_replay_buffer([self.act_dim], np.float32, args)
         if self.multi_target:
-            self.target_buffer = np.zeros(args['reply_buffer_size'], dtype=np.uint8)
+            self.target_buffer = np.zeros(args['replay_buffer_size'], dtype=np.uint8)
             self._target = 0
         self.max_episode_len = args['episode_len']
         self.grad_norm_clip = args['grad_clip']

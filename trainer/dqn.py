@@ -93,11 +93,11 @@ class DQNTrainer(QACTrainer):
         target_q_val_next = self.target_net(obs_next_n, only_q_value=True, target=target_n)
         # double Q learning
         target_act_next = torch.max(self.net(obs_next_n, only_q_value=True, target=target_n), dim=1, keepdim=True)[1]
-        target_q_next = torch.gather(target_q_val_next, 1, target_act_next)
+        target_q_next = torch.gather(target_q_val_next, 1, target_act_next).squeeze()
         target_q = rew_n + self.gamma * (1.0 - done_n) * target_q_next
         target_q.volatile=False
         current_q_val = self.net(obs_n, only_q_value=True, target=target_n)
-        current_q = torch.gather(current_q_val, 1, act_n.view(-1, 1))
+        current_q = torch.gather(current_q_val, 1, act_n.view(-1, 1)).squeeze()
         q_norm = (current_q * current_q).mean().squeeze()
         q_loss = F.smooth_l1_loss(current_q, target_q)
 

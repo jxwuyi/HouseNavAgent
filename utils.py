@@ -53,17 +53,17 @@ def initialize_weights(cls, small_init=False):
         if isinstance(m, nn.Conv2d):
             n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
             m.weight.data.normal_(0, math.sqrt(2. / n))
-            m.bias.data.zero_()
+            if m.bias is not None: m.bias.data.zero_()
         elif isinstance(m, nn.BatchNorm2d):
             m.weight.data.fill_(1)
-            m.bias.data.zero_()
+            if m.bias is not None: m.bias.data.zero_()
         elif isinstance(m, nn.Linear):
             if not small_init:
                 m.weight.data.normal_(0, math.sqrt(1. / m.in_features))
             else:
                 m.weight.data.uniform_(-3e-4, 3e-4)
                 #m.weight.data.normal_(0, 0.001)
-            m.bias.data.zero_()
+            if m.bias is not None: m.bias.data.zero_()
         elif isinstance(m, nn.GRU) or isinstance(m, nn.LSTM):
             for key, param in m.named_parameters():
                 if 'weight' in key:
