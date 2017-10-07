@@ -32,6 +32,7 @@ class ZMQA3CTrainer(AgentTrainer):
         self.act_dim = sum(act_shape)
         # training args
         self.args = args
+        self.multi_target = args['multi_target']
         self.gamma = args['gamma']
         self.lrate = args['lrate']
         self.batch_size = args['batch_size']
@@ -247,7 +248,11 @@ class ZMQA3CTrainer(AgentTrainer):
             for t in range(t_max):
                 # cur_obs = obs[:, t:t+1, ...].contiguous()
                 cur_obs = obs_slices[t]
-                cur_logp, nxt_h = self.policy(cur_obs, cur_h, return_value=False)
+                if self.multi_target:
+                    cur_target = target_slices[t]
+                else:
+                    cur_target = None
+                cur_logp, nxt_h = self.policy(cur_obs, cur_h, return_value=False, target=cur_target)
                 cur_h = self.policy.mark_hidden_states(nxt_h, mask_var[:, t:t + 1])
                 new_logprobs.append(cur_logp)
             new_P = torch.cat(new_logprobs, dim=1)

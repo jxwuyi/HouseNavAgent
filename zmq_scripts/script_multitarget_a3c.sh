@@ -1,6 +1,6 @@
 #!/bin/bash
 
-CUDA_VISIBLE_DEVICES=1,2,3 python3 zmq_train.py --seed 0 \
+CUDA_VISIBLE_DEVICES=0,1,2 python3 zmq_train.py --seed 0 \
     --n-house 10 --n-proc 100 --batch-size 64 --t-max 5 --max-episode-len 50 \
     --hardness 0.6 --reward-type delta --multi-target \
     --segmentation-input joint --depth-input --resolution normal \
