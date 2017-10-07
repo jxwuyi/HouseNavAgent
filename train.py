@@ -164,14 +164,14 @@ def train(args=None,
                     ep_tar = episode_targets[-eval_range:]
                     total_n = len(ep_rew)
                     tar_stats = dict()
-                    for t,r,s in zip(ep_tar,ep_rew,ep_suc):
-                        if t not in tar_stats:
-                            tar_stats[t] = [0.0, 0.0, 0.0]
-                        tar_stats[t][0] += 1
-                        tar_stats[t][1] += r
-                        tar_stats[t][2] += s
-                    for t in tar_stats.keys():
-                        n, r, s = tar_stats[t]
+                    for k,r,s in zip(ep_tar,ep_rew,ep_suc):
+                        if k not in tar_stats:
+                            tar_stats[k] = [0.0, 0.0, 0.0]
+                        tar_stats[k][0] += 1
+                        tar_stats[k][1] += r
+                        tar_stats[k][2] += s
+                    for k in tar_stats.keys():
+                        n, r, s = tar_stats[k]
                         logger.print('  --> Multi-Room<%s> Freq = %.4f, Rew = %.4f, Succ = %.4f' % (t,n / total_n, r / n, s / n))
                 print('----> Data Loading Time = %.4f min' % (time_counter[-1] / 60))
                 print('----> GPU Data Transfer Time = %.4f min' % (time_counter[0] / 60))
