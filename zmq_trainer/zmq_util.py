@@ -183,7 +183,7 @@ class ZMQMaster(SimulatorMaster):
                 all_stats[t][2] += len_stats[i]
                 all_stats[t][3] += succ_stats[i]
             m = len(rew_stats)
-            for t in tar_stats.keys():
+            for t in all_stats.keys():
                 n, r, l, s = all_stats[t]
                 self.logger.print("  ---> Mul-Target <%s> Rate = %.3f, Avg Rew = %.3f, Avg Len = %.3f, Succ Rate = %.3f"
                                   % (common.all_target_instructions[t], n/m, r/n, l/n, s/n))
