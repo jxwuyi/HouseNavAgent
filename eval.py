@@ -143,8 +143,8 @@ def evaluate(house,
         all_targets = list(set([s['target'] for s in episode_stats]))
         for tar in all_targets:
             n = sum([1.0 for s in episode_stats if s['target'] == tar])
-            succ = [1.0 for s in episode_stats if (s['target'] == tar) and (s['success'] > 0)]
-            good = [1.0 for s in episode_stats if (s['target'] == tar) and (s['good'] > 0)]
+            succ = [float(s['success'] > 0) for s in episode_stats if s['target'] == tar]
+            good = [float(s['good'] > 0) for s in episode_stats if s['target'] == tar]
             length = [s['length'] for s in episode_stats if s['target'] == tar]
             good_len = np.mean([l for l,g in zip(length, good) if g > 0.5])
             succ_len = np.mean([l for l,s in zip(length, succ) if s > 0.5])
