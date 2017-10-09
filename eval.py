@@ -71,7 +71,7 @@ def evaluate(house,
         cur_infos = []
         trainer.reset_agent()
         obs = env.reset(reset_target=flag_random_reset_target)
-        target_id = common.target_instruction_dict(env.get_current_target())
+        target_id = common.target_instruction_dict[env.get_current_target()]
         if multi_target and hasattr(trainer, 'set_target'):
             trainer.set_target(env.get_current_target())
         if store_history:
