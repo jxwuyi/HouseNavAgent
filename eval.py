@@ -16,7 +16,7 @@ def proc_info(info):
 
 def evaluate(house,
              iters = 1000, max_episode_len = 1000,
-             hardness = None, success_measure = 'center', multi_target=False,
+             hardness = None, success_measure = 'center', multi_target=False, fixed_target=None,
              algo='nop', model_name='cnn',
              model_file=None, log_dir='./log/eval',
              store_history=False, use_batch_norm=True,
@@ -55,6 +55,10 @@ def evaluate(house,
                             depth_input=depth_input,
                             segment_input=args['segment_input'])
 
+    if fixed_target is not None:
+        env.reset_target(fixed_target)
+    flag_random_reset_target = multi_target and (fixed_target is None)
+
     logger = utils.MyLogger(log_dir, True)
     logger.print('Start Evaluating ...')
 
@@ -66,7 +70,7 @@ def evaluate(house,
     for it in range(iters):
         cur_infos = []
         trainer.reset_agent()
-        obs = env.reset(reset_target=multi_target)
+        obs = env.reset(reset_target=flag_random_reset_target)
         target_id = common.target_instruction_dict(env.get_current_target())
         if multi_target and hasattr(trainer, 'set_target'):
             trainer.set_target(env.get_current_target())
@@ -138,9 +142,9 @@ def evaluate(house,
     if multi_target:
         all_targets = list(set([s['target'] for s in episode_stats]))
         for tar in all_targets:
-            n = sum([1 for s in episode_stats if s['target'] == tar])
-            succ = [s['success'] for s in episode_stats if s['target'] == tar]
-            good = [s['good'] for s in episode_stats if s['target'] == tar]
+            n = sum([1.0 for s in episode_stats if s['target'] == tar])
+            succ = [1.0 for s in episode_stats if (s['target'] == tar) and (s['success'] > 0)]
+            good = [1.0 for s in episode_stats if (s['target'] == tar) and (s['good'] > 0)]
             length = [s['length'] for s in episode_stats if s['target'] == tar]
             good_len = np.mean([l for l,g in zip(length, good) if g > 0.5])
             succ_len = np.mean([l for l,s in zip(length, succ) if s > 0.5])
@@ -179,6 +183,8 @@ def parse_args():
     parser.add_argument("--multi-target", dest='multi_target', action='store_true',
                         help="when this flag is set, a new target room will be selected per episode")
     parser.set_defaults(multi_target=False)
+    parser.add_argument("--fixed-target", choices=common.all_target_instructions,
+                        help="once set, all the episode will be fixed to a specific target.")
     # Core parameters
     parser.add_argument("--algo", choices=['ddpg','pg', 'rdpg', 'ddpg_joint', 'ddpg_alter', 'ddpg_eagle',
                                            'a2c', 'qac', 'dqn', 'nop', 'a3c'], default="ddpg", help="algorithm for training")
@@ -233,7 +239,7 @@ if __name__ == '__main__':
         model_name = 'cnn'
     episode_stats = \
         evaluate(args.house, args.max_iters, args.max_episode_len,
-                 args.hardness, args.success_measure, args.multi_target,
+                 args.hardness, args.success_measure, args.multi_target, args.fixed_target,
                  args.algo, model_name, args.warmstart, args.log_dir,
                  args.store_history, args.use_batch_norm,
                  args.rnn_units, args.rnn_layers, args.rnn_cell,

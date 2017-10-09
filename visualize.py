@@ -55,10 +55,11 @@ def visualize(args, all_stats, config):
         total_len += stats['length']
         total_succ += stats['success']
         print('Episode#%d, Length = %d (Avg len = %.3f)' % (it + 1, stats['length'], total_len/(it+1)))
+        print(' >> Target = %s' % (stats['target']))
         print(' >> Success = %d  (Rate = %.3f)' % (stats['success'], total_succ / (it + 1)))
         print(' >> Stay in Room = %d' % stats['good'])
         show_episode(env, images)
-        time.sleep(1)
+        time.sleep(1.5)
 
 
 def parse_args():
