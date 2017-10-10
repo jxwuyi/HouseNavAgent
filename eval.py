@@ -4,17 +4,22 @@ import utils
 
 import os, sys, time, pickle, json, argparse
 import numpy as np
+import random
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+
+def set_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
 
 def proc_info(info):
     return dict(pos=(info['pos'].x, info['pos'].y, info['pos'].z),
                 yaw=info['yaw'], loc=info['loc'], grid=info['grid'],
                 dist=info['dist'])
 
-def evaluate(house,
+def evaluate(house, seed = 0,
              iters = 1000, max_episode_len = 1000,
              hardness = None, success_measure = 'center', multi_target=False, fixed_target=None,
              algo='nop', model_name='cnn',
@@ -51,6 +56,7 @@ def evaluate(house,
 
     if hardness is not None:
         print('>>>> Hardness = {}'.format(hardness))
+    set_seed(seed)
     env = common.create_env(house, hardness=hardness, success_measure=success_measure,
                             depth_input=depth_input,
                             segment_input=args['segment_input'])
@@ -70,6 +76,7 @@ def evaluate(house,
     for it in range(iters):
         cur_infos = []
         trainer.reset_agent()
+        set_seed(seed + it + 1)  # reset seed
         obs = env.reset(reset_target=flag_random_reset_target)
         target_id = common.target_instruction_dict[env.get_current_target()]
         if multi_target and hasattr(trainer, 'set_target'):
@@ -224,9 +231,6 @@ if __name__ == '__main__':
         print('Directory <{}> does not exist! Creating directory ...'.format(args.log_dir))
         os.makedirs(args.log_dir)
 
-    if args.seed is not None:
-        np.random.seed(args.seed)
-
     if args.action_dim is not None:
         common.action_shape = (args.action_dim, 2)
         print('degree of freedom of the action set to <{}>'.format(args.action_dim))
@@ -238,7 +242,7 @@ if __name__ == '__main__':
     else:
         model_name = 'cnn'
     episode_stats = \
-        evaluate(args.house, args.max_iters, args.max_episode_len,
+        evaluate(args.house, args.seed or 0, args.max_iters, args.max_episode_len,
                  args.hardness, args.success_measure, args.multi_target, args.fixed_target,
                  args.algo, model_name, args.warmstart, args.log_dir,
                  args.store_history, args.use_batch_norm,
