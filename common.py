@@ -41,7 +41,7 @@ all_houseIDs = house_ID_dict['small']
 def set_house_IDs(partition='small'):
     global all_houseIDs, house_ID_dict
     assert partition in house_ID_dict, 'Partition <{}> not found!'.format(partition)
-    all_houseIDs = house_ID_dict['partition']
+    all_houseIDs = house_ID_dict[partition]
 
 
 CFG = get_config()

@@ -27,7 +27,7 @@ def get_config(fname=None):
 @lru_cache()
 def get_house_ids(fname=None):
     FNAME = 'all_house_ids.json'
-    def get_fname(FNAME):
+    def get_fname():
         if os.path.isfile(FNAME):
             return FNAME
         fname = os.path.join(os.path.dirname(__file__), FNAME)
