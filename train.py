@@ -193,6 +193,7 @@ def train(args=None,
 def parse_args():
     parser = argparse.ArgumentParser("Reinforcement Learning for 3D House Navigation")
     # Environment
+    parser.add_argument("--env-set", choices=['small', 'train', 'test'], default='small')
     parser.add_argument("--house", type=int, default=0,
                         help="house ID (default 0); if < 0, then multi-house environment")
     parser.add_argument("--seed", type=int, help="random seed")
@@ -284,6 +285,10 @@ def parse_args():
 
 if __name__ == '__main__':
     cmd_args = parse_args()
+
+    common.set_house_IDs(cmd_args.env_set)
+    print('>> Environment Set = <%s>, Total %d Houses!' % (cmd_args.env_set, len(common.all_houseIDs)))
+
     if cmd_args.seed is not None:
         np.random.seed(cmd_args.seed)
         random.seed(cmd_args.seed)
