@@ -10,7 +10,7 @@ import utils
 import common
 from zmq_trainer.zmqsimulator import SimulatorProcess, SimulatorMaster, ensure_proc_terminate
 
-n_episode_evaluation = 300
+n_episode_evaluation = 500
 
 class ZMQHouseEnvironment:
     def __init__(self, k=0, reward_type='indicator', success_measure='center', multi_target=False,
