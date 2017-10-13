@@ -79,10 +79,10 @@ def create_zmq_config(args):
     config['reward_type'] = args['reward_type']
     config['hardness'] = args['hardness']
     all_gpus = common.get_gpus_for_rendering()
-    if 'render_gpu' in args:
+    if args['render_gpu'] is not None:
         gpu_ids = args['render_gpu'].split(',')
         render_gpus = [all_gpus[int(k)] for k in gpu_ids]
-    elif 'train_gpu' in args:
+    elif args['train_gpu'] is not None:
         k = args['train_gpu']
         render_gpus = all_gpus[:k] + all_gpus[k+1:]
     else:
