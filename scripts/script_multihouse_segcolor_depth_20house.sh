@@ -1,7 +1,7 @@
 #!/bin/bash
 
-CUDA_VISIBLE_DEVICES=7 python3 train.py --seed 0 --algo ddpg_joint --update-freq 10 --max-episode-len 50 \
-    --house -20 --reward-type linear \
+CUDA_VISIBLE_DEVICES=3 python3 train.py --seed 0 --algo ddpg_joint --update-freq 10 --max-episode-len 50 \
+    --house -20 --reward-type linear --success-measure see \
     --lrate 0.0001 --gamma 0.95 \
     --save-dir ./_model_/multi_house/linear_reward/segcolor_depth_20house_medium/ddpg_joint_100_exp_high_hist_3 \
     --log-dir ./log/multi_house/linear_reward/segcolor_depth_20house_medium/ddpg_joint_100_exp_high_hist_3 \

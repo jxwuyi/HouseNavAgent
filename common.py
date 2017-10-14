@@ -32,16 +32,17 @@ from environment import SimpleHouseEnv as HouseEnv
 from multihouse_env import MultiHouseEnv
 from world import World, all_allowed_target_room_types, all_allowed_prediction_room_types
 
-from config import get_config
+from config import get_config, get_house_ids
 
-all_houseIDs = ['00065ecbdd7300d35ef4328ffe871505',
-'cf57359cd8603c3d9149445fb4040d90', 'ff32675f2527275171555259b4a1b3c3', '775941abe94306edc1b5820e3a992d75',
-'7995c2a93311717a3a9c48d789563590', '8b8c1994f3286bfc444a7527ffacde86', '31966fdc9f9c87862989fae8ae906295',
-'32e53679b33adfcc5a5660b8c758cc96', '4383029c98c14177640267bd34ad2f3c', '0884337c703e7c25949d3a237101f060',
-'492c5839f8a534a673c92912aedc7b63', 'a7e248efcdb6040c92ac0cdc3b2351a6', '2364b7dcc432c6d6dcc59dba617b5f4b',
-'e3ae3f7b32cf99b29d3c8681ec3be321', 'f10ce4008da194626f38f937fb9c1a03', 'e6f24af5f87558d31db17b86fe269cf2',
-'1dba3a1039c6ec1a3c141a1cb0ad0757', 'b814705bc93d428507a516b866efda28', '26e33980e4b4345587d6278460746ec4',
-'5f3f959c7b3e6f091898caa8e828f110', 'b5bd72478fce2a2dbd1beb1baca48abd', '9be4c7bee6c0ba81936ab0e757ab3d61']
+house_ID_dict = get_house_ids()
+all_houseIDs = house_ID_dict['small']
+
+
+def set_house_IDs(partition='small'):
+    global all_houseIDs, house_ID_dict
+    assert partition in house_ID_dict, 'Partition <{}> not found!'.format(partition)
+    all_houseIDs = house_ID_dict[partition]
+
 
 CFG = get_config()
 prefix = CFG['prefix']

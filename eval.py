@@ -172,6 +172,7 @@ def render_episode(env, images):
 def parse_args():
     parser = argparse.ArgumentParser("Evaluation for 3D House Navigation")
     # Environment
+    parser.add_argument("--env-set", choices=['small', 'train', 'test'], default='small')
     parser.add_argument("--house", type=int, default=0, help="house ID")
     parser.add_argument("--seed", type=int, default=0, help="random seed")
     parser.add_argument("--hardness", type=float, help="real number from 0 to 1, indicating the hardness of the environment")
@@ -226,6 +227,9 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
     assert (args.warmstart is None) or (os.path.exists(args.warmstart)), 'Model File Not Exists!'
+
+    common.set_house_IDs(args.env_set)
+    print('>> Environment Set = <%s>, Total %d Houses!' % (args.env_set, len(common.all_houseIDs)))
 
     if not os.path.exists(args.log_dir):
         print('Directory <{}> does not exist! Creating directory ...'.format(args.log_dir))

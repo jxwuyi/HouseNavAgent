@@ -80,7 +80,9 @@ def train(args=None,
 
     trainer.reset_agent()
     obs = env.reset()
-    if multi_target: trainer.set_target(env.get_current_target())
+    if multi_target:
+        trainer.set_target(env.get_current_target())
+        episode_targets[-1] = env.get_current_target()
     assert not np.any(np.isnan(obs)), 'nan detected in the observation!'
     obs = obs.transpose([1, 0, 2])
     logger.print('Observation Shape = {}'.format(obs.shape))
@@ -161,19 +163,21 @@ def train(args=None,
                 logger.print('  >> Success Rate  = %.4f' % np.mean(episode_success[-eval_range:]))
                 if multi_target:
                     ep_rew = episode_rewards[-eval_range:]
-                    ep_suc = episode_rewards[-eval_range:]
+                    ep_suc = episode_success[-eval_range:]
                     ep_tar = episode_targets[-eval_range:]
+                    ep_len = episode_length[-eval_range:]
                     total_n = len(ep_rew)
                     tar_stats = dict()
-                    for k,r,s in zip(ep_tar,ep_rew,ep_suc):
+                    for k,r,s,l in zip(ep_tar,ep_rew,ep_suc,ep_len):
                         if k not in tar_stats:
-                            tar_stats[k] = [0.0, 0.0, 0.0]
+                            tar_stats[k] = [0.0, 0.0, 0.0, 0.0]
                         tar_stats[k][0] += 1
                         tar_stats[k][1] += r
                         tar_stats[k][2] += s
+                        tar_stats[k][3] += l
                     for k in tar_stats.keys():
-                        n, r, s = tar_stats[k]
-                        logger.print('  --> Multi-Room<%s> Freq = %.4f, Rew = %.4f, Succ = %.4f' % (t,n / total_n, r / n, s / n))
+                        n, r, s, l = tar_stats[k]
+                        logger.print('  --> Multi-Room<%s> Freq = %.4f, Rew = %.4f, Succ = %.4f (AvgLen = %.3f)' % (k, n / total_n, r / n, s / n, l / n))
                 print('----> Data Loading Time = %.4f min' % (time_counter[-1] / 60))
                 print('----> GPU Data Transfer Time = %.4f min' % (time_counter[0] / 60))
                 print('----> Training Time = %.4f min' % (time_counter[1] / 60))
@@ -189,6 +193,7 @@ def train(args=None,
 def parse_args():
     parser = argparse.ArgumentParser("Reinforcement Learning for 3D House Navigation")
     # Environment
+    parser.add_argument("--env-set", choices=['small', 'train', 'test'], default='small')
     parser.add_argument("--house", type=int, default=0,
                         help="house ID (default 0); if < 0, then multi-house environment")
     parser.add_argument("--seed", type=int, help="random seed")
@@ -280,6 +285,10 @@ def parse_args():
 
 if __name__ == '__main__':
     cmd_args = parse_args()
+
+    common.set_house_IDs(cmd_args.env_set)
+    print('>> Environment Set = <%s>, Total %d Houses!' % (cmd_args.env_set, len(common.all_houseIDs)))
+
     if cmd_args.seed is not None:
         np.random.seed(cmd_args.seed)
         random.seed(cmd_args.seed)
