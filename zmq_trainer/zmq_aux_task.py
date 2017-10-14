@@ -202,6 +202,7 @@ class ZMQAuxTaskTrainer(ZMQA3CTrainer):
         self.optim.step()
 
         ret_dict = dict(pg_loss=pg_loss.data.cpu().numpy()[0],
+                        aux_task_loss=aux_loss.data.cpu().numpy()[0],
                         policy_entropy=p_ent.data.cpu().numpy()[0],
                         critic_loss=critic_loss.data.cpu().numpy()[0])
 

@@ -18,7 +18,8 @@ class ZMQHouseEnvironment:
         assert k >= 0
         self.env = common.create_env(k, reward_type=reward_type, hardness=hardness, success_measure=success_measure,
                                      segment_input=segment_input, depth_input=depth_input,
-                                     max_steps=max_steps, render_device=device)
+                                     max_steps=max_steps, render_device=device,
+                                     genRoomTypeMap=aux_task)
         self.obs = self.env.reset()
         self.done = False
         self.multi_target = multi_target
@@ -111,8 +112,7 @@ class ZMQMaster(SimulatorMaster):
             target = None
         self.trainer.eval()  # TODO: check this option
         if self.aux_task:
-            action, next_hidden, aux_preds = self.trainer.action(states, hiddens, target=target,
-                                                                 compute_aux_pred=True, sample_aux_pred=True)
+            action, next_hidden, aux_preds = self.trainer.action(states, hiddens, target=target, return_aux_pred=True)
             aux_preds = aux_preds.squeeze().cpu().numpy()
         else:
             action, next_hidden = self.trainer.action(states, hiddens, target=target)
@@ -140,6 +140,7 @@ class ZMQMaster(SimulatorMaster):
         rew = np.zeros((self.batch_size, self.t_max), dtype=np.float32)
         done = np.zeros((self.batch_size, self.t_max), dtype=np.float32)
         target = None if not self.multi_target else []
+        aux_target = None if not self.aux_task else []
         for i,id in enumerate(self.train_buffer.keys()):
             dat = self.train_buffer[id]
             obs.append(dat['obs'])
@@ -148,8 +149,13 @@ class ZMQMaster(SimulatorMaster):
             rew[i] = dat['rew']
             done[i] = dat['done']
             if target is not None: target.append(dat['target'])
+            if self.aux_task: aux_target.append(dat['aux_target'][:-1])
         self.trainer.train()
-        stats = self.trainer.update(obs, hidden, act, rew, done, target=target)
+        if self.aux_task:
+            stats = self.trainer.update(obs, hidden, act, rew, done,
+                                        target=target, aux_target=aux_target)
+        else:
+            stats = self.trainer.update(obs, hidden, act, rew, done, target=target)
         for key in stats.keys():
             if key not in self.update_stats:
                 self.update_stats[key] = []

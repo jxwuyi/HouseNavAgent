@@ -266,7 +266,7 @@ class DiscreteRNNPolicy(torch.nn.Module):
         # compute aux task
         if (self.aux_prediction is not None) and compute_aux_pred:
             feat = rnn_feat
-            for i, l in self.aux_layers:
+            for i, l in enumerate(self.aux_layers):
                 if i > 0: feat = self.func(feat)
                 feat = l(feat)
             if sample_aux_pred:
@@ -275,6 +275,7 @@ class DiscreteRNNPolicy(torch.nn.Module):
             else:
                 aux_pred = F.log_softmax(feat) if return_aux_logprob else F.softmax(feat)
                 aux_pred = aux_pred.view(batch, seq_len, self.aux_prediction)
+            if return_tensor: aux_pred = aux_pred.data
         else:
             aux_pred = None
 
