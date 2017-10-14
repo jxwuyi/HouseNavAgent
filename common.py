@@ -30,7 +30,7 @@ from trainer.dqn import DQNTrainer
 import environment
 from environment import SimpleHouseEnv as HouseEnv
 from multihouse_env import MultiHouseEnv
-from world import World, all_allowed_target_room_types
+from world import World, all_allowed_target_room_types, all_allowed_prediction_room_types
 
 from config import get_config
 
@@ -84,6 +84,9 @@ all_target_instructions = all_allowed_target_room_types
 target_instruction_dict = dict()
 for i, tp in enumerate(all_allowed_target_room_types):
     target_instruction_dict[tp] = i
+
+all_aux_predictions = all_allowed_prediction_room_types
+n_aux_predictions = len(all_aux_predictions)
 
 debugger = None
 

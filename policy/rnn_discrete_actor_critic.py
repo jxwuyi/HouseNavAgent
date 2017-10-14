@@ -18,12 +18,14 @@ class DiscreteRNNPolicy(torch.nn.Module):
                  activation=F.relu, use_batch_norm=True,
                  multi_target=False,  # whether to train target embedding
                  target_embedding_dim=25,  # embedding dimension of target instruction
-                 use_target_gating=False
+                 use_target_gating=False,
+                 aux_prediction=None
                  ):
         """
         D_shape_in: (n_channel, n_row, n_col)
         D_out: a int or a list of ints in length of degree of freedoms
         hiddens, kernel_sizes, strides: either an int or a list of ints with the same length
+        aux_prediction: None or a list of ints indicating the number of extra prediction task
         """
         super(DiscreteRNNPolicy, self).__init__()
         if conv_hiddens is None: conv_hiddens = []
@@ -39,6 +41,7 @@ class DiscreteRNNPolicy(torch.nn.Module):
         self.multi_target = multi_target
         self.use_target_gating = multi_target and use_target_gating
         self.target_embed_dim = target_embedding_dim
+        self.aux_prediction = aux_prediction
         if len(self.cnn_kernel_sizes) == 1: self.cnn_kernel_sizes = self.cnn_kernel_sizes * self.cnn_layers
         if len(self.cnn_strides) == 1: self.cnn_strides = self.cnn_strides * self.cnn_layers
 
@@ -129,6 +132,17 @@ class DiscreteRNNPolicy(torch.nn.Module):
             utils.initialize_weights(self.critic_layers[-1], True)  # small weight init
             cur_dim = d
 
+        if aux_prediction is not None:
+            assert isinstance(aux_prediction, int), '[RNNPolicy] Currently only support a single aux-pred-task!'
+            cur_dim = self.rnn_output_size + self.feat_size
+            hidden_d = 64  # currently a hack
+            self.aux_layers = [nn.Linear(cur_dim, hidden_d)]
+            setattr(self, 'aux_layers0', self.aux_layers[-1])
+            utils.initialize_weights(self.aux_layers[-1])
+            self.aux_layers.append(nn.Linear(hidden_d, aux_prediction))
+            setattr(self, 'aux_layers1', self.aux_layers[-1])
+            utils.initialize_weights(self.aux_layers[-1])
+
 
     ######################
     def _forward_feature(self, x, compute_linear=False):
@@ -203,7 +217,8 @@ class DiscreteRNNPolicy(torch.nn.Module):
     #######################
 
     def forward(self, x, h, only_value = False, return_value=True, sample_action=False,
-                unpack_hidden=False, return_tensor=False, target=None):
+                unpack_hidden=False, return_tensor=False, target=None,
+                compute_aux_pred=False, return_aux_logprob=True, sample_aux_pred=False):
         """
         compute the forward pass of the model.
         @:param x: [seq_len, batch, n_channel, n_row, n_col]
@@ -211,7 +226,10 @@ class DiscreteRNNPolicy(torch.nn.Module):
         @:param return_value: when False, only return action
         @:param sample_action: when True, action will be the sampled LongTensor, [batch, seq_len, 1]
         @:param target: when self.multi_target, target will be one-hot matrix of [batch, seq_len, n_target_instructions]
-        @:return (action, value, hiddens) or (action, hiddens)
+        @:param compute_aux_pred: when True, also output aux-task prediction [batch, seq_len, n_aux_prediction]
+        @:param return_aux_logprob: ONLY effect when <compute_aux_pred> is True. When False, return softmax-probability
+        @:param sample_aux_pred: ONLY effect when <compute_aux_pred> is True. When True, return an aux-pred sample
+        @:return (action, value, hiddens) or (action, hiddens) + [optional, aux-pred]
         """
         seq_len = x.size(1)
         batch = x.size(0)
@@ -245,6 +263,21 @@ class DiscreteRNNPolicy(torch.nn.Module):
 
         rnn_feat = torch.cat([rnn_output.view(-1, self.rnn_output_size), self.feat], dim=1)
 
+        # compute aux task
+        if (self.aux_prediction is not None) and compute_aux_pred:
+            feat = rnn_feat
+            for i, l in self.aux_layers:
+                if i > 0: feat = self.func(feat)
+                feat = l(feat)
+            if sample_aux_pred:
+                feat = F.softmax(feat)
+                aux_pred = torch.multinomial(feat, 1).view(batch, seq_len, 1)
+            else:
+                aux_pred = F.log_softmax(feat) if return_aux_logprob else F.softmax(feat)
+                aux_pred = aux_pred.view(batch, seq_len, self.aux_prediction)
+        else:
+            aux_pred = None
+
         # compute action
         if not only_value:
             feat = rnn_feat
@@ -261,7 +294,11 @@ class DiscreteRNNPolicy(torch.nn.Module):
                 ret_act = self.logp
 
             if return_tensor: ret_act = ret_act.data
-            if not return_value: return ret_act, final_h
+            if not return_value:
+                if aux_pred is None:
+                    return ret_act, final_h
+                else:
+                    return ret_act, final_h, aux_pred
 
         # compute value
         feat = rnn_feat
@@ -270,8 +307,15 @@ class DiscreteRNNPolicy(torch.nn.Module):
             if i < len(self.critic_layers) - 1: feat = self.func(feat)
         self.value = ret_val = feat.view(batch, seq_len)  # torch 0.2 required
         if return_tensor: ret_val = ret_val.data
-        if only_value: return ret_val
-        return ret_act, ret_val, final_h
+        if only_value:
+            if aux_pred is None:
+                return ret_val
+            else:
+                return ret_val, aux_pred
+        if aux_pred is None:
+            return ret_act, ret_val, final_h
+        else:
+            return ret_act, ret_val, final_h, aux_pred
 
     ########################
     def logprob(self, actions, logp=None):

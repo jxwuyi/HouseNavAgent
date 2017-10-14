@@ -13,7 +13,7 @@ from zmq_trainer.zmqsimulator import SimulatorProcess, SimulatorMaster, ensure_p
 n_episode_evaluation = 300
 
 class ZMQHouseEnvironment:
-    def __init__(self, k=0, reward_type='indicator', success_measure='center', multi_target=False,
+    def __init__(self, k=0, reward_type='indicator', success_measure='center', multi_target=False, aux_task=False,
                  hardness=None, segment_input='none', depth_input=False, max_steps=-1, device=0):
         assert k >= 0
         self.env = common.create_env(k, reward_type=reward_type, hardness=hardness, success_measure=success_measure,
@@ -24,10 +24,16 @@ class ZMQHouseEnvironment:
         self.multi_target = multi_target
         if multi_target:
             self.env.cache_all_target()
+        self.aux_task = aux_task
+        if self.aux_task:
+            self._aux_target = self.env.get_current_room_pred_mask()
         self._target = common.target_instruction_dict[self.env.get_current_target()]
 
     def current_state(self):
-        return self.obs, self._target
+        if self.aux_task:
+            return self.obs, self._target, self._aux_target
+        else:
+            return self.obs, self._target
 
     def action(self, act):
         obs, rew, done, _ = self.env.step(act, return_info=False)
@@ -50,7 +56,7 @@ class ZMQSimulator(SimulatorProcess):
         device_ind = self.idx % len(device_list)
         device = device_list[device_ind]
         return ZMQHouseEnvironment(k, config['reward_type'], config['success_measure'],
-                                   config['multi_target'], config['hardness'],
+                                   config['multi_target'], config['aux_task'], config['hardness'],
                                    config['segment_input'], config['depth_input'],
                                    config['max_episode_len'], device)
 
@@ -83,13 +89,17 @@ class ZMQMaster(SimulatorMaster):
         self.multi_target = config['multi_target']
         if self.multi_target:
             self.episode_stats['target'] = []
+        self.aux_task = config['aux_task']
+        if self.aux_task:
+            self.episode_stats['aux_task_rew'] = []
+            self.episode_stats['aux_task_err'] = []
+            self.curr_aux_mask = dict()
 
     def _rand_select(self, ids):
         if not isinstance(ids, list): ids = list(ids)
         random.shuffle(ids)
         return ids[:self.batch_size]
 
-    # TODO: to test whether to use batched_simulation or async-single-proc simulation!
     def _batched_simulate(self):
         # random exploration
         batched_ids = list(self.train_buffer.keys())
@@ -100,7 +110,12 @@ class ZMQMaster(SimulatorMaster):
         else:
             target = None
         self.trainer.eval()  # TODO: check this option
-        action, next_hidden = self.trainer.action(states, hiddens, target=target)
+        if self.aux_task:
+            action, next_hidden, aux_preds = self.trainer.action(states, hiddens, target=target,
+                                                                 compute_aux_pred=True, sample_aux_pred=True)
+            aux_preds = aux_preds.squeeze().cpu().numpy()
+        else:
+            action, next_hidden = self.trainer.action(states, hiddens, target=target)
         cpu_action = action.squeeze().cpu().numpy()
         for i,id in enumerate(batched_ids):
             self.cnt += 1
@@ -111,6 +126,10 @@ class ZMQMaster(SimulatorMaster):
             self.send_message(id, act)  # send action to simulator
             self.train_buffer[id]['act'].append(act)
             self.hidden_state[id] = next_hidden[i]
+            if self.aux_task:
+                aux_rew = self.trainer.get_aux_task_reward(aux_preds[i], self.curr_aux_mask[id])
+                self.accu_stats[id]['aux_task_rew'] += aux_rew
+                self.accu_stats[id]['aux_task_err'] += float(aux_rew < 0)
 
     def _perform_train(self):
         self.train_cnt += 1
@@ -158,6 +177,7 @@ class ZMQMaster(SimulatorMaster):
         self.trainer.save(self.config['log_dir'], version=version+'_epis_stats', target_dict_data=self.episode_stats)
         self.trainer.save(self.config['log_dir'], version=version+'_update_stats', target_dict_data=self.update_stats)
 
+    # TODO: TO handle Aux_Task [to output the accumulative reward and error for aux task]
     def _evaluate_stats(self):
         duration = time.time() - self.start_time
         self.logger.print("+++++++++++++++++++ Eval +++++++++++++++++++++++++++++++")
@@ -173,6 +193,13 @@ class ZMQMaster(SimulatorMaster):
         avg_len = sum(len_stats) / len(len_stats)
         avg_succ = sum(succ_stats) / len(succ_stats)
         self.logger.print("  > Avg Reward = %.6f, Avg Path Len = %.6f, Succ Rate = %.2f" % (avg_rew, avg_len, avg_succ))
+        if self.aux_task:
+            aux_rew_stats = self.episode_stats['aux_task_rew'][-n_episode_evaluation:]
+            aux_err_stats = self.episode_stats['aux_task_err'][-n_episode_evaluation:]
+            avg_aux_rew = sum(aux_rew_stats) / len(aux_rew_stats)
+            avg_aux_err = sum(aux_err_stats) / len(aux_err_stats)
+            self.logger.print(
+                "  ---> Aux-Task Predictions: Avg Rew = %.3f,  Avg Err = %.3f" % (avg_aux_rew, avg_aux_err))
         if self.multi_target:
             all_stats = dict()
             for i, t in enumerate(tar_stats):
@@ -196,6 +223,9 @@ class ZMQMaster(SimulatorMaster):
             self.logger.print('   ===========>>>>>>> Best Avg Reward! Model Saved!!!')
             self.trainer.save(self.config['save_dir'], version='best')
             stats_dict = dict(avg_rew=avg_rew, avg_len=avg_len, avg_succ=avg_succ, iter=self.train_cnt)
+            if self.aux_task:
+                stats_dict['aux_avg_rew'] = avg_aux_rew
+                stats_dict['aux_avg_err'] = avg_aux_err
             self.trainer.save(self.config['log_dir'], version='best_stats', target_dict_data=stats_dict)
         self.logger.print("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
 
@@ -204,13 +234,20 @@ class ZMQMaster(SimulatorMaster):
         Handle a message sent by "ident" simulator.
         The simulator takes the last action we send, arrive in "state", get "reward" and "isOver".
         """
-        state, target = _state
+        if self.aux_task:
+            state, target, aux_msk = _state
+        else:
+            state, target = _state
+            aux_msk = None
         trainer = self.trainer
         if ident not in self.hidden_state:  # new process passed in
             self.hidden_state[ident] = trainer.get_init_hidden()
             self.accu_stats[ident] = dict(rew=0, len=0, succ=0)
             if self.multi_target:
                 self.accu_stats[ident]['target'] = target
+            if self.aux_task:
+                self.accu_stats[ident]['aux_task_rew'] = 0
+                self.accu_stats[ident]['aux_task_err'] = 0
 
         self.accu_stats[ident]['rew'] += reward
         self.accu_stats[ident]['len'] += 1
@@ -236,10 +273,17 @@ class ZMQMaster(SimulatorMaster):
             if self.multi_target:
                 self.episode_stats['target'].append(self.accu_stats[ident]['target'])
                 self.accu_stats[ident]['target'] = target
+            if self.aux_task:
+                self.episode_stats['aux_task_err'].append(self.accu_stats[ident]['aux_task_err'] / self.episode_stats['len'][-1])
+                self.accu_stats[ident]['aux_task_err'] = 0
+                self.episode_stats['aux_task_rew'].append(self.accu_stats[ident]['aux_task_rew'])
+                self.accu_stats[ident]['aux_task_rew'] = 0
 
         if isinstance(state, np.ndarray): state = torch.from_numpy(state).type(ByteTensor)
         self.curr_state[ident] = state
         self.curr_target[ident] = target
+        if self.aux_task:
+            self.curr_aux_mask[ident] = aux_msk
 
         # currently run batched simulation
         if ident in self.train_buffer:
@@ -247,6 +291,7 @@ class ZMQMaster(SimulatorMaster):
             self.train_buffer[ident]['done'].append(isOver)
             self.train_buffer[ident]['rew'].append(reward)
             if self.multi_target: self.train_buffer[ident]['target'].append(target)
+            if self.aux_task: self.train_buffer[ident]['aux_target'].append(trainer.process_aux_target(aux_msk))
             self.pool.add(ident)
             if len(self.pool) == self.batch_size:
                 if self.batch_step == self.t_max:
@@ -265,6 +310,8 @@ class ZMQMaster(SimulatorMaster):
                 for id in cand:
                     self.train_buffer[id] = dict(obs=[self.curr_state[id]], rew=[], done=[], act=[],
                                                  init_h=self.hidden_state[id], target=[self.curr_target[id]])
+                    if self.aux_task:
+                        self.train_buffer[id]['aux_target'] = [trainer.process_aux_target(self.curr_aux_mask[id])]
                 self._batched_simulate()
                 self.pool.clear()
                 self.batch_step += 1
