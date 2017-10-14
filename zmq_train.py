@@ -84,6 +84,7 @@ def create_zmq_config(args):
     config['reward_type'] = args['reward_type']
     config['hardness'] = args['hardness']
     all_gpus = common.get_gpus_for_rendering()
+    assert (len(all_gpus) > 0), 'No GPU found! There must be at least 1 GPU for rendering!'
     if args['render_gpu'] is not None:
         gpu_ids = args['render_gpu'].split(',')
         render_gpus = [all_gpus[int(k)] for k in gpu_ids]
@@ -91,7 +92,10 @@ def create_zmq_config(args):
         k = args['train_gpu']
         render_gpus = all_gpus[:k] + all_gpus[k+1:]
     else:
-        render_gpus = all_gpus[1:]
+        if len(all_gpus) == 1:
+            render_gpus = all_gpus
+        else:
+            render_gpus = all_gpus[1:]
     config['render_devices'] = tuple(render_gpus)
     config['segment_input'] = args['segment_input']
     config['depth_input'] = args['depth_input']
