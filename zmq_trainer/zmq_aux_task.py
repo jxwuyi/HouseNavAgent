@@ -32,7 +32,7 @@ aux_mask_dict = []
 for msk in range(aux_max_allowed_mask_value):
     cur = []
     for i in range(common.n_aux_predictions):
-        if (msk and (1 << i)) > 0:
+        if (msk & (1 << i)) > 0:
             cur.append(i)
     aux_mask_dict.append(cur)
 
@@ -58,7 +58,7 @@ class ZMQAuxTaskTrainer(ZMQA3CTrainer):
         return ret
 
     def get_aux_task_reward(self, pred, mask):
-        if (mask and (1 << pred)) > 0:
+        if (mask & (1 << pred)) > 0:
             if pred == aux_uncertain_id:
                 return aux_uncertain_weight
             else:
