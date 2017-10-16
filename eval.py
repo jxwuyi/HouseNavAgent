@@ -163,7 +163,7 @@ def evaluate(house, seed = 0,
              rnn_units=None, rnn_layers=None, rnn_cell=None,
              use_action_gating=False, use_residual_critic=False, use_target_gating=False,
              segmentation_input='none', depth_input=False, resolution='normal', history_len=4,
-             aux_task=False):
+             aux_task=False, no_skip_connect=False):
 
     # Do not need to log detailed computation stats
     common.debugger = utils.FakeLogger()
@@ -181,6 +181,7 @@ def evaluate(house, seed = 0,
     args['multi_target'] = multi_target
     args['target_gating'] = use_target_gating
     args['aux_task'] = aux_task
+    args['no_skip_connect'] = no_skip_connect
 
     if model_name == 'rnn':
         import zmq_train
@@ -384,6 +385,10 @@ def parse_args():
     parser.add_argument("--auxiliary-task", dest='aux_task', action='store_true',
                         help="Whether to perform auxiliary task of predicting room types")
     parser.set_defaults(aux_task=False)
+    # Ablation Test Options
+    parser.add_argument("--no-skip-connect", dest='no_skip_connect', action='store_true',
+                        help="[A3C-LSTM Only] no skip connect. only takes the output of rnn to compute action")
+    parser.set_defaults(no_skip_connect=False)
     # Checkpointing
     parser.add_argument("--log-dir", type=str, default="./log/eval", help="directory in which logs eval stats")
     parser.add_argument("--warmstart", type=str, help="file to load the model")
@@ -432,7 +437,7 @@ if __name__ == '__main__':
                      args.rnn_units, args.rnn_layers, args.rnn_cell,
                      args.action_gating, args.residual_critic, args.target_gating,
                      args.segmentation_input, args.depth_input, args.resolution, args.history_frame_len,
-                     aux_task=args.aux_task)
+                     aux_task=args.aux_task, no_skip_connect=args.no_skip_connect)
 
     if args.store_history:
         filename = args.log_dir

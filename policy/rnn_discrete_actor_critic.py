@@ -19,7 +19,9 @@ class DiscreteRNNPolicy(torch.nn.Module):
                  multi_target=False,  # whether to train target embedding
                  target_embedding_dim=25,  # embedding dimension of target instruction
                  use_target_gating=False,
-                 aux_prediction=None
+                 aux_prediction=None,
+                 ##### ablation test options ######
+                 no_skip_connect=False
                  ):
         """
         D_shape_in: (n_channel, n_row, n_col)
@@ -42,6 +44,9 @@ class DiscreteRNNPolicy(torch.nn.Module):
         self.use_target_gating = multi_target and use_target_gating
         self.target_embed_dim = target_embedding_dim
         self.aux_prediction = aux_prediction
+        self.no_skip_connect = no_skip_connect
+        if no_skip_connect:
+            print('[RNN-Policy] Skip-Connection Blocked!!!!')
         if len(self.cnn_kernel_sizes) == 1: self.cnn_kernel_sizes = self.cnn_kernel_sizes * self.cnn_layers
         if len(self.cnn_strides) == 1: self.cnn_strides = self.cnn_strides * self.cnn_layers
 
@@ -115,7 +120,7 @@ class DiscreteRNNPolicy(torch.nn.Module):
         # build policy layers
         policy_hiddens.append(self.out_dim)
         self.policy_layers = []
-        cur_dim = self.rnn_output_size + self.feat_size
+        cur_dim = self.rnn_output_size + (self.feat_size if not self.no_skip_connect else 0)
         for i,d in enumerate(policy_hiddens):
             self.policy_layers.append(nn.Linear(cur_dim, d))
             setattr(self, 'policy_layer%d'%i, self.policy_layers[-1])
@@ -125,7 +130,7 @@ class DiscreteRNNPolicy(torch.nn.Module):
         # build critic layers
         critic_hiddens.append(1)
         self.critic_layers = []
-        cur_dim = self.rnn_output_size + self.feat_size
+        cur_dim = self.rnn_output_size + (self.feat_size if not self.no_skip_connect else 0)
         for i,d in enumerate(critic_hiddens):
             self.critic_layers.append(nn.Linear(cur_dim, d))
             setattr(self, 'critic_layers%d'%i, self.critic_layers[-1])
@@ -134,7 +139,7 @@ class DiscreteRNNPolicy(torch.nn.Module):
 
         if aux_prediction is not None:
             assert isinstance(aux_prediction, int), '[RNNPolicy] Currently only support a single aux-pred-task!'
-            cur_dim = self.rnn_output_size + self.feat_size
+            cur_dim = self.rnn_output_size + (self.feat_size if not self.no_skip_connect else 0)
             hidden_d = 64  # currently a hack
             self.aux_layers = [nn.Linear(cur_dim, hidden_d)]
             setattr(self, 'aux_layers0', self.aux_layers[-1])
@@ -261,7 +266,10 @@ class DiscreteRNNPolicy(torch.nn.Module):
                 final_h = final_h.data
         if unpack_hidden: final_h = self._unpack_hidden_states(final_h)
 
-        rnn_feat = torch.cat([rnn_output.view(-1, self.rnn_output_size), self.feat], dim=1)
+        if self.no_skip_connect:
+            rnn_feat = rnn_output.view(-1, self.rnn_output_size)
+        else:
+            rnn_feat = torch.cat([rnn_output.view(-1, self.rnn_output_size), self.feat], dim=1)
 
         # compute aux task
         if (self.aux_prediction is not None) and compute_aux_pred:

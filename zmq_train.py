@@ -52,10 +52,11 @@ def create_policy(model_name, args, observation_shape, n_action):
                               rnn_units=args['rnn_units'],
                               multi_target=args['multi_target'],
                               use_target_gating=args['target_gating'],
-                              aux_prediction=(common.n_aux_predictions if args['aux_task'] else None))
+                              aux_prediction=(common.n_aux_predictions if args['aux_task'] else None),
+                              no_skip_connect=(args['no_skip_connect'] if 'no_skip_connect' in args else False))
     if common.use_cuda:
         if 'train_gpu' in args:
-            model.cuda(device_id=args['train_gpu'])  # TODO: Actually we only supprt training on gpu_id=0
+            model.cuda(device_id=args['train_gpu'])  # TODO: Actually we only support training on gpu_id=0
         else:
             model.cuda()
     return model
@@ -232,6 +233,12 @@ def parse_args():
     parser.set_defaults(reinforce_loss=False)
     parser.add_argument("--aux-loss-coef", dest='aux_loss_coef', type=float, default=1.0,
                         help="Coefficient for the Auxiliary Task Loss. Only effect when --auxiliary-task")
+
+    ####################################################
+    # Ablation Test Options
+    parser.add_argument("--no-skip-connect", dest='no_skip_connect', action='store_true',
+                        help="[A3C-LSTM Only] no skip connect. only takes the output of rnn to compute action")
+    parser.set_defaults(no_skip_connect=False)
 
     ###################################################
     # Checkpointing
