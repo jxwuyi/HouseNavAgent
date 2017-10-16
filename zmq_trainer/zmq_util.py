@@ -112,8 +112,7 @@ class ZMQMaster(SimulatorMaster):
             target = None
         self.trainer.eval()  # TODO: check this option
         if self.aux_task:
-            action, next_hidden, aux_preds = self.trainer.action(states, hiddens, target=target,
-                                                                 return_aux_pred=True, sample_aux_pred=True)
+            action, next_hidden, aux_preds = self.trainer.action(states, hiddens, target=target, return_aux_pred=True)
             aux_preds = aux_preds.squeeze().cpu().numpy()
         else:
             action, next_hidden = self.trainer.action(states, hiddens, target=target)
