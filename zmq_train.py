@@ -6,6 +6,7 @@ import environment
 import threading
 
 from zmq_trainer.zmq_actor_critic import ZMQA3CTrainer
+from zmq_trainer.zmq_aux_task import ZMQAuxTaskTrainer
 from zmq_trainer.zmq_util import ZMQSimulator, ZMQMaster
 from zmq_trainer.zmqsimulator import SimulatorProcess, SimulatorMaster, ensure_proc_terminate
 
@@ -50,7 +51,8 @@ def create_policy(model_name, args, observation_shape, n_action):
                               rnn_layers=args['rnn_layers'],
                               rnn_units=args['rnn_units'],
                               multi_target=args['multi_target'],
-                              use_target_gating=args['target_gating'])
+                              use_target_gating=args['target_gating'],
+                              aux_prediction=(common.n_aux_predictions if args['aux_task'] else None))
     if common.use_cuda:
         if 'train_gpu' in args:
             model.cuda(device_id=args['train_gpu'])  # TODO: Actually we only supprt training on gpu_id=0
@@ -65,7 +67,10 @@ def create_zmq_trainer(algo, model, args):
     n_action = common.n_discrete_actions
     if algo == 'a3c':
         model_gen = lambda: create_policy(model, args, observation_shape, n_action)
-        trainer = ZMQA3CTrainer('ZMQA3CTrainer', model_gen, observation_shape, [n_action], args)
+        if args['aux_task']:
+            trainer = ZMQAuxTaskTrainer('ZMQAuxTaskA3CTrainer', model_gen, observation_shape, [n_action], args)
+        else:
+            trainer = ZMQA3CTrainer('ZMQA3CTrainer', model_gen, observation_shape, [n_action], args)
     else:
         assert False, '[ZMQ Trainer] Trainer <{}> is not defined!'.format(algo)
     return trainer
@@ -97,6 +102,7 @@ def create_zmq_config(args):
     config['max_episode_len'] = args['max_episode_len']
     config['success_measure'] = args['success_measure']
     config['multi_target'] = args['multi_target']
+    config['aux_task'] = args['aux_task']
     return config
 
 
@@ -218,6 +224,14 @@ def parse_args():
     # Aux Tasks and Additional Sampling Choice
     parser.add_argument("--q-loss-coef", type=float,
                         help="For joint model, the coefficient for q_loss")
+    parser.add_argument("--auxiliary-task", dest='aux_task', action='store_true',
+                        help="Whether to perform auxiliary task of predicting room types")
+    parser.set_defaults(aux_task=False)
+    parser.add_argument("--use-reinforce-loss", dest='reinforce_loss', action='store_true',
+                        help="When true, use reinforce loss to train the auxiliary task loss")
+    parser.set_defaults(reinforce_loss=False)
+    parser.add_argument("--aux-loss-coef", dest='aux_loss_coef', type=float, default=1.0,
+                        help="Coefficient for the Auxiliary Task Loss. Only effect when --auxiliary-task")
 
     ###################################################
     # Checkpointing
