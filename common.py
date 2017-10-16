@@ -88,6 +88,9 @@ for i, tp in enumerate(all_allowed_target_room_types):
 
 all_aux_predictions = all_allowed_prediction_room_types
 n_aux_predictions = len(all_aux_predictions)
+all_aux_prediction_list = [None] * n_aux_predictions
+for k in all_aux_predictions:
+    all_aux_prediction_list[all_aux_predictions[k]] = k
 
 debugger = None
 

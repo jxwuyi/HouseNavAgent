@@ -20,14 +20,16 @@ def proc_info(info):
                 dist=info['dist'])
 
 def evaluate_aux_pred(house, seed = 0,iters = 1000, max_episode_len = 10,
-                      model_file=None, log_dir='./log/eval',
+                      algo='a3c', model_name='rnn', model_file=None, log_dir='./log/eval',
                       store_history=False, use_batch_norm=True,
                       rnn_units=None, rnn_layers=None, rnn_cell=None,
                       multi_target=True, use_target_gating=False,
                       segmentation_input='none', depth_input=False, resolution='normal'):
     # Do not need to log detailed computation stats
+    assert algo in ['a3c', 'nop']
+    flag_run_random_policy = (algo == 'nop')
     common.debugger = utils.FakeLogger()
-    args = common.create_default_args('a3c', model=model_name, use_batch_norm=use_batch_norm,
+    args = common.create_default_args(algo, model=model_name, use_batch_norm=use_batch_norm,
                                       replay_buffer_size=50,
                                       episode_len=max_episode_len,
                                       rnn_units=rnn_units, rnn_layers=rnn_layers, rnn_cell=rnn_cell,
@@ -40,7 +42,7 @@ def evaluate_aux_pred(house, seed = 0,iters = 1000, max_episode_len = 10,
     args['target_gating'] = use_target_gating
     args['aux_task'] = True
     import zmq_train
-    trainer = zmq_train.create_zmq_trainer('a3c', model_name, args)
+    trainer = zmq_train.create_zmq_trainer(algo, model_name, args)
     if model_file is not None:
         trainer.load(model_file)
     trainer.eval()  # evaluation mode
@@ -55,6 +57,7 @@ def evaluate_aux_pred(house, seed = 0,iters = 1000, max_episode_len = 10,
     episode_err = []
     episode_succ = []
     episode_good = []
+    episode_rews = []
     episode_stats = []
     elap = time.time()
 
@@ -72,34 +75,56 @@ def evaluate_aux_pred(house, seed = 0,iters = 1000, max_episode_len = 10,
         if model_name != 'rnn': obs = obs.transpose([1, 0, 2])
         episode_succ.append(0)
         episode_err.append(0)
-        episode_good.append(1)
+        episode_good.append(0)
         cur_rew = []
+        cur_pred = []
+        if flag_run_random_policy:
+            predefined_aux_pred = common.all_aux_predictions[random.choice(common.all_target_instructions)]
         for _st in range(max_episode_len):
             # get action
-            if multi_target:
-                _, _, aux_prob = trainer.action(obs, return_numpy=True, target=[[target_id]],
-                                                return_aux_pred=True, return_aux_logprob=False)
+            if flag_run_random_policy:
+                aux_pred = predefined_aux_pred
             else:
-                _, _, aux_prob = trainer.action(obs, return_numpy=True, return_aux_pred=True, return_aux_logprob=False)
-            aux_prob = aux_prob.squeeze()  # [n_pred]
-            aux_pred = int(np.argmax(aux_prob))  # greedy action, takes the output with the maximum confidence
+                if multi_target:
+                    _, _, aux_prob = trainer.action(obs, return_numpy=True, target=[[target_id]],
+                                                    return_aux_pred=True, return_aux_logprob=False)
+                else:
+                    _, _, aux_prob = trainer.action(obs, return_numpy=True, return_aux_pred=True, return_aux_logprob=False)
+                aux_prob = aux_prob.squeeze()  # [n_pred]
+                aux_pred = int(np.argmax(aux_prob))  # greedy action, takes the output with the maximum confidence
             aux_rew = trainer.get_aux_task_reward(aux_pred, env.get_current_room_pred_mask())
             cur_rew.append(aux_rew)
+            cur_pred.append(common.all_aux_prediction_list[aux_pred])
             if aux_rew < 0:
-                episode_good[-1] = 0
-                episode_err[-1] = 1
+                episode_err[-1] += 1
             if aux_rew >= 0.9:  # currently a hack
-                episode_succ[-1] = 1
+                episode_succ[-1] += 1
+            if aux_rew > 0:
+                episode_good[-1] += 1
             action = 5  # Left Rotation
             # environment step
             obs, rew, done, info = env.step(action)
             if store_history:
                 cur_infos.append(proc_info(info))
+                cur_infos[-1]['aux_pred'] = cur_pred
                 #cur_images.append(env.render(renderMapLoc=env.cam_info['loc'], display=False))
             if model_name != 'rnn': obs = obs.transpose([1, 0, 2])
         if episode_err[-1] > 0:
             episode_succ[-1] = 0
-        cur_stats = dict(err=episode_err[-1], good=episode_good[-1], succ=episode_succ[-1])
+        room_mask = env.get_current_room_pred_mask()
+        cur_room_types = []
+        for i in range(common.n_aux_predictions):
+            if (room_mask & (1 << i)) > 0:
+                cur_room_types.append(common.all_aux_prediction_list[i])
+
+        cur_stats = dict(err=episode_err[-1], good=episode_good[-1], succ=episode_succ[-1], rew=cur_rew,
+                         err_rate=episode_err[-1]/max_episode_len,
+                         good_rate=episode_good[-1]/max_episode_len,
+                         succ_rate=episode_succ[-1]/max_episode_len,
+                         target=env.get_current_target(),
+                         mask=room_mask,
+                         room_types=cur_room_types,
+                         length=max_episode_len)
         if store_history:
             cur_stats['infos'] = cur_infos
         episode_stats.append(cur_stats)
@@ -108,13 +133,24 @@ def evaluate_aux_pred(house, seed = 0,iters = 1000, max_episode_len = 10,
         logger.print('Episode#%d, Elapsed = %.3f min' % (it+1, dur/60))
         logger.print('  ---> Target Room = {}'.format(cur_stats['target']))
         logger.print('  ---> Aux Rew = {}'.format(cur_rew))
-        if episode_succ[-1] > 0:
+        if (episode_succ[-1] > 0) and (episode_err[-1] == 0):
             logger.print('  >>>> Success!')
-        elif episode_good[-1] > 0:
+        elif episode_err[-1] == 0:
             logger.print('  >>>> Good!')
         else:
             logger.print('  >>>> Failed!')
-        logger.print("  > Succ = %.3f,  Good = %.3f, Fail = %3f" % (np.mean(episode_succ), np.mean(episode_good), np.mean(episode_err)))
+        logger.print("  ---> Indep. Prediction: Succ Rate = %.3f, Good Rate = %.3f, Err Rate = %.3f"
+                     % (episode_succ[-1] * 100.0 / max_episode_len,
+                        episode_good[-1] * 100.0 / max_episode_len,
+                        episode_err[-1] * 100.0 / max_episode_len))
+        logger.print("  > Accu. Succ = %.3f, Good = %.3f, Fail = %.3f"
+                     % (float(np.mean([float(s == max_episode_len) for s in episode_succ])) * 100.0,
+                        float(np.mean([float(e == 0) for e in episode_err])) * 100,
+                        float(np.mean([float(e > 0) for e in episode_err])) * 100))
+        logger.print("  > Accu. Rate: Succ Rate = %.3f, Good Rate = %.3f, Fail Rate = %.3f"
+                     % (float(np.mean([s / max_episode_len for s in episode_succ])) * 100.0,
+                        float(np.mean([g / max_episode_len for g in episode_good])) * 100,
+                        float(np.mean([e / max_episode_len for e in episode_err])) * 100))
     return episode_stats
 
 
@@ -382,7 +418,7 @@ if __name__ == '__main__':
     if args.hardness <= 1e-6:
         assert args.aux_task, 'When Hardness == 0, option --auxiliary-task must be set!'
         episode_stats = evaluate_aux_pred(args.house, args.seed or 0, args.max_iters, args.max_episode_len,
-                                          args.warmstart, args.log_dir, args.store_history,
+                                          args.algo, model_name, args.warmstart, args.log_dir, args.store_history,
                                           args.use_batch_norm,
                                           args.rnn_units, args.rnn_layers, args.rnn_cell,
                                           args.multi_target, args.target_gating,
