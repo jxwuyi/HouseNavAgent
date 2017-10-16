@@ -77,10 +77,12 @@ def evaluate_aux_pred(house, seed = 0,iters = 1000, max_episode_len = 10,
         for _st in range(max_episode_len):
             # get action
             if multi_target:
-                _, _, aux_pred = trainer.action(obs, return_numpy=True, target=[[target_id]], return_aux_pred=True)
+                _, _, aux_prob = trainer.action(obs, return_numpy=True, target=[[target_id]],
+                                                return_aux_pred=True, return_aux_logprob=False)
             else:
-                _, _, aux_pred = trainer.action(obs, return_numpy=True, return_aux_pred=True)
-            aux_pred = int(aux_pred.squeeze())
+                _, _, aux_prob = trainer.action(obs, return_numpy=True, return_aux_pred=True, return_aux_logprob=False)
+            aux_prob = aux_prob.squeeze()  # [n_pred]
+            aux_pred = int(np.argmax(aux_prob))  # greedy action, takes the output with the maximum confidence
             aux_rew = trainer.get_aux_task_reward(aux_pred, env.get_current_room_pred_mask())
             cur_rew.append(aux_rew)
             if aux_rew < 0:
