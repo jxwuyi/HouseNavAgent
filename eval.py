@@ -206,12 +206,14 @@ def evaluate(house, seed = 0,
                 idx = 0
                 if multi_target:
                     if aux_task:
-                        action, _, aux_pred = trainer.action(obs, return_numpy=True, target=[[target_id]], return_aux_pred=True)
+                        action, _, aux_pred = trainer.action(obs, return_numpy=True, target=[[target_id]],
+                                                             return_aux_pred=True, sample_aux_pred=True)
                     else:
                         action, _ = trainer.action(obs, return_numpy=True, target=[[target_id]])
                 else:
                     if aux_task:
-                        action, _, aux_pred = trainer.action(obs, return_numpy=True, return_aux_pred=True)
+                        action, _, aux_pred = trainer.action(obs, return_numpy=True,
+                                                             return_aux_pred=True, sample_aux_pred=True)
                     else:
                         action, _ = trainer.action(obs, return_numpy=True)
                 action = int(action.squeeze())
