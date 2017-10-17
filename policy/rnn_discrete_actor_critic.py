@@ -21,7 +21,8 @@ class DiscreteRNNPolicy(torch.nn.Module):
                  use_target_gating=False,
                  aux_prediction=None,
                  ##### ablation test options ######
-                 no_skip_connect=False
+                 no_skip_connect=False,   # only take the output of rnn to produce policy
+                 pure_feed_forward=False,   # when True, convert to feedforward policy
                  ):
         """
         D_shape_in: (n_channel, n_row, n_col)
@@ -44,9 +45,13 @@ class DiscreteRNNPolicy(torch.nn.Module):
         self.use_target_gating = multi_target and use_target_gating
         self.target_embed_dim = target_embedding_dim
         self.aux_prediction = aux_prediction
-        self.no_skip_connect = no_skip_connect
-        if no_skip_connect:
+        self.feed_forward = pure_feed_forward
+        if pure_feed_forward:
+            print('[RNN-Policy] <--pure-feed-forward> flag is TRUE!!! NO RNN module any more! Turning CNN Policy!!!!')
+            no_skip_connect = True
+        elif no_skip_connect:
             print('[RNN-Policy] Skip-Connection Blocked!!!!')
+        self.no_skip_connect = no_skip_connect
         if len(self.cnn_kernel_sizes) == 1: self.cnn_kernel_sizes = self.cnn_kernel_sizes * self.cnn_layers
         if len(self.cnn_strides) == 1: self.cnn_strides = self.cnn_strides * self.cnn_layers
 
@@ -115,7 +120,7 @@ class DiscreteRNNPolicy(torch.nn.Module):
                              num_layers=self.rnn_layers,
                              batch_first=True)
         utils.initialize_weights(self.cell)
-        self.rnn_output_size = self.rnn_units
+        self.rnn_output_size = self.rnn_units if not self.feed_forward else self.feat_size
 
         # build policy layers
         policy_hiddens.append(self.out_dim)
@@ -257,7 +262,11 @@ class DiscreteRNNPolicy(torch.nn.Module):
 
         if isinstance(h, list): h = self._pack_hidden_states(h)
 
-        rnn_output, final_h = self.cell(rnn_input, h)  # [seq_len, batch, units], [layer, batch, units]
+        if self.feed_forward:
+            final_h = h
+            rnn_output = self.feat.view(batch, seq_len, self.feat_size)
+        else:
+            rnn_output, final_h = self.cell(rnn_input, h)  # [seq_len, batch, units], [layer, batch, units]
         self.last_h = final_h
         if return_tensor:
             if isinstance(final_h, tuple):

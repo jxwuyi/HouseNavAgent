@@ -53,7 +53,8 @@ def create_policy(model_name, args, observation_shape, n_action):
                               multi_target=args['multi_target'],
                               use_target_gating=args['target_gating'],
                               aux_prediction=(common.n_aux_predictions if args['aux_task'] else None),
-                              no_skip_connect=(args['no_skip_connect'] if 'no_skip_connect' in args else False))
+                              no_skip_connect=(args['no_skip_connect'] if 'no_skip_connect' in args else False),
+                              pure_feed_forward=(args['feed_forward'] if 'feed_forward' in args else False))
     if common.use_cuda:
         if 'train_gpu' in args:
             model.cuda(device_id=args['train_gpu'])  # TODO: Actually we only support training on gpu_id=0
@@ -239,6 +240,9 @@ def parse_args():
     parser.add_argument("--no-skip-connect", dest='no_skip_connect', action='store_true',
                         help="[A3C-LSTM Only] no skip connect. only takes the output of rnn to compute action")
     parser.set_defaults(no_skip_connect=False)
+    parser.add_argument("--feed-forward-a3c", dest='feed_forward', action='store_true',
+                        help="[A3C-LSTM Only] skip rnn completely. essentially cnn-a3c")
+    parser.set_defaults(feed_forward=False)
 
     ###################################################
     # Checkpointing
