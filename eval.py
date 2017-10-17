@@ -278,8 +278,9 @@ def evaluate(house, seed = 0,
             # collect experience
             trainer.process_experience(idx, action, rew, done, (_st + 1 >= max_episode_len), info)
             if done:
-                episode_success[-1] = 1
-                cur_stats['success'] = 1
+                if rew > 5:  # magic number:
+                    episode_success[-1] = 1
+                    cur_stats['success'] = 1
                 cur_stats['length'] = episode_step
                 if aux_task:
                     cur_stats['aux_pred_err'] /= episode_step
