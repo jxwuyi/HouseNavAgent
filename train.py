@@ -52,7 +52,8 @@ def train(args=None,
     env = common.create_env(houseID, reward_type, hardness,
                             success_measure=success_measure,
                             segment_input=args['segment_input'],
-                            depth_input=args['depth_input'])
+                            depth_input=args['depth_input'],
+                            render_device=args['render_gpu'])
     logger = utils.MyLogger(log_dir, True)
     if multi_target:
         assert hasattr(trainer, 'set_target')
@@ -217,6 +218,8 @@ def parse_args():
     parser.add_argument("--multi-target", dest='multi_target', action='store_true',
                         help="when this flag is set, a new target room will be selected per episode")
     parser.set_defaults(multi_target=False)
+    parser.add_argument("--render-gpu", type=int,
+                        help="An integer indicating the gpu_id for render. Default by choosing the first GPU in all the accessible devices.")
     # Core training parameters
     parser.add_argument("--algo", choices=['ddpg','pg', 'rdpg', 'ddpg_joint', 'ddpg_alter', 'ddpg_eagle',
                                            'a2c', 'qac', 'dqn'], default="ddpg", help="algorithm")
@@ -231,6 +234,7 @@ def parse_args():
     parser.add_argument("--update-freq", type=int, help="update model parameters once every this many samples collected")
     parser.add_argument("--max-iters", type=int, default=int(2e6), help="maximum number of training episodes")
     parser.add_argument("--target-net-update-rate", type=float, help="update rate for target networks")
+    parser.add_argument("--target-net-update-freq", type=int, help="[Only For DQN] update (copy) frequency for target network. This will De-effect --target-net-update-rate")
     parser.add_argument("--batch-norm", action='store_true', dest='use_batch_norm',
                         help="Whether to use batch normalization in the policy network. default=False.")
     parser.set_defaults(use_batch_norm=False)
@@ -346,6 +350,13 @@ if __name__ == '__main__':
 
     if cmd_args.q_loss_coef is not None:
         args['q_loss_coef'] = cmd_args.q_loss_coef
+
+    if cmd_args.render_gpu is not None:
+        all_gpus = common.get_gpus_for_rendering()
+        assert (len(all_gpus) > 0), 'No GPU found! There must be at least 1 GPU for rendering!'
+        args['render_gpu'] = all_gpus[cmd_args.render_gpu]
+    else:
+        args['render_gpu'] = None
 
     args['action_gating'] = cmd_args.action_gating   # gating in ddpg network
     args['residual_critic'] = cmd_args.residual_critic  # resnet for critic (classical ddpg)
