@@ -8,16 +8,19 @@ import random
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import time
 
 
 def set_seed(seed):
     random.seed(seed)
     np.random.seed(seed)
 
+
 def proc_info(info):
     return dict(pos=(info['pos'].x, info['pos'].y, info['pos'].z),
                 yaw=info['yaw'], loc=info['loc'], grid=info['grid'],
                 dist=info['dist'])
+
 
 def evaluate_aux_pred(house, seed = 0,iters = 1000, max_episode_len = 10,
                       algo='a3c', model_name='rnn', model_file=None, log_dir='./log/eval',
@@ -164,7 +167,7 @@ def evaluate(house, seed = 0,
              use_action_gating=False, use_residual_critic=False, use_target_gating=False,
              segmentation_input='none', depth_input=False, resolution='normal', history_len=4,
              aux_task=False, no_skip_connect=False, feed_forward=False):
-
+    elap = time.time()
     # Do not need to log detailed computation stats
     common.debugger = utils.FakeLogger()
 
@@ -213,7 +216,6 @@ def evaluate(house, seed = 0,
     episode_success = []
     episode_good = []
     episode_stats = []
-    elap = time.time()
     t = 0
     for it in range(iters):
         cur_infos = []
