@@ -39,8 +39,8 @@ for msk in range(aux_max_allowed_mask_value):
 class ZMQAuxTaskTrainer(ZMQA3CTrainer):
     def __init__(self, name, model_creator, obs_shape, act_shape, args):
         super(ZMQAuxTaskTrainer, self).__init__(name, model_creator, obs_shape, act_shape, args)
-        self.use_supervised_loss = not args['reinforce_loss']
-        self.aux_loss_coef = args['aux_loss_coef']
+        self.use_supervised_loss = (not args['reinforce_loss'] if 'reinforce_loss' in args else True)
+        self.aux_loss_coef = (args['aux_loss_coef'] if 'aux_loss_coef' in args else 0.0)
         self._normal_aux_predition = True
 
     def set_greedy_aux_prediction(self):
