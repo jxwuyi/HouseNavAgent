@@ -166,7 +166,8 @@ def evaluate(house, seed = 0,
              rnn_units=None, rnn_layers=None, rnn_cell=None,
              use_action_gating=False, use_residual_critic=False, use_target_gating=False,
              segmentation_input='none', depth_input=False, resolution='normal', history_len=4,
-             aux_task=False, no_skip_connect=False, feed_forward=False):
+             aux_task=False, no_skip_connect=False, feed_forward=False,
+             greedy_execution=False, greedy_aux_pred=False):
     elap = time.time()
     # Do not need to log detailed computation stats
     common.debugger = utils.FakeLogger()
@@ -195,6 +196,16 @@ def evaluate(house, seed = 0,
     if model_file is not None:
         trainer.load(model_file)
     trainer.eval()  # evaluation mode
+    if greedy_execution and hasattr(trainer, 'set_greedy_execution'):
+        trainer.set_greedy_execution()
+    else:
+        print('[Eval] WARNING!!! Greedy Policy Execution NOT Available!!!')
+        greedy_execution = False
+    if greedy_aux_pred and hasattr(trainer, 'set_greedy_aux_prediction'):
+        trainer.set_greedy_aux_prediction()
+    else:
+        print('[Eval] WARNING!!! Greedy Execution of Auxiliary Task NOT Available!!!')
+        greedy_aux_pred = False
 
     if aux_task: assert trainer.is_rnn()  # only rnn support aux_task
 
@@ -254,9 +265,17 @@ def evaluate(house, seed = 0,
                         action, _, aux_pred = trainer.action(obs, return_numpy=True, return_aux_pred=True)
                     else:
                         action, _ = trainer.action(obs, return_numpy=True)
-                action = int(action.squeeze())
+                action = action.squeeze()
+                if greedy_execution:
+                    action = int(np.argmax(action))
+                else:
+                    action = int(action)
                 if aux_task:
-                    aux_pred = int(aux_pred.squeeze())
+                    aux_pred = aux_pred.squeeze()
+                    if greedy_aux_pred:
+                        aux_pred = int(np.argmax(aux_pred))
+                    else:
+                        aux_pred = int(aux_pred)
                     aux_rew = trainer.get_aux_task_reward(aux_pred, env.get_current_room_pred_mask())
                     cur_stats['aux_pred_rew'] += aux_rew
                     if aux_rew < 0: cur_stats['aux_pred_err'] += 1
@@ -360,6 +379,12 @@ def parse_args():
     parser.set_defaults(multi_target=False)
     parser.add_argument("--fixed-target", choices=common.all_target_instructions,
                         help="once set, all the episode will be fixed to a specific target.")
+    parser.add_argument("--greedy-execution", dest='greedy_execution', action='store_true',
+                        help="[A3C-Only] When --greedy-execution, we directly take the action with the maximum probability instead of sampling")
+    parser.set_defaults(greedy_execution=False)
+    parser.add_argument("--greedy-aux-prediction", dest='greedy_aux_pred', action='store_true',
+                        help="[A3C-Aux-Task-Only] When --greedy-execution, we directly take the auxiliary prediction with the maximum probability instead of sampling")
+    parser.set_defaults(greedy_aux_pred=False)
     # Core parameters
     parser.add_argument("--algo", choices=['ddpg','pg', 'rdpg', 'ddpg_joint', 'ddpg_alter', 'ddpg_eagle',
                                            'a2c', 'qac', 'dqn', 'nop', 'a3c'], default="ddpg", help="algorithm for training")
@@ -444,7 +469,9 @@ if __name__ == '__main__':
                      args.rnn_units, args.rnn_layers, args.rnn_cell,
                      args.action_gating, args.residual_critic, args.target_gating,
                      args.segmentation_input, args.depth_input, args.resolution, args.history_frame_len,
-                     aux_task=args.aux_task, no_skip_connect=args.no_skip_connect, feed_forward=args.feed_forward)
+                     aux_task=args.aux_task, no_skip_connect=args.no_skip_connect, feed_forward=args.feed_forward,
+                     greedy_execution=(args.greedy_execution and (args.algo == 'a3c')),
+                     greedy_aux_pred=(args.greedy_aux_pred and (args.algo == 'a3c') and args.aux_task))
 
     if args.store_history:
         filename = args.log_dir
