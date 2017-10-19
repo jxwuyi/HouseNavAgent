@@ -39,8 +39,12 @@ for msk in range(aux_max_allowed_mask_value):
 class ZMQAuxTaskTrainer(ZMQA3CTrainer):
     def __init__(self, name, model_creator, obs_shape, act_shape, args):
         super(ZMQAuxTaskTrainer, self).__init__(name, model_creator, obs_shape, act_shape, args)
-        self.use_supervised_loss = (not args['reinforce_loss'] if 'reinforce_loss' in args else True)
-        self.aux_loss_coef = (args['aux_loss_coef'] if 'aux_loss_coef' in args else 0.0)
+        self.use_supervised_loss = not args['reinforce_loss']
+        self.aux_loss_coef = args['aux_loss_coef']
+        self._normal_aux_predition = True
+
+    def set_greedy_aux_prediction(self):
+        self._normal_aux_predition = False
 
     def _create_aux_target_tensor(self, targets):
         aux_tar = torch.from_numpy(np.array(targets)).type(FloatTensor)
@@ -75,9 +79,9 @@ class ZMQAuxTaskTrainer(ZMQA3CTrainer):
         hidden = self._create_gpu_hidden(hidden, return_variable=True, volatile=True)  # a list of hidden tensors
         if target is not None:
             target = self._create_target_tensor(target, return_variable=True, volatile=True)
-        ret_vals = self.policy(obs, hidden, return_value=False, sample_action=True,
+        ret_vals = self.policy(obs, hidden, return_value=False, sample_action=self._normal_execution,
                                unpack_hidden=True, return_tensor=True, target=target,
-                               compute_aux_pred=return_aux_pred, sample_aux_pred=True)
+                               compute_aux_pred=return_aux_pred, sample_aux_pred=self._normal_aux_predition)
 
         act, nxt_hidden = ret_vals[0], ret_vals[1]
         if self._hidden is None:

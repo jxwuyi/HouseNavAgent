@@ -49,6 +49,10 @@ class ZMQA3CTrainer(AgentTrainer):
             self.optim = optim.RMSprop(self.policy.parameters(), lr=self.lrate, weight_decay=args['weight_decay'])
         self.grad_norm_clip = args['grad_clip']
         self._hidden = None
+        self._normal_execution = True
+
+    def set_greedy_execution(self):
+        self._normal_execution = False
 
     def _create_target_tensor(self, targets, return_variable=True, volatile=False):
         batch = len(targets)
@@ -123,7 +127,7 @@ class ZMQA3CTrainer(AgentTrainer):
         hidden = self._create_gpu_hidden(hidden, return_variable=True, volatile=True)  # a list of hidden tensors
         if target is not None:
             target = self._create_target_tensor(target, return_variable=True, volatile=True)
-        act, nxt_hidden = self.policy(obs, hidden, return_value=False, sample_action=True,
+        act, nxt_hidden = self.policy(obs, hidden, return_value=False, sample_action=self._normal_execution,
                                       unpack_hidden=True, return_tensor=True, target=target)
         if self._hidden is None:
             self._hidden = nxt_hidden
