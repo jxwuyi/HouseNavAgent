@@ -52,7 +52,8 @@ def train(args=None,
     env = common.create_env(houseID, reward_type, hardness,
                             success_measure=success_measure,
                             segment_input=args['segment_input'],
-                            depth_input=args['depth_input'])
+                            depth_input=args['depth_input'],
+                            cacheAllTarget=args['multi_target'])
     logger = utils.MyLogger(log_dir, True)
     if multi_target:
         assert hasattr(trainer, 'set_target')
