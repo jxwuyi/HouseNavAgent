@@ -402,7 +402,7 @@ if __name__ == '__main__':
     if args.aux_task:
         assert args.algo == 'a3c', 'Auxiliary Task is only supprted for <--algo a3c>'
 
-    common.set_house_IDs(args.env_set)
+    common.set_house_IDs(args.env_set, ensure_kitchen=(not args.multi_target))
     print('>> Environment Set = <%s>, Total %d Houses!' % (args.env_set, len(common.all_houseIDs)))
 
     if not os.path.exists(args.log_dir):

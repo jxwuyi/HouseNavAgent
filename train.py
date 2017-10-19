@@ -286,7 +286,7 @@ def parse_args():
 if __name__ == '__main__':
     cmd_args = parse_args()
 
-    common.set_house_IDs(cmd_args.env_set)
+    common.set_house_IDs(cmd_args.env_set, ensure_kitchen=(not cmd_args.multi_target))
     print('>> Environment Set = <%s>, Total %d Houses!' % (cmd_args.env_set, len(common.all_houseIDs)))
 
     if cmd_args.seed is not None:
