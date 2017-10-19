@@ -232,7 +232,17 @@ def evaluate(house, seed = 0,
         cur_infos = []
         trainer.reset_agent()
         set_seed(seed + it + 1)  # reset seed
-        obs = env.reset(reset_target=flag_random_reset_target)
+        if multi_target and (fixed_target is not None) and (fixed_target != 'kitchen'):
+            # TODO: Currently a hacky solution
+            env.reset(reset_target=True)
+            env.reset_target(fixed_target)
+            if house < 0:  # multi-house env
+                obs = env.reset(reset_target=False, keep_world=True)
+            else:
+                obs = env.reset(reset_target=False)
+        else:
+            # TODO: Only support multi-target + fixed kitchen; or fixed-target (kitchen)
+            obs = env.reset(reset_target=flag_random_reset_target)
         target_id = common.target_instruction_dict[env.get_current_target()]
         if multi_target and hasattr(trainer, 'set_target'):
             trainer.set_target(env.get_current_target())
@@ -434,7 +444,7 @@ if __name__ == '__main__':
     if args.aux_task:
         assert args.algo == 'a3c', 'Auxiliary Task is only supprted for <--algo a3c>'
 
-    common.set_house_IDs(args.env_set)
+    common.set_house_IDs(args.env_set, ensure_kitchen=(not args.multi_target))
     print('>> Environment Set = <%s>, Total %d Houses!' % (args.env_set, len(common.all_houseIDs)))
 
     if not os.path.exists(args.log_dir):
