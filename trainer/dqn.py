@@ -24,7 +24,7 @@ class DQNTrainer(QACTrainer):
         self._target = 0
         if self.multi_target:
             self.target_buffer = np.zeros(args['replay_buffer_size'], dtype=np.uint8)
-        self.target_net_update_freq = args['target_net_update_freq']
+        self.target_net_update_freq = args['target_net_update_freq'] if 'target_net_update_freq' in args else None
         self._update_counter = 0
 
     def set_target(self, target):

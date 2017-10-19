@@ -336,8 +336,8 @@ if __name__ == '__main__':
 
     args['algo'] = cmd_args.algo
 
-    if cmd_args.target_net_update_rate is not None:
-        args['target_net_update_rate']=cmd_args.target_net_update_rate
+    args['target_net_update_rate']=cmd_args.target_net_update_rate
+    args['target_net_update_freq']=cmd_args.target_net_update_freq
 
     if cmd_args.hardness is not None:
         args['hardness'] = cmd_args.hardness
