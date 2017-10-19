@@ -484,45 +484,59 @@ def create_trainer(algo, model, args):
     return trainer
 
 
-def create_world(houseID, genRoomTypeMap=False):
+def create_world(houseID, genRoomTypeMap=False, cacheAllTarget=False):
     objFile = prefix + houseID + '/house.obj'
     jsonFile = prefix + houseID + '/house.json'
     cachedFile = genCacheFile(houseID)
-    assert os.path.isfile(cachedFile), '[Warning] No Cached Map File Found for House <{}>!'.format(houseID)
+    assert os.path.isfile(cachedFile), '[Error] No Cached Map File Found for House <{}>!'.format(houseID)
     world = World(jsonFile, objFile, csvFile, colide_res,
                   CachedFile=cachedFile, EagleViewRes=default_eagle_resolution,
                   GenRoomTypeMap=genRoomTypeMap)
+    if cacheAllTarget:
+        world.cache_all_target()
     return world
 
-def create_world_from_index(k, genRoomTypeMap=False):
+def create_world_from_index(k, genRoomTypeMap=False, cacheAllTarget=False):
     if k >= 0:
         if k >= len(all_houseIDs):
             print('k={} exceeds total number of houses ({})! Randomly Choose One!'.format(k, len(all_houseIDs)))
             houseID = random.choice(all_houseIDs)
         else:
             houseID = all_houseIDs[k]
-        return create_world(houseID, genRoomTypeMap)
+        return create_world(houseID, genRoomTypeMap, cacheAllTarget)
     else:
         k = -k
         print('Multi-House Environment! Total Selected Houses = {}'.format(k))
         if k > len(all_houseIDs):
             print('  >> k={} exceeds total number of houses ({})! use all houses!')
             k = len(all_houseIDs)
+        import time
+        ts = time.time()
+        print('Caching All Worlds ...')
         # use the first k houses
-        return [create_world(houseID, genRoomTypeMap) for houseID in all_houseIDs[:k]]
+        def func(houseID):
+            return create_world(houseID, genRoomTypeMap, cacheAllTarget)
+        from multiprocessing import Pool
+        pool = Pool(k)
+        _ids = all_houseIDs[:k]
+        ret_worlds = pool.map(func, _ids)  # parallel version for initialization
+        print('  >> Done! Time Elapsed = %.4f(s)' % (time.time() - ts))
+        return ret_worlds
+        # return [create_world(houseID, genRoomTypeMap) for houseID in all_houseIDs[:k]]
 
 def create_env(k=0,
                reward_type='linear', hardness=None, success_measure='center',
                segment_input='none', depth_input=False,
                max_steps=-1,
                render_device=None,
-               genRoomTypeMap=False):
+               genRoomTypeMap=False,
+               cacheAllTarget=False):
     if render_device is None:
         render_device = get_gpus_for_rendering()[0]   # by default use the first gpu
     if segment_input is None:
         segment_input = 'none'
     if k >= 0:
-        world = create_world_from_index(k, genRoomTypeMap)
+        world = create_world_from_index(k, genRoomTypeMap, cacheAllTarget)
         env = HouseEnv(world, colorFile, resolution=resolution, reward_type=reward_type,
                        hardness=hardness, action_degree=action_shape[0],
                        segment_input=(segment_input != 'none'),
@@ -532,7 +546,7 @@ def create_env(k=0,
                        success_measure=success_measure, RoomTargetFile=roomTargetFile,
                        max_steps=max_steps, render_device=render_device)
     else:  # multi-house environment
-        all_worlds = create_world_from_index(k, genRoomTypeMap)
+        all_worlds = create_world_from_index(k, genRoomTypeMap, cacheAllTarget)
         env = MultiHouseEnv(all_worlds, colorFile, resolution=resolution, reward_type=reward_type,
                             hardness=hardness, action_degree=action_shape[0],
                             segment_input=(segment_input != 'none'),

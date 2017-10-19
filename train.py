@@ -53,7 +53,8 @@ def train(args=None,
                             success_measure=success_measure,
                             segment_input=args['segment_input'],
                             depth_input=args['depth_input'],
-                            render_device=args['render_gpu'])
+                            render_device=args['render_gpu'],
+                            cacheAllTarget=args['multi_target'])
     logger = utils.MyLogger(log_dir, True)
     if multi_target:
         assert hasattr(trainer, 'set_target')

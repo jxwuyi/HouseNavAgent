@@ -52,7 +52,9 @@ def evaluate_aux_pred(house, seed = 0,iters = 1000, max_episode_len = 10,
     set_seed(seed)
     env = common.create_env(house, hardness=1e-8, success_measure='stay',
                             depth_input=depth_input,
-                            segment_input=args['segment_input'])
+                            segment_input=args['segment_input'],
+                            genRoomTypeMap=True,
+                            cacheAllTarget=True)
 
     logger = utils.MyLogger(log_dir, True)
     logger.print('Start Evaluating Auxiliary Task ...')
@@ -215,7 +217,8 @@ def evaluate(house, seed = 0,
     env = common.create_env(house, hardness=hardness, success_measure=success_measure,
                             depth_input=depth_input,
                             segment_input=args['segment_input'],
-                            genRoomTypeMap=aux_task)
+                            genRoomTypeMap=aux_task,
+                            cacheAllTarget=multi_target)
 
     if fixed_target is not None:
         env.reset_target(fixed_target)

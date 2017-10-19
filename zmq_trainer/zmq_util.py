@@ -19,7 +19,8 @@ class ZMQHouseEnvironment:
         self.env = common.create_env(k, reward_type=reward_type, hardness=hardness, success_measure=success_measure,
                                      segment_input=segment_input, depth_input=depth_input,
                                      max_steps=max_steps, render_device=device,
-                                     genRoomTypeMap=aux_task)
+                                     genRoomTypeMap=aux_task,
+                                     cacheAllTarget=multi_target)
         self.obs = self.env.reset()
         self.done = False
         self.multi_target = multi_target
