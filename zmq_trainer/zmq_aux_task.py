@@ -39,8 +39,8 @@ for msk in range(aux_max_allowed_mask_value):
 class ZMQAuxTaskTrainer(ZMQA3CTrainer):
     def __init__(self, name, model_creator, obs_shape, act_shape, args):
         super(ZMQAuxTaskTrainer, self).__init__(name, model_creator, obs_shape, act_shape, args)
-        self.use_supervised_loss = not args['reinforce_loss']
-        self.aux_loss_coef = args['aux_loss_coef']
+        self.use_supervised_loss = (not args['reinforce_loss'] if 'reinforce_loss' in args else True)
+        self.aux_loss_coef = (args['aux_loss_coef'] if 'aux_loss_coef' in args else 0.0)
 
     def _create_aux_target_tensor(self, targets):
         aux_tar = torch.from_numpy(np.array(targets)).type(FloatTensor)
