@@ -1,10 +1,10 @@
 #!/bin/bash
 
-CUDA_VISIBLE_DEVICES=4 python train.py --seed 0 --algo dqn --update-freq 5 --max-episode-len 60 \
-    --house -20 --reward-type delta --success-measure see --multi-target \
+CUDA_VISIBLE_DEVICES=4 python train.py --seed 0 --algo dqn --update-freq 3 --max-episode-len 60 \
+    --house -20 --reward-type delta --success-measure see --multi-target --use-target-gating \
     --lrate 0.0001 --gamma 0.6 \
-    --save-dir ./_model_/multi_target/20house_medium/delta_segcolor_dqn_eplen60_exp_exp \
-    --log-dir ./log/multi_target/20house_medium/delta_segcolor_dqn_eplen60_exp_exp \
+    --save-dir ./_model_/multi_target/20house_medium/delta_segcolor_dqn_eplen60_exp_exp_gate \
+    --log-dir ./log/multi_target/20house_medium/delta_segcolor_dqn_eplen60_exp_exp_gate \
     --batch-size 256 --hardness 0.95 --replay-buffer-size 1000000 \
     --weight-decay 0.00001 \
     --batch-norm --no-debug \
