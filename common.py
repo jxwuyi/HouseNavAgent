@@ -580,4 +580,6 @@ def get_gpus_for_rendering():
         return parse_devlist(fname)
     else:
         # to respect env var
+        if 'CUDA_VISIBLE_DEVICES' not in os.environ:
+            return [0]  # default setting
         return list(map(int, os.environ['CUDA_VISIBLE_DEVICES'].split(',')))

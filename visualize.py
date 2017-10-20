@@ -21,6 +21,7 @@ def show_episode(env, images):
 
 def visualize(args, all_stats, config):
     common.resolution = (400, 300)
+    common.set_house_IDs(args.env_set)
     env = common.create_env(config.house, hardness=config.hardness)
     env.reset_render()
     print('Resolution = {}'.format(env.resolution))
@@ -66,6 +67,8 @@ def parse_args():
     parser = argparse.ArgumentParser("Visualization for 3D House Navigation")
     # config
     parser.add_argument("file", type=str, help="evaluation stats file")
+    parser.add_argument("--env-set", choices=['small', 'train', 'test'], default='test',
+                        help="the set of houses. default <test>")
     parser.add_argument("--max-iters", type=int, default=500,
                         help="at most display this number of episodes")
     parser.add_argument("--max-episode-len", type=int, default=2000,
