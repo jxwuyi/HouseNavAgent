@@ -7,7 +7,7 @@ def render_episode(env, infos):
     images = []
     for info in infos:
         env.set_cam_info(info)
-        images.append(env.render(renderMapLoc=info['loc'], display=False))
+        images.append(env.render(renderMapLoc=info['loc'], display=False, renderSegment=True))
     return images
 
 def show_episode(env, images):
@@ -60,7 +60,10 @@ def visualize(args, all_stats, config):
         print(' >> Success = %d  (Rate = %.3f)' % (stats['success'], total_succ / (it + 1)))
         print(' >> Stay in Room = %d' % stats['good'])
         show_episode(env, images)
-        time.sleep(1.5)
+        if args.pause:
+            input('press any key to continue ...')
+        else:
+            time.sleep(1.5)
 
 
 def parse_args():
@@ -79,6 +82,9 @@ def parse_args():
                         help='Only display those runs where agent reaches the target room')
     parser.add_argument("--save-dir", type=str,
                         help='Set when we need to store all the frames into a file')
+    parser.add_argument("--pause", dest='pause', action='store_true',
+                        help='When --pause, a key press is required after each episode.')
+    parser.set_defaults(pause=False)
     return parser.parse_args()
 
 

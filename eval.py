@@ -294,7 +294,7 @@ def evaluate(house, seed = 0,
                     if aux_rew < 0: cur_stats['aux_pred_err'] += 1
             else:
                 idx = trainer.process_observation(obs)
-                action = trainer.action(True)  # use gumbel noise
+                action = trainer.action(None if greedy_execution else 1.0)  # use gumbel noise
             # environment step
             obs, rew, done, info = env.step(action)
             if store_history:
@@ -393,7 +393,7 @@ def parse_args():
     parser.add_argument("--fixed-target", choices=common.all_target_instructions,
                         help="once set, all the episode will be fixed to a specific target.")
     parser.add_argument("--greedy-execution", dest='greedy_execution', action='store_true',
-                        help="[A3C-Only] When --greedy-execution, we directly take the action with the maximum probability instead of sampling")
+                        help="When --greedy-execution, we directly take the action with the maximum probability instead of sampling. For DDPG, we turn off the gumbel-noise")
     parser.set_defaults(greedy_execution=False)
     parser.add_argument("--greedy-aux-prediction", dest='greedy_aux_pred', action='store_true',
                         help="[A3C-Aux-Task-Only] When --greedy-execution, we directly take the auxiliary prediction with the maximum probability instead of sampling")
