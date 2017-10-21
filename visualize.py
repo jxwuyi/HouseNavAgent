@@ -23,7 +23,7 @@ def visualize(args, all_stats, config):
     common.resolution = (400, 300)
     common.set_house_IDs(args.env_set)
     if args.load_dir is not None:
-        print('Loading Cached Epsiodes from <{}>'.format(args.load_dir)
+        print('Loading Cached Epsiodes from <{}>'.format(args.load_dir))
         with open(args.load_dir, 'rb') as f:
               episode_images = pickle.load(f)
         env = common.create_env(0, hardness = 0.95, success_measure='see')
