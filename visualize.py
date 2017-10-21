@@ -22,34 +22,41 @@ def show_episode(env, images):
 def visualize(args, all_stats, config):
     common.resolution = (400, 300)
     common.set_house_IDs(args.env_set)
-    env = common.create_env(config.house, hardness=config.hardness)
-    env.reset_render()
-    print('Resolution = {}'.format(env.resolution))
-    total_len = 0
-    total_succ = 0
-    episode_images = []
-    print('Rendering ....')
-    elap = time.time()
-    for it, stats in enumerate(all_stats):
-        if args.only_success and (stats['success'] == 0):
-            continue
-        if args.only_good and (stats['good'] == 0):
-            continue
-        if stats['length'] > args.max_episode_len:
-            continue
-        if 'world_id' in stats:
-            env.reset(stats['world_id'])
-        episode_images.append((render_episode(env, stats['infos']), stats))
-        if len(episode_images) % 10 == 0:
-            print(' >>> %d Episode Rendered, Time Elapsed = %.4fs' % (len(episode_images), time.time()-elap))
-        if len(episode_images) >= args.max_iters:
-            break
-    dur = time.time()-elap
-    print('Total %d Episodes Rendered (Avg %.4fs per Ep.)' % (len(episode_images), dur / (len(episode_images))))
-    if args.save_dir is not None:
-        print('Saving to file <{}>'.format(args.save_dir))
-        with open(args.save_dir, 'wb') as f:
-            pickle.dump(episode_images, f)
+    if args.load_dir is not None:
+        print('Loading Cached Epsiodes from <{}>'.format(args.load_dir)
+        with open(args.load_dir, 'rb') as f:
+              episode_images = pickle.load(f)
+        env = common.create_env(0, hardness = 0.95, success_measure='see')
+        env.reset_render()
+    else:
+        env = common.create_env(config.house, hardness=config.hardness, success_measure='see')
+        env.reset_render()
+        print('Resolution = {}'.format(env.resolution))
+        total_len = 0
+        total_succ = 0
+        episode_images = []
+        print('Rendering ....')
+        elap = time.time()
+        for it, stats in enumerate(all_stats):
+            if args.only_success and (stats['success'] == 0):
+                continue
+            if args.only_good and (stats['good'] == 0):
+                continue
+            if stats['length'] > args.max_episode_len:
+                continue
+            if 'world_id' in stats:
+                env.reset(stats['world_id'])
+            episode_images.append((render_episode(env, stats['infos']), stats))
+            if len(episode_images) % 10 == 0:
+                print(' >>> %d Episode Rendered, Time Elapsed = %.4fs' % (len(episode_images), time.time()-elap))
+            if len(episode_images) >= args.max_iters:
+                break
+        dur = time.time()-elap
+        print('Total %d Episodes Rendered (Avg %.4fs per Ep.)' % (len(episode_images), dur / (len(episode_images))))
+        if args.save_dir is not None:
+            print('Saving to file <{}>'.format(args.save_dir))
+            with open(args.save_dir, 'wb') as f:
+                pickle.dump(episode_images, f)
     input('>> press any key to continue ...')
     for it, dat in enumerate(episode_images):
         images, stats = dat
@@ -82,6 +89,8 @@ def parse_args():
                         help='Only display those runs where agent reaches the target room')
     parser.add_argument("--save-dir", type=str,
                         help='Set when we need to store all the frames into a file')
+    parser.add_argument("--load-dir", type=str,
+                        help='Will store all the rendered episodes')
     parser.add_argument("--pause", dest='pause', action='store_true',
                         help='When --pause, a key press is required after each episode.')
     parser.set_defaults(pause=False)
