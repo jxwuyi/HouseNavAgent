@@ -281,6 +281,7 @@ if __name__ == '__main__':
         cmd_args.reward_type = 'linear'
     args = cmd_args.__dict__
 
+    args['model_name'] = 'rnn'
     args['scheduler'] = create_scheduler(cmd_args.scheduler)
 
     train(args, warmstart=cmd_args.warmstart)
