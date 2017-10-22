@@ -88,6 +88,7 @@ class ZMQMaster(SimulatorMaster):
         self.episode_stats = dict(len=[], rew=[], succ=[])
         self.update_stats = dict(lrate=[])
         self.best_avg_reward = -1e50
+        self.best_succ_rate = 0.0
         self.multi_target = config['multi_target']
         if self.multi_target:
             self.episode_stats['target'] = []
@@ -225,6 +226,17 @@ class ZMQMaster(SimulatorMaster):
         self.logger.print('   ----> Data Loading Time = %.4f min' % (time_counter[0] / 60))
         self.logger.print('   ----> Training Time = %.4f min' % (time_counter[1] / 60))
         self.logger.print('   ----> Update Time Per Iter = %.4f s' % (duration / self.train_cnt))
+        # Best Model with Highest Success Rate
+        if avg_succ > self.best_succ_rate:
+            self.best_succ_rate = avg_succ
+            self.logger.print('   ===========>>>>>>> Best Succ Rate! Model Saved!!!')
+            self.trainer.save(self.config['save_dir'], version='succ')
+            stats_dict = dict(avg_rew=avg_rew, avg_len=avg_len, avg_succ=avg_succ, iter=self.train_cnt)
+            if self.aux_task:
+                stats_dict['aux_avg_rew'] = avg_aux_rew
+                stats_dict['aux_avg_err'] = avg_aux_err
+            self.trainer.save(self.config['log_dir'], version='succ_stats', target_dict_data=stats_dict)
+        # Best Model with Highest Avg Reward
         if avg_rew > self.best_avg_reward:
             self.best_avg_reward = avg_rew
             self.logger.print('   ===========>>>>>>> Best Avg Reward! Model Saved!!!')
