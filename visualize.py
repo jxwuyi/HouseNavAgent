@@ -42,6 +42,8 @@ def visualize(args, all_stats, config):
                 continue
             if args.only_good and (stats['good'] == 0):
                 continue
+            if args.only_almost and ((stats['good'] == 0) or (stats['success'] > 0)):
+                continue
             if stats['length'] > args.max_episode_len:
                 continue
             if 'world_id' in stats:
@@ -87,6 +89,8 @@ def parse_args():
                         help='Only display those successful runs')
     parser.add_argument("--only-good", action='store_true', default=False,
                         help='Only display those runs where agent reaches the target room')
+    parser.add_argument("--only-almost", action='store_true', default=False,
+                        help='Only display those runs where agent reaches the target but did not succeed.')
     parser.add_argument("--save-dir", type=str,
                         help='Set when we need to store all the frames into a file')
     parser.add_argument("--load-dir", type=str,
