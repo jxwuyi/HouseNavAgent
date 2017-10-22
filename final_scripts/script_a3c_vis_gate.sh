@@ -1,6 +1,6 @@
 #!/bin/bash
 
-CUDA_VISIBLE_DEVICES=0,1,2 python3 zmq_train.py --seed 0 --env-set small \
+CUDA_VISIBLE_DEVICES=1,2,3 python3 zmq_train.py --seed 0 --env-set small \
     --n-house 20 --n-proc 120 --batch-size 64 --t-max 20 --max-episode-len 100 \
     --hardness 0.95 --reward-type delta --success-measure see \
     --multi-target --use-target-gating \
