@@ -159,7 +159,7 @@ def evaluate_aux_pred(house, seed = 0,iters = 1000, max_episode_len = 10,
     return episode_stats
 
 
-def evaluate(house, seed = 0,
+def evaluate(house, seed = 0, render_device=None,
              iters = 1000, max_episode_len = 1000,
              hardness = None, success_measure = 'center', multi_target=False, fixed_target=None,
              algo='nop', model_name='cnn',
@@ -218,7 +218,8 @@ def evaluate(house, seed = 0,
                             depth_input=depth_input,
                             segment_input=args['segment_input'],
                             genRoomTypeMap=aux_task,
-                            cacheAllTarget=multi_target)
+                            cacheAllTarget=multi_target,
+                            render_device=render_device)
 
     if fixed_target is not None:
         env.reset_target(fixed_target)
@@ -373,6 +374,7 @@ def parse_args():
     # Environment
     parser.add_argument("--env-set", choices=['small', 'train', 'test'], default='small')
     parser.add_argument("--house", type=int, default=0, help="house ID")
+    parser.add_argument("--render-gpu", type=int, help="gpu id for rendering the environment")
     parser.add_argument("--seed", type=int, default=0, help="random seed")
     parser.add_argument("--hardness", type=float, help="real number from 0 to 1, indicating the hardness of the environment")
     parser.add_argument("--action-dim", type=int, help="degree of freedom of the agent movement, default=4, must be in range of [2,4]")
@@ -475,7 +477,7 @@ if __name__ == '__main__':
                                           args.segmentation_input, args.depth_input, args.resolution)
     else:
         episode_stats = \
-            evaluate(args.house, args.seed or 0, args.max_iters, args.max_episode_len,
+            evaluate(args.house, args.seed or 0, args.render_gpu, args.max_iters, args.max_episode_len,
                      args.hardness, args.success_measure, args.multi_target, args.fixed_target,
                      args.algo, model_name, args.warmstart, args.log_dir,
                      args.store_history, args.use_batch_norm,
