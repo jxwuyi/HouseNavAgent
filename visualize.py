@@ -56,9 +56,12 @@ def visualize(args, all_stats, config):
         dur = time.time()-elap
         print('Total %d Episodes Rendered (Avg %.4fs per Ep.)' % (len(episode_images), dur / (len(episode_images))))
         if args.save_dir is not None:
-            print('Saving to file <{}>'.format(args.save_dir))
-            with open(args.save_dir, 'wb') as f:
-                pickle.dump(episode_images, f)
+            try:
+                print('Saving to file <{}>'.format(args.save_dir))
+                with open(args.save_dir, 'wb') as f:
+                    pickle.dump(episode_images, f)
+            except Exception as e:
+                print('Error!! msg = {}'.format(e))
     input('>> press any key to continue ...')
     for it, dat in enumerate(episode_images):
         images, stats = dat
