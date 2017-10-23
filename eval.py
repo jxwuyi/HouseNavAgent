@@ -395,7 +395,7 @@ def parse_args():
     parser.add_argument("--fixed-target", choices=common.all_target_instructions,
                         help="once set, all the episode will be fixed to a specific target.")
     parser.add_argument("--greedy-execution", dest='greedy_execution', action='store_true',
-                        help="When --greedy-execution, we directly take the action with the maximum probability instead of sampling. For DDPG, we turn off the gumbel-noise")
+                        help="When --greedy-execution, we directly take the action with the maximum probability instead of sampling. For DDPG, we turn off the gumbel-noise. For NOP, we will use discrete actions.")
     parser.set_defaults(greedy_execution=False)
     parser.add_argument("--greedy-aux-prediction", dest='greedy_aux_pred', action='store_true',
                         help="[A3C-Aux-Task-Only] When --greedy-execution, we directly take the auxiliary prediction with the maximum probability instead of sampling")
