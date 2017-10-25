@@ -245,6 +245,7 @@ class DiscreteRNNPolicy(torch.nn.Module):
         batch = x.size(0)
         packed_x = x.view(-1, self.in_shape[0], self.in_shape[1], self.in_shape[2])
         self.feat = feat = self._forward_feature(packed_x, compute_linear=True)   # both conv layers and linear layer
+        raw_feat = feat
         if self.multi_target:
             assert target is not None
             target = self.target_embed(target.view(-1, common.n_target_instructions))
@@ -278,7 +279,9 @@ class DiscreteRNNPolicy(torch.nn.Module):
         if self.no_skip_connect:
             rnn_feat = rnn_output.view(-1, self.rnn_output_size)
         else:
-            rnn_feat = torch.cat([rnn_output.view(-1, self.rnn_output_size), self.feat], dim=1)
+            #rnn_feat = torch.cat([rnn_output.view(-1, self.rnn_output_size), self.feat], dim=1)
+            rnn_output.view(-1, self.rnn_output_size)
+            rnn_feat = torch.cat([raw_feat * F.sigmoid(rnn_output), rnn_output], dim=1)
 
         # compute aux task
         if (self.aux_prediction is not None) and compute_aux_pred:
