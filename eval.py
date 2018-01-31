@@ -28,6 +28,10 @@ def evaluate_aux_pred(house, seed = 0,iters = 1000, max_episode_len = 10,
                       rnn_units=None, rnn_layers=None, rnn_cell=None,
                       multi_target=True, use_target_gating=False,
                       segmentation_input='none', depth_input=False, resolution='normal'):
+
+    # TODO: currently do not support this
+    assert False, 'Aux Prediction Not Supported!'
+
     # Do not need to log detailed computation stats
     assert algo in ['a3c', 'nop']
     flag_run_random_policy = (algo == 'nop')
@@ -54,7 +58,8 @@ def evaluate_aux_pred(house, seed = 0,iters = 1000, max_episode_len = 10,
                             depth_input=depth_input,
                             segment_input=args['segment_input'],
                             genRoomTypeMap=True,
-                            cacheAllTarget=True)
+                            cacheAllTarget=True,
+                            use_discrete_action=True)
 
     logger = utils.MyLogger(log_dir, True)
     logger.print('Start Evaluating Auxiliary Task ...')
@@ -69,13 +74,13 @@ def evaluate_aux_pred(house, seed = 0,iters = 1000, max_episode_len = 10,
     for it in range(iters):
         trainer.reset_agent()
         set_seed(seed + it + 1)  # reset seed
-        obs = env.reset(reset_target=multi_target)
+        obs = env.reset() if multi_target else env.reset(target=env.get_current_target())
         target_id = common.target_instruction_dict[env.get_current_target()]
         if multi_target and hasattr(trainer, 'set_target'):
             trainer.set_target(env.get_current_target())
         cur_infos = []
         if store_history:
-            cur_infos.append(proc_info(env.cam_info))
+            cur_infos.append(proc_info(env.info))
             # cur_images.append(env.render(renderMapLoc=env.cam_info['loc'], display=False))
         if model_name != 'rnn': obs = obs.transpose([1, 0, 2])
         episode_succ.append(0)
@@ -170,7 +175,11 @@ def evaluate(house, seed = 0, render_device=None,
              segmentation_input='none', depth_input=False, resolution='normal', history_len=4,
              aux_task=False, no_skip_connect=False, feed_forward=False,
              greedy_execution=False, greedy_aux_pred=False):
+
+    assert not aux_task, 'Do not support Aux-Task now!'
+
     elap = time.time()
+
     # Do not need to log detailed computation stats
     common.debugger = utils.FakeLogger()
 
@@ -236,22 +245,22 @@ def evaluate(house, seed = 0, render_device=None,
         cur_infos = []
         trainer.reset_agent()
         set_seed(seed + it + 1)  # reset seed
-        if multi_target and (fixed_target is not None) and (fixed_target != 'kitchen'):
-            # TODO: Currently a hacky solution
-            env.reset(reset_target=True)
-            env.reset_target(fixed_target)
-            if house < 0:  # multi-house env
-                obs = env.reset(reset_target=False, keep_world=True)
-            else:
-                obs = env.reset(reset_target=False)
-        else:
-            # TODO: Only support multi-target + fixed kitchen; or fixed-target (kitchen)
-            obs = env.reset(reset_target=flag_random_reset_target)
+        obs = env.reset(target=fixed_target)
+        #if multi_target and (fixed_target is not None) and (fixed_target != 'kitchen'):
+        #    # TODO: Currently a hacky solution
+        #    env.reset(target=fixed_target)
+        #    if house < 0:  # multi-house env
+        #        obs = env.reset(reset_target=False, keep_world=True)
+        #    else:
+        #        obs = env.reset(reset_target=False)
+        #else:
+        #    # TODO: Only support multi-target + fixed kitchen; or fixed-target (kitchen)
+        #    obs = env.reset(reset_target=flag_random_reset_target)
         target_id = common.target_instruction_dict[env.get_current_target()]
         if multi_target and hasattr(trainer, 'set_target'):
             trainer.set_target(env.get_current_target())
         if store_history:
-            cur_infos.append(proc_info(env.cam_info))
+            cur_infos.append(proc_info(env.info))
             #cur_images.append(env.render(renderMapLoc=env.cam_info['loc'], display=False))
         if model_name != 'rnn': obs = obs.transpose([1, 0, 2])
         episode_success.append(0)
@@ -262,8 +271,8 @@ def evaluate(house, seed = 0, render_device=None,
         if aux_task:
             cur_stats['aux_pred_rew'] = 0
             cur_stats['aux_pred_err'] = 0
-        if hasattr(env.world, "_id"):
-            cur_stats['world_id'] = env.world._id
+        if hasattr(env.house, "_id"):
+            cur_stats['world_id'] = env.house._id
         episode_step = 0
         for _st in range(max_episode_len):
             # get action
@@ -302,7 +311,7 @@ def evaluate(house, seed = 0, render_device=None,
                 cur_infos.append(proc_info(info))
                 #cur_images.append(env.render(renderMapLoc=env.cam_info['loc'], display=False))
             if model_name != 'rnn': obs = obs.transpose([1, 0, 2])
-            cur_dist = env.cam_info['dist']
+            cur_dist = info['dist']
             if cur_dist == 0:
                 cur_stats['good'] += 1
                 episode_good[-1] = 1
@@ -365,7 +374,7 @@ def evaluate(house, seed = 0, render_device=None,
 
 def render_episode(env, images):
     for im in images:
-        env.render(im)
+        env.show(im)
         time.sleep(0.5)
 
 

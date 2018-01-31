@@ -54,11 +54,11 @@ def train(args=None,
                             segment_input=args['segment_input'],
                             depth_input=args['depth_input'],
                             render_device=args['render_gpu'],
-                            cacheAllTarget=args['multi_target'])
+                            cacheAllTarget=args['multi_target'],
+                            use_discrete_action=('dpg' not in algo))
     logger = utils.MyLogger(log_dir, True)
     if multi_target:
         assert hasattr(trainer, 'set_target')
-        env.cache_all_target()  # cache all the target maps
 
     if warmstart is not None:
         if os.path.exists(warmstart):
@@ -81,10 +81,13 @@ def train(args=None,
     episode_targets = ['kitchen']
 
     trainer.reset_agent()
-    obs = env.reset()
     if multi_target:
-        trainer.set_target(env.get_current_target())
-        episode_targets[-1] = env.get_current_target()
+        obs = env.reset()
+        target_room = env.info['target_room']
+        trainer.set_target(target_room)
+        episode_targets[-1] = target_room
+    else:
+        env.reset(target='kitchen')
     assert not np.any(np.isnan(obs)), 'nan detected in the observation!'
     obs = obs.transpose([1, 0, 2])
     logger.print('Observation Shape = {}'.format(obs.shape))
@@ -121,18 +124,19 @@ def train(args=None,
             if done or terminal:
                 trainer.reset_agent()
                 if multi_target:
-                    obs = env.reset(reset_target=True)
-                    trainer.set_target(env.get_current_target())
-                else:
                     obs = env.reset()
+                    target_room = env.info['target_room']
+                    trainer.set_target(target_room)
+                    episode_targets.append(target_room)
+                else:
+                    obs = env.reset(target='kitchen')
                 assert not np.any(np.isnan(obs)), 'nan detected in the observation!'
                 obs = obs.transpose([1, 0, 2])
                 episode_step = 0
                 episode_rewards.append(0)
                 episode_success.append(0)
                 episode_length.append(0)
-                if multi_target:
-                    episode_targets.append(env.get_current_target())
+
 
             # update all trainers
             trainer.preupdate()

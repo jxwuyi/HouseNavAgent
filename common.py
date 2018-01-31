@@ -27,10 +27,14 @@ from trainer.ddpg_joint_alter import JointAlterDDPGTrainer as AlterTrainer
 from trainer.a2c import A2CTrainer
 from trainer.qac import QACTrainer
 from trainer.dqn import DQNTrainer
-import environment
-from environment import SimpleHouseEnv as HouseEnv
-from multihouse_env import MultiHouseEnv
-from world import World, all_allowed_target_room_types, all_allowed_prediction_room_types
+import House3D
+from House3D.roomnav import n_discrete_actions
+from House3D import Environment as HouseEnv
+from House3D import MultiHouseEnv
+from House3D import House
+from House3D.house import ALLOWED_TARGET_ROOM_TYPES, ALLOWED_PREDICTION_ROOM_TYPES
+from House3D.roomnav import RoomNavTask
+from House3D import objrender, load_config
 
 from config import get_config, get_house_ids
 
@@ -46,29 +50,11 @@ def set_house_IDs(partition='small', ensure_kitchen=False):
         all_houseIDs = all_houseIDs[:10] + all_houseIDs[11:]
 
 
-CFG = get_config()
+CFG = load_config('config.json')
 prefix = CFG['prefix']
-csvFile = CFG['csvFile']
+csvFile = CFG['modelCategoryFile']
 colorFile = CFG['colorFile']
 roomTargetFile = CFG['roomTargetFile']
-#if "Apple" in sys.version:
-    ## own mac laptop
-    #prefix = '/Users/yiw/Downloads/data/house/'
-    #csvFile = '/Users/yiw/Downloads/data/metadata/ModelCategoryMapping.csv'
-    #colorFile = '/Users/yiw/Downloads/data/metadata/colormap_coarse.csv'
-#elif "Red Hat" in sys.version:
-    ## dev server
-    #prefix = '/home/yiw/local/data/houses-yiwu/'
-    #csvFile = '/home/yiw/local/data/houses-yiwu/ModelCategoryMapping.csv'
-    #colorFile = '/home/yiw/local/data/houses-yiwu/colormap_coarse.csv'
-#elif "Ubuntu" in platform.platform():
-    ## ubuntu server
-    #colorFile = '/home/jxwuyi/workspace/objrender/metadata/colormap_coarse.csv'
-    #csvFile = '/home/jxwuyi/data/fb/data/metadata/ModelCategoryMapping.csv'
-    #prefix = '/home/jxwuyi/data/fb/data/house/'
-#else:
-    ## fair server
-    #assert False, 'Unable to locate data folder..... Please edit <common.py>'
 
 frame_history_len = 4
 #resolution = (200, 150)
@@ -81,14 +67,13 @@ single_observation_shape = (3, resolution[0], resolution[1])
 action_shape = (4, 2)
 colide_res = 1000
 default_eagle_resolution = 100
-n_discrete_actions = environment.n_discrete_actions
-n_target_instructions = len(all_allowed_target_room_types)
-all_target_instructions = all_allowed_target_room_types
+n_target_instructions = len(ALLOWED_TARGET_ROOM_TYPES)
+all_target_instructions = ALLOWED_TARGET_ROOM_TYPES
 target_instruction_dict = dict()
-for i, tp in enumerate(all_allowed_target_room_types):
+for i, tp in enumerate(ALLOWED_TARGET_ROOM_TYPES):
     target_instruction_dict[tp] = i
 
-all_aux_predictions = all_allowed_prediction_room_types
+all_aux_predictions = ALLOWED_PREDICTION_ROOM_TYPES
 n_aux_predictions = len(all_aux_predictions)
 all_aux_prediction_list = [None] * n_aux_predictions
 for k in all_aux_predictions:
@@ -401,7 +386,7 @@ def create_discrete_model(algo, args, inp_shape):
     if args['multi_target']:
         assert algo in ['dqn'], '[Error] Multi-Target Learning only supports <DQN> and <Recurrent-A3C>'
     if (algo == 'a2c') or (algo == 'a3c'):
-        model = A2CModel(inp_shape, environment.n_discrete_actions,
+        model = A2CModel(inp_shape, n_discrete_actions,
                          cnn_hiddens=[64, 64, 128, 128],
                          linear_hiddens=[512],
                          critic_hiddens=[100, 32],
@@ -409,7 +394,7 @@ def create_discrete_model(algo, args, inp_shape):
                          activation=F.relu,
                          use_batch_norm=use_bc)
     elif algo == 'qac':
-        model = QACModel(inp_shape, environment.n_discrete_actions,
+        model = QACModel(inp_shape, n_discrete_actions,
                          cnn_hiddens=[32, 64, 128, 128],
                          linear_hiddens=[512],
                          critic_hiddens=[256, 32],
@@ -418,7 +403,7 @@ def create_discrete_model(algo, args, inp_shape):
                          multi_target=args['multi_target'],
                          use_target_gating=args['target_gating'])
     elif algo == 'dqn':
-        model = QACModel(inp_shape, environment.n_discrete_actions,
+        model = QACModel(inp_shape, n_discrete_actions,
                          cnn_hiddens=[32, 64, 128, 128],
                          linear_hiddens=[512],
                          critic_hiddens=[256, 32],
@@ -470,40 +455,42 @@ def create_trainer(algo, model, args):
         model_gen = lambda: create_discrete_model(algo, args, observation_shape)
         trainer = A2CTrainer('A2CTrainer', model_gen,
                              observation_shape,
-                             environment.n_discrete_actions, args)
+                             n_discrete_actions, args)
     elif algo == 'qac':
         model_gen = lambda: create_discrete_model(algo, args, observation_shape)
         trainer = QACTrainer('QACTrainer', model_gen, observation_shape,
-                             environment.n_discrete_actions, args)
+                             n_discrete_actions, args)
     elif algo == 'dqn':
         model_gen = lambda: create_discrete_model(algo, args, observation_shape)
         trainer = DQNTrainer('DQNTrainer', model_gen, observation_shape,
-                             environment.n_discrete_actions, args)
+                             n_discrete_actions, args)
     else:
         assert False, 'Trainer not defined for <{}>'.format(algo)
     return trainer
 
 
-def create_world(houseID, genRoomTypeMap=False, cacheAllTarget=False):
+def create_house(houseID, genRoomTypeMap=False, cacheAllTarget=False):
     objFile = prefix + houseID + '/house.obj'
     jsonFile = prefix + houseID + '/house.json'
     cachedFile = genCacheFile(houseID)
     assert os.path.isfile(cachedFile), '[Error] No Cached Map File Found for House <{}>!'.format(houseID)
-    world = World(jsonFile, objFile, csvFile, colide_res,
-                  CachedFile=cachedFile, EagleViewRes=default_eagle_resolution,
-                  GenRoomTypeMap=genRoomTypeMap)
+    house = House(jsonFile, objFile, csvFile, CachedFile=cachedFile, GenRoomTypeMap=genRoomTypeMap)
+    #house = House(jsonFile, objFile, csvFile,
+    #              ColideRes=colide_res,
+    #              CachedFile=cachedFile, EagleViewRes=default_eagle_resolution,
+    #              GenRoomTypeMap=genRoomTypeMap)
     if cacheAllTarget:
-        world.cache_all_target()
-    return world
+        house.cache_all_target()
+    return house
 
-def create_world_from_index(k, genRoomTypeMap=False, cacheAllTarget=False):
+def create_house_from_index(k, genRoomTypeMap=False, cacheAllTarget=False):
     if k >= 0:
         if k >= len(all_houseIDs):
             print('k={} exceeds total number of houses ({})! Randomly Choose One!'.format(k, len(all_houseIDs)))
             houseID = random.choice(all_houseIDs)
         else:
             houseID = all_houseIDs[k]
-        return create_world(houseID, genRoomTypeMap, cacheAllTarget)
+        return create_house(houseID, genRoomTypeMap, cacheAllTarget)
     else:
         k = -k
         print('Multi-House Environment! Total Selected Houses = {}'.format(k))
@@ -517,7 +504,7 @@ def create_world_from_index(k, genRoomTypeMap=False, cacheAllTarget=False):
         from multiprocessing import Pool
         _args = [(all_houseIDs[j], genRoomTypeMap, cacheAllTarget) for j in range(k)]
         with Pool(k) as pool:
-            ret_worlds = pool.starmap(create_world, _args)  # parallel version for initialization
+            ret_worlds = pool.starmap(create_house, _args)  # parallel version for initialization
         print('  >> Done! Time Elapsed = %.4f(s)' % (time.time() - ts))
         return ret_worlds
         # return [create_world(houseID, genRoomTypeMap) for houseID in all_houseIDs[:k]]
@@ -528,32 +515,27 @@ def create_env(k=0,
                max_steps=-1,
                render_device=None,
                genRoomTypeMap=False,
-               cacheAllTarget=False):
+               cacheAllTarget=False,
+               use_discrete_action=False):
     if render_device is None:
         render_device = get_gpus_for_rendering()[0]   # by default use the first gpu
     if segment_input is None:
         segment_input = 'none'
+    api = objrender.RenderAPI(w=resolution[0], h=resolution[1], device=render_device)
     if k >= 0:
-        world = create_world_from_index(k, genRoomTypeMap, cacheAllTarget)
-        env = HouseEnv(world, colorFile, resolution=resolution, reward_type=reward_type,
-                       hardness=hardness, action_degree=action_shape[0],
-                       segment_input=(segment_input != 'none'),
-                       use_segment_id=(segment_input == 'index'),
+        house = create_house_from_index(k, genRoomTypeMap, cacheAllTarget)
+        env = HouseEnv(api, house, config=CFG)
+
+    else:  # multi-house environment
+        all_houses = create_house_from_index(k, genRoomTypeMap, cacheAllTarget)
+        env = MultiHouseEnv(api, all_houses, config=CFG)
+    task = RoomNavTask(env, reward_type=reward_type, hardness=hardness,
+                       segment_input=(segment_input != 'None'),
                        joint_visual_signal=(segment_input == 'joint'),
                        depth_signal=depth_input,
-                       success_measure=success_measure, RoomTargetFile=roomTargetFile,
-                       max_steps=max_steps, render_device=render_device)
-    else:  # multi-house environment
-        all_worlds = create_world_from_index(k, genRoomTypeMap, cacheAllTarget)
-        env = MultiHouseEnv(all_worlds, colorFile, resolution=resolution, reward_type=reward_type,
-                            hardness=hardness, action_degree=action_shape[0],
-                            segment_input=(segment_input != 'none'),
-                            use_segment_id=(segment_input == 'index'),
-                            joint_visual_signal=(segment_input == 'joint'),
-                            depth_signal=depth_input,
-                            success_measure=success_measure, RoomTargetFile=roomTargetFile,
-                            max_steps=max_steps, render_device=render_device)
-    return env
+                       max_steps=max_steps, success_measure=success_measure,
+                       discrete_action=use_discrete_action)
+    return task
 
 
 def get_gpus_for_rendering():

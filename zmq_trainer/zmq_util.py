@@ -20,20 +20,21 @@ class ZMQHouseEnvironment:
                                      segment_input=segment_input, depth_input=depth_input,
                                      max_steps=max_steps, render_device=device,
                                      genRoomTypeMap=aux_task,
-                                     cacheAllTarget=multi_target)
-        self.obs = self.env.reset()
+                                     cacheAllTarget=multi_target,
+                                     use_discrete_action=True)  # assume A3C with discrete actions
+        self.obs = self.env.reset() if multi_target else self.env.reset(target='kitchen')
         self.done = False
         self.multi_target = multi_target
-        if multi_target:
-            self.env.cache_all_target()
         self.aux_task = aux_task
         if self.aux_task:
-            self._aux_target = self.env.get_current_room_pred_mask()
+            #self._aux_target = self.env.get_current_room_pred_mask()   TODO: Currently do not support aux room pred
+            assert False, 'Aux Room Prediction Currently Not Supported!'
         self._target = common.target_instruction_dict[self.env.get_current_target()]
 
     def current_state(self):
         if self.aux_task:
-            return self.obs, self._target, self._aux_target
+            #return self.obs, self._target, self._aux_target
+            return None
         else:
             return self.obs, self._target
 
@@ -41,10 +42,10 @@ class ZMQHouseEnvironment:
         obs, rew, done, _ = self.env.step(act, return_info=False)
         if done:
             if self.multi_target:
-                obs = self.env.reset(reset_target=True)
+                obs = self.env.reset()
                 self._target = common.target_instruction_dict[self.env.get_current_target()]
             else:
-                obs = self.env.reset()
+                obs = self.env.reset(target=self.env.get_current_target())
         self.obs = obs
         return rew, done
 

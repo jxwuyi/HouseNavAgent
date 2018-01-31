@@ -2,6 +2,7 @@ from headers import *
 import common
 import utils
 
+import environment
 import threading
 
 from zmq_trainer.zmq_actor_critic import ZMQA3CTrainer
@@ -18,63 +19,202 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-def create_scheduler(type='medium'):
-    if type == 'none':
-        return None
-    if type == 'linear':
-        return utils.LinearSchedule(200000, 1.0, 0.0)
-    if type == 'medium':
-        endpoints = [(0, 0), (2000, 0.1), (7000, 0.25), (40000, 0.5), (200000, 1.0)]
-    elif type == 'high':
-        endpoints = [(0, 0), (3000, 0.1), (15000, 0.25), (80000, 0.5), (500000, 1.0)]
-    elif type == 'low': # low
-        endpoints = [(0, 0), (1000, 0.1), (3000, 0.25), (20000, 0.5), (100000, 1.0)]
-    elif type == 'tiny':  # low
-        endpoints = [(0, 0), (1000, 0.1), (2000, 0.25), (5000, 0.5), (20000, 1.0)]
-    elif type == 'exp':
-        endpoints = [(0, 0), (1000, 0.01), (5000, 0.1), (10000, 0.5), (20000, 0.75), (50000, 0.9), (100000, 0.95), (200000, 1.0)]
-    print('Building PiecewiseScheduler with <endpoints> = {}'.format(endpoints))
-    scheduler = utils.PiecewiseSchedule(endpoints, outside_value=1.0)
-    return scheduler
+class ZMQHouseEnvironment:
+    def __init__(self, k=0, reward_type='indicator', success_measure='center', multi_target=False, aux_task=False,
+                 hardness=None, segment_input='none', depth_input=False, max_steps=-1, device=0, seed=0):
+        assert k >= 0
+        np.random.seed(seed)
+        random.seed(seed)
+        self.env = common.create_env(k, reward_type=reward_type, hardness=hardness, success_measure=success_measure,
+                                     segment_input=segment_input, depth_input=depth_input,
+                                     max_steps=max_steps, render_device=device,
+                                     genRoomTypeMap=aux_task,
+                                     cacheAllTarget=multi_target)
+        self.obs = self.env.reset()
+        self.done = False
+        self.multi_target = multi_target
+        if multi_target:
+            self.env.cache_all_target()
+        self.aux_task = aux_task
+        if self.aux_task:
+            self._aux_target = self.env.get_current_room_pred_mask()
+        self._target = common.target_instruction_dict[self.env.get_current_target()]
 
-
-def create_policy(model_name, args, observation_shape, n_action):
-    assert model_name == 'rnn', 'currently only support rnn policy!'
-    model = DiscreteRNNPolicy(observation_shape, n_action,
-                              conv_hiddens=[64, 64, 128, 128],
-                              kernel_sizes=5, strides=2,
-                              linear_hiddens=[256],
-                              policy_hiddens=[128, 64],
-                              critic_hiddens=[64, 32],
-                              rnn_cell=args['rnn_cell'],
-                              rnn_layers=args['rnn_layers'],
-                              rnn_units=args['rnn_units'],
-                              multi_target=args['multi_target'],
-                              use_target_gating=args['target_gating'],
-                              aux_prediction=(common.n_aux_predictions if args['aux_task'] else None),
-                              no_skip_connect=(args['no_skip_connect'] if 'no_skip_connect' in args else False),
-                              pure_feed_forward=(args['feed_forward'] if 'feed_forward' in args else False))
-    if common.use_cuda:
-        if 'train_gpu' in args:
-            model.cuda(device_id=args['train_gpu'])  # TODO: Actually we only support training on gpu_id=0
+    def current_state(self):
+        if self.aux_task:
+            return self.obs, self._target, self._aux_target
         else:
-            model.cuda()
-    return model
+            return self.obs, self._target
+
+    def action(self, act):
+        if act is None:
+            exit(0)
+        obs, rew, done, _ = self.env.step(act, return_info=False)
+        if done:
+            if self.multi_target:
+                obs = self.env.reset(reset_target=True)
+                self._target = common.target_instruction_dict[self.env.get_current_target()]
+            else:
+                obs = self.env.reset()
+        self.obs = obs
+        return rew, done
+
+class ZMQSimulator(SimulatorProcess):
+    def _build_player(self):
+        config = self.config
+        k = self.idx % config['n_house']
+        # set random seed
+        np.random.seed(self.idx)
+        device_list = config['render_devices']
+        device_ind = self.idx % len(device_list)
+        device = device_list[device_ind]
+        return ZMQHouseEnvironment(k, config['reward_type'], config['success_measure'],
+                                   config['multi_target'], config['aux_task'], config['hardness'],
+                                   config['segment_input'], config['depth_input'],
+                                   config['max_episode_len'], device, seed=self.idx)
 
 
-def create_zmq_trainer(algo, model, args):
-    assert model == 'rnn', 'currently only support rnn policy!'
-    observation_shape = common.observation_shape
-    n_action = common.n_discrete_actions
-    if algo == 'a3c':
-        model_gen = lambda: create_policy(model, args, observation_shape, n_action)
-        if args['aux_task']:
-            trainer = ZMQAuxTaskTrainer('ZMQAuxTaskA3CTrainer', model_gen, observation_shape, [n_action], args)
+class ZMQMaster(SimulatorMaster):
+    def __init__(self, pipe1, pipe2, trainer, config):
+        super(ZMQMaster, self).__init__(pipe1, pipe2)
+        self.config = config
+        self.logger = config['logger']
+        self.cnt = 0
+        self.n_action = common.n_discrete_actions  # TODO: to allow further modification
+        self.train_buffer = dict()
+        self.pool = set()
+        self.hidden_state = dict()
+        self.accu_stats = dict()
+        self.epis_cnt = dict()
+        self.start_time = time.time()
+        self.episode_stats = dict(len=[], rew=[], succ=[])
+        self.multi_target = config['multi_target']
+        self.max_iters = config['max_iters']
+        self.n_house = config['n_house']
+        assert self.max_iters % self.n_house == 0
+        self.avg_iters = self.max_iters / self.n_house
+        if self.multi_target:
+            self.episode_stats['target'] = []
+            self.curr_target = dict()
+        self.aux_task = config['aux_task']
+        if self.aux_task:
+            self.episode_stats['aux_task_rew'] = []
+            self.episode_stats['aux_task_err'] = []
+        self.trainer = trainer
+
+    def save_all(self, version=''):
+        self.logger.print('>>> Saving to log_dir = <{}> ...'.format(self.config['log_dir']))
+        self.trainer.save(self.config['log_dir'], version=version+'_epis_stats', target_dict_data=self.episode_stats)
+
+    def recv_message(self, ident, _state, reward, isOver):
+        """
+        Handle a message sent by "ident" simulator.
+        The simulator takes the last action we send, arrive in "state", get "reward" and "isOver".
+        """
+        if self.aux_task:
+            state, target, aux_msk = _state
         else:
-            trainer = ZMQA3CTrainer('ZMQA3CTrainer', model_gen, observation_shape, [n_action], args)
-    else:
-        assert False, '[ZMQ Trainer] Trainer <{}> is not defined!'.format(algo)
-    return trainer
+            state, target = _state
+            aux_msk = None
+        trainer = self.trainer
+        if ident not in self.hidden_state:  # new process passed in
+            self.epis_cnt[ident] = 0
+            if trainer.is_rnn():
+                self.hidden_state[ident] = trainer.get_init_hidden()
+            self.accu_stats[ident] = dict(rew=0, len=0, succ=0)
+            if self.multi_target:
+                self.accu_stats[ident]['target'] = common.all_target_instructions[target]
+            if self.aux_task:
+                self.accu_stats[ident]['aux_task_rew'] = 0
+                self.accu_stats[ident]['aux_task_err'] = 0
+
+        self.accu_stats[ident]['rew'] += reward
+        self.accu_stats[ident]['len'] += 1
+
+        if isOver:
+            # clear hidden state
+            if isinstance(self.hidden_state[ident], tuple):
+                c, g = self.hidden_state[ident]
+                c *= 0.0
+                g *= 0.0
+                self.hidden_state[ident] = (c, g)
+            else:
+                self.hidden_state[ident] *= 0.0
+            # accumulate running stats
+            if reward > 5:  # magic number, since when we succeed we have a super large reward
+                self.accu_stats[ident]['succ'] = 1
+            self.episode_stats['rew'].append(self.accu_stats[ident]['rew'])
+            self.episode_stats['len'].append(self.accu_stats[ident]['len'])
+            self.episode_stats['succ'].append(self.accu_stats[ident]['succ'])
+            self.accu_stats[ident]['rew'] = 0
+            self.accu_stats[ident]['len'] = 1
+            self.accu_stats[ident]['succ'] = 0
+            self.epis_cnt[ident] += 1
+            if self.multi_target:
+                self.episode_stats['target'].append(self.accu_stats[ident]['target'])
+                self.accu_stats[ident]['target'] = target
+            if self.aux_task:
+                self.episode_stats['aux_task_err'].append(self.accu_stats[ident]['aux_task_err'] / self.episode_stats['len'][-1])
+                self.accu_stats[ident]['aux_task_err'] = 0
+                self.episode_stats['aux_task_rew'].append(self.accu_stats[ident]['aux_task_rew'])
+                self.accu_stats[ident]['aux_task_rew'] = 0
+            if len(self.episode_stats['succ']) >= self.max_iters:
+                print('>>>>> Done!!!!')
+                self.logger.print('>>>>> DONE!!!!')
+                self.logger.print('####### Final Stats #######')
+                self.logger.print(">>> Succ Rate = %.3f" % (float(np.sum(self.episode_stats['succ'])) / self.max_iters))
+                self.logger.print(">>> Avg Succ Path Len = %.3f" % (float(np.mean([l for s,l in zip(self.episode_stats['succ'], self.episode_stats['len']) if s > 0]))))
+                if self.multi_target:
+                    all_targets = sorted(list(set(self.episode_stats['target'])))
+                    for tar in all_targets:
+                        eps = [(s, l) for t, s, l in zip(self.episode_stats['target'], self.episode_stats['succ'], self.episode_stats['len']) if t == tar]
+                        self.logger.print('  --> Target = %s, Rate = %.3f, Succ = %.3f, AvgLen = %.3f' % (tar, len(eps) / self.max_iters, float(np.mean([e[0] for e in eps])), float(np.mean([e[1] for e in eps if e[0] > 0])) ))
+                self.save_all()
+                exit(0)
+            if self.epis_cnt[ident] >= self.avg_iters:
+                return None  # stop the process!
+
+        if isinstance(state, np.ndarray): state = torch.from_numpy(state).type(ByteTensor)
+        self.curr_state[ident] = state
+        self.curr_target[ident] = target
+        if self.aux_task:
+            self.curr_aux_mask[ident] = aux_msk
+
+        # currently run batched simulation
+        if ident in self.train_buffer:
+            self.train_buffer[ident]['obs'].append(state)
+            self.train_buffer[ident]['done'].append(isOver)
+            self.train_buffer[ident]['rew'].append(reward)
+            if self.multi_target: self.train_buffer[ident]['target'].append(target)
+            if self.aux_task: self.train_buffer[ident]['aux_target'].append(trainer.process_aux_target(aux_msk))
+            self.pool.add(ident)
+            if len(self.pool) == self.batch_size:
+                if self.batch_step == self.t_max:
+                    self._perform_train()
+                    self.train_buffer.clear()
+                    self.batch_step = 0
+                else:
+                    self.batch_step += 1
+                    self._batched_simulate()
+                self.pool.clear()
+
+        # no batch selected, create a batch and initialize the first action
+        if len(self.train_buffer) == 0:
+            if len(self.hidden_state) >= self.batch_size:
+                cand = self._rand_select(self.hidden_state.keys())
+                for id in cand:
+                    self.train_buffer[id] = dict(obs=[self.curr_state[id]], rew=[], done=[], act=[],
+                                                 init_h=self.hidden_state[id], target=[self.curr_target[id]])
+                    if self.aux_task:
+                        self.train_buffer[id]['aux_target'] = [trainer.process_aux_target(self.curr_aux_mask[id])]
+                self._batched_simulate()
+                self.pool.clear()
+                self.batch_step += 1
+
+        # report stats
+        self.comm_cnt += 1
+        if self.comm_cnt % self.config['eval_rate'] == 0:
+            self._evaluate_stats()
 
 
 def create_zmq_config(args):

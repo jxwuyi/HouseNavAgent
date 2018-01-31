@@ -6,13 +6,13 @@ import os, time, pickle, argparse
 def render_episode(env, infos):
     images = []
     for info in infos:
-        env.set_cam_info(info)
-        images.append(env.render(renderMapLoc=info['loc'], display=False, renderSegment=True))
+        env.set_state(info)
+        images.append(env.show())
     return images
 
 def show_episode(env, images):
     for i, im in enumerate(images):
-        env.render(im)
+        env.show(im)
         if i == 0:
             time.sleep(0.5)
         else:
@@ -26,12 +26,12 @@ def visualize(args, all_stats, config):
         print('Loading Cached Epsiodes from <{}>'.format(args.load_dir))
         with open(args.load_dir, 'rb') as f:
               episode_images = pickle.load(f)
-        env = common.create_env(0, hardness = 0.95, success_measure='see')
-        env.reset_render()
+        env = common.create_env(0, hardness=0.95, success_measure='see')
+        env.reset()
     else:
         env = common.create_env(config.house, hardness=config.hardness, success_measure='see')
-        env.reset_render()
-        print('Resolution = {}'.format(env.resolution))
+        env.reset()
+        print('Resolution = {}'.format(env.env.resolution))
         total_len = 0
         total_succ = 0
         episode_images = []
@@ -47,7 +47,8 @@ def visualize(args, all_stats, config):
             if stats['length'] > args.max_episode_len:
                 continue
             if 'world_id' in stats:
-                env.reset(stats['world_id'])
+                #env.reset(stats['world_id'])
+                env.env.reset_house(stats['world_id'])
             episode_images.append((render_episode(env, stats['infos']), stats))
             if len(episode_images) % 10 == 0:
                 print(' >>> %d Episode Rendered, Time Elapsed = %.4fs' % (len(episode_images), time.time()-elap))
