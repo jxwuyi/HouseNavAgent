@@ -39,7 +39,7 @@ class ZMQHouseEnvironment:
             return self.obs, self._target
 
     def action(self, act):
-        obs, rew, done, _ = self.env.step(act, return_info=False)
+        obs, rew, done, _ = self.env.step(act)
         if done:
             if self.multi_target:
                 obs = self.env.reset()
