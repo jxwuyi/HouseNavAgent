@@ -56,7 +56,7 @@ csvFile = CFG['modelCategoryFile']
 colorFile = CFG['colorFile']
 roomTargetFile = CFG['roomTargetFile']
 objectTargetFile = CFG['objectTargetFile'] if 'objectTargetFile' in CFG else None
-modelObjectMapFile = CFG['modelOjbectMap'] if 'modelObjectMap' in CFG else None
+modelObjectMapFile = CFG['modelObjectMap'] if 'modelObjectMap' in CFG else None
 
 frame_history_len = 4
 #resolution = (200, 150)
