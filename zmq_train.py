@@ -103,6 +103,7 @@ def create_zmq_config(args):
     config['max_episode_len'] = args['max_episode_len']
     config['success_measure'] = args['success_measure']
     config['multi_target'] = args['multi_target']
+    config['object_target'] = args['object_target']
     config['aux_task'] = args['aux_task']
     return config
 
@@ -175,11 +176,14 @@ def parse_args():
     #parser.add_argument("--history-frame-len", type=int, default=4,
     #                    help="length of the stacked frames, default=4")
     parser.add_argument("--max-episode-len", type=int, default=50, help="maximum episode length")
-    parser.add_argument("--success-measure", choices=['center', 'stay', 'see'], default='center',
+    parser.add_argument("--success-measure", choices=['center', 'stay', 'see'], default='see',
                         help="criteria for a successful episode")
     parser.add_argument("--multi-target", dest='multi_target', action='store_true',
                         help="when this flag is set, a new target room will be selected per episode")
     parser.set_defaults(multi_target=False)
+    parser.add_argument("--include-object-target", dest='object_target', action='store_true',
+                        help="when this flag is set, target can be also a target. Only effective when --multi-target")
+    parser.set_defaults(object_target=False)
     ########################################################
     # ZMQ training parameters
     parser.add_argument("--train-gpu", type=int,
@@ -261,6 +265,9 @@ if __name__ == '__main__':
 
     common.set_house_IDs(cmd_args.env_set, ensure_kitchen=(not cmd_args.multi_target))
     print('>> Environment Set = <%s>, Total %d Houses!' % (cmd_args.env_set, len(common.all_houseIDs)))
+
+    if cmd_args.object_target:
+        common.ensure_object_targets()
 
     if cmd_args.n_house > len(common.all_houseIDs):
         print('[ZMQ_Train.py] No enough houses! Reduce <n_house> to [{}].'.format(len(common.all_houseIDs)))

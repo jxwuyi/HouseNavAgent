@@ -173,6 +173,7 @@ def evaluate(house, seed = 0, render_device=None,
              rnn_units=None, rnn_layers=None, rnn_cell=None,
              use_action_gating=False, use_residual_critic=False, use_target_gating=False,
              segmentation_input='none', depth_input=False, resolution='normal', history_len=4,
+             include_object_target=False,
              aux_task=False, no_skip_connect=False, feed_forward=False,
              greedy_execution=False, greedy_aux_pred=False):
 
@@ -194,10 +195,13 @@ def evaluate(house, seed = 0, render_device=None,
     args['action_gating'] = use_action_gating
     args['residual_critic'] = use_residual_critic
     args['multi_target'] = multi_target
+    args['object_target'] = include_object_target
     args['target_gating'] = use_target_gating
     args['aux_task'] = aux_task
     args['no_skip_connect'] = no_skip_connect
     args['feed_forward'] = feed_forward
+    if fixed_target is not None:
+        assert fixed_target in common.n_target_instructions, 'invalid fixed target <{}>'.format(fixed_target)
 
     if model_name == 'rnn':
         import zmq_train
@@ -228,7 +232,8 @@ def evaluate(house, seed = 0, render_device=None,
                             segment_input=args['segment_input'],
                             genRoomTypeMap=aux_task,
                             cacheAllTarget=multi_target,
-                            render_device=render_device)
+                            render_device=render_device,
+                            include_object_target=include_object_target)
 
     if fixed_target is not None:
         env.reset_target(fixed_target)
@@ -401,7 +406,10 @@ def parse_args():
     parser.add_argument("--multi-target", dest='multi_target', action='store_true',
                         help="when this flag is set, a new target room will be selected per episode")
     parser.set_defaults(multi_target=False)
-    parser.add_argument("--fixed-target", choices=common.all_target_instructions,
+    parser.add_argument("--include-object-target", dest='object_target', action='store_true',
+                        help="when this flag is set, target can be also a target. Only effective when --multi-target")
+    parser.set_defaults(object_target=False)
+    parser.add_argument("--fixed-target", choices=common.ALLOWED_TARGET_ROOM_TYPES + common.ALLOWED_OBJECT_TARGET_TYPES,
                         help="once set, all the episode will be fixed to a specific target.")
     parser.add_argument("--greedy-execution", dest='greedy_execution', action='store_true',
                         help="When --greedy-execution, we directly take the action with the maximum probability instead of sampling. For DDPG, we turn off the gumbel-noise. For NOP, we will use discrete actions.")
@@ -461,6 +469,9 @@ if __name__ == '__main__':
     common.set_house_IDs(args.env_set, ensure_kitchen=(not args.multi_target))
     print('>> Environment Set = <%s>, Total %d Houses!' % (args.env_set, len(common.all_houseIDs)))
 
+    if args.object_target:
+        common.ensure_object_targets()
+
     if not os.path.exists(args.log_dir):
         print('Directory <{}> does not exist! Creating directory ...'.format(args.log_dir))
         os.makedirs(args.log_dir)
@@ -493,6 +504,7 @@ if __name__ == '__main__':
                      args.rnn_units, args.rnn_layers, args.rnn_cell,
                      args.action_gating, args.residual_critic, args.target_gating,
                      args.segmentation_input, args.depth_input, args.resolution, args.history_frame_len,
+                     include_object_target=args.object_target,
                      aux_task=args.aux_task, no_skip_connect=args.no_skip_connect, feed_forward=args.feed_forward,
                      greedy_execution=(args.greedy_execution and (args.algo == 'a3c')),
                      greedy_aux_pred=(args.greedy_aux_pred and (args.algo == 'a3c') and args.aux_task))

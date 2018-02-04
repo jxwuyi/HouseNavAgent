@@ -32,7 +32,7 @@ from House3D.roomnav import n_discrete_actions
 from House3D import Environment as HouseEnv
 from House3D import MultiHouseEnv
 from House3D import House
-from House3D.house import ALLOWED_TARGET_ROOM_TYPES, ALLOWED_PREDICTION_ROOM_TYPES
+from House3D.house import ALLOWED_TARGET_ROOM_TYPES, ALLOWED_PREDICTION_ROOM_TYPES, ALLOWED_OBJECT_TARGET_TYPES
 from House3D.roomnav import RoomNavTask
 from House3D import objrender, load_config
 
@@ -55,6 +55,8 @@ prefix = CFG['prefix']
 csvFile = CFG['modelCategoryFile']
 colorFile = CFG['colorFile']
 roomTargetFile = CFG['roomTargetFile']
+objectTargetFile = CFG['objectTargetFile'] if 'objectTargetFile' in CFG else None
+modelObjectMapFile = CFG['modelOjbectMap'] if 'modelObjectMap' in CFG else None
 
 frame_history_len = 4
 #resolution = (200, 150)
@@ -72,6 +74,15 @@ all_target_instructions = ALLOWED_TARGET_ROOM_TYPES
 target_instruction_dict = dict()
 for i, tp in enumerate(ALLOWED_TARGET_ROOM_TYPES):
     target_instruction_dict[tp] = i
+
+def ensure_object_targets():
+    assert modelObjectMapFile is not None, 'modelOjbectMap file <map_modelid_to_targetcat.json> is missing!!!'
+    assert objectTargetFile is not None, 'objectTargetFile file <object_target_map.csv> is missing!!!'
+    global n_target_instructions, all_target_instructions, target_instruction_dict
+    all_target_instructions = ALLOWED_TARGET_ROOM_TYPES + ALLOWED_OBJECT_TARGET_TYPES
+    n_target_instructions = len(all_target_instructions)
+    for i, tp in enumerate(all_target_instructions):
+        target_instruction_dict[tp] = i
 
 all_aux_predictions = ALLOWED_PREDICTION_ROOM_TYPES
 n_aux_predictions = len(all_aux_predictions)
@@ -474,7 +485,9 @@ def create_house(houseID, genRoomTypeMap=False, cacheAllTarget=False):
     jsonFile = prefix + houseID + '/house.json'
     cachedFile = genCacheFile(houseID)
     assert os.path.isfile(cachedFile), '[Error] No Cached Map File Found for House <{}>!'.format(houseID)
-    house = House(jsonFile, objFile, csvFile, CachedFile=cachedFile, GenRoomTypeMap=genRoomTypeMap)
+    house = House(jsonFile, objFile, csvFile,
+                  CachedFile=cachedFile, GenRoomTypeMap=genRoomTypeMap,
+                  MapTargetCatFile=modelObjectMapFile)
     #house = House(jsonFile, objFile, csvFile,
     #              ColideRes=colide_res,
     #              CachedFile=cachedFile, EagleViewRes=default_eagle_resolution,
@@ -516,7 +529,8 @@ def create_env(k=0,
                render_device=None,
                genRoomTypeMap=False,
                cacheAllTarget=False,
-               use_discrete_action=False):
+               use_discrete_action=False,
+               include_object_target=False):
     if render_device is None:
         render_device = get_gpus_for_rendering()[0]   # by default use the first gpu
     if segment_input is None:
@@ -534,7 +548,8 @@ def create_env(k=0,
                        joint_visual_signal=(segment_input == 'joint'),
                        depth_signal=depth_input,
                        max_steps=max_steps, success_measure=success_measure,
-                       discrete_action=use_discrete_action)
+                       discrete_action=use_discrete_action,
+                       include_object_target=include_object_target)
     return task
 
 

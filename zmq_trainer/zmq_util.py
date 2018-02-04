@@ -13,7 +13,8 @@ from zmq_trainer.zmqsimulator import SimulatorProcess, SimulatorMaster, ensure_p
 n_episode_evaluation = 500
 
 class ZMQHouseEnvironment:
-    def __init__(self, k=0, reward_type='indicator', success_measure='center', multi_target=False, aux_task=False,
+    def __init__(self, k=0, reward_type='indicator', success_measure='center', multi_target=False,
+                 include_object_target=False, aux_task=False,
                  hardness=None, segment_input='none', depth_input=False, max_steps=-1, device=0):
         assert k >= 0
         self.env = common.create_env(k, reward_type=reward_type, hardness=hardness, success_measure=success_measure,
@@ -21,6 +22,7 @@ class ZMQHouseEnvironment:
                                      max_steps=max_steps, render_device=device,
                                      genRoomTypeMap=aux_task,
                                      cacheAllTarget=multi_target,
+                                     include_object_target=include_object_target,
                                      use_discrete_action=True)  # assume A3C with discrete actions
         self.obs = self.env.reset() if multi_target else self.env.reset(target='kitchen')
         self.done = False
@@ -59,7 +61,8 @@ class ZMQSimulator(SimulatorProcess):
         device_ind = self.idx % len(device_list)
         device = device_list[device_ind]
         return ZMQHouseEnvironment(k, config['reward_type'], config['success_measure'],
-                                   config['multi_target'], config['aux_task'], config['hardness'],
+                                   config['multi_target'], config['object_target'],
+                                   config['aux_task'], config['hardness'],
                                    config['segment_input'], config['depth_input'],
                                    config['max_episode_len'], device)
 

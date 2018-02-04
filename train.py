@@ -223,6 +223,9 @@ def parse_args():
     parser.add_argument("--multi-target", dest='multi_target', action='store_true',
                         help="when this flag is set, a new target room will be selected per episode")
     parser.set_defaults(multi_target=False)
+    parser.add_argument("--include-object-target", dest='object_target', action='store_true',
+                        help="when this flag is set, target can be also a target. Only effective when --multi-target")
+    parser.set_defaults(object_target=False)
     parser.add_argument("--render-gpu", type=int,
                         help="An integer indicating the gpu_id for render. Default by choosing the first GPU in all the accessible devices.")
     # Core training parameters
@@ -298,6 +301,9 @@ if __name__ == '__main__':
     common.set_house_IDs(cmd_args.env_set, ensure_kitchen=(not cmd_args.multi_target))
     print('>> Environment Set = <%s>, Total %d Houses!' % (cmd_args.env_set, len(common.all_houseIDs)))
 
+    if cmd_args.object_target:
+        common.ensure_object_targets()
+
     if cmd_args.seed is not None:
         np.random.seed(cmd_args.seed)
         random.seed(cmd_args.seed)
@@ -367,6 +373,7 @@ if __name__ == '__main__':
     args['residual_critic'] = cmd_args.residual_critic  # resnet for critic (classical ddpg)
     args['multi_target'] = cmd_args.multi_target  # multi-target learning
     args['target_gating'] = cmd_args.target_gating
+    args['object_target'] = cmd_args.object_target  # include object targets
 
     # attentive-cnn related params
     args['att_shared_cnn'] = cmd_args.att_shared_cnn
