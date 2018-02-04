@@ -200,7 +200,7 @@ def evaluate(house, seed = 0, render_device=None,
     args['aux_task'] = aux_task
     args['no_skip_connect'] = no_skip_connect
     args['feed_forward'] = feed_forward
-    if fixed_target is not None:
+    if (fixed_target is not None) and (fixed_target != 'any-room'):
         assert fixed_target in common.n_target_instructions, 'invalid fixed target <{}>'.format(fixed_target)
 
     if model_name == 'rnn':
@@ -235,7 +235,7 @@ def evaluate(house, seed = 0, render_device=None,
                             render_device=render_device,
                             include_object_target=include_object_target)
 
-    if fixed_target is not None:
+    if (fixed_target is not None) and (fixed_target != 'any-room'):
         env.reset_target(fixed_target)
     flag_random_reset_target = multi_target and (fixed_target is None)
 
@@ -409,6 +409,9 @@ def parse_args():
     parser.add_argument("--include-object-target", dest='object_target', action='store_true',
                         help="when this flag is set, target can be also a target. Only effective when --multi-target")
     parser.set_defaults(object_target=False)
+    parser.add_argument("--only-eval-room-target", dest='only_eval_room', action='store_true',
+                        help="when this flag is set, only evaluate room targets. only effective when --include-object-target")
+    parser.set_defaults(only_eval_room=False)
     parser.add_argument("--fixed-target", choices=common.ALLOWED_TARGET_ROOM_TYPES + common.ALLOWED_OBJECT_TARGET_TYPES,
                         help="once set, all the episode will be fixed to a specific target.")
     parser.add_argument("--greedy-execution", dest='greedy_execution', action='store_true',
@@ -498,7 +501,8 @@ if __name__ == '__main__':
     else:
         episode_stats = \
             evaluate(args.house, args.seed or 0, args.render_gpu, args.max_iters, args.max_episode_len,
-                     args.hardness, args.success_measure, args.multi_target, args.fixed_target,
+                     args.hardness, args.success_measure, args.multi_target,
+                     args.fixed_target or ('any-room' if args.only_eval_room else None),
                      args.algo, model_name, args.warmstart, args.log_dir,
                      args.store_history, args.use_batch_norm,
                      args.rnn_units, args.rnn_layers, args.rnn_cell,
