@@ -287,10 +287,10 @@ class DiscreteRNNPolicy(torch.nn.Module):
                 if i > 0: feat = self.func(feat)
                 feat = l(feat)
             if sample_aux_pred:
-                feat = F.softmax(feat)
+                feat = F.softmax(feat, dim=-1)
                 aux_pred = torch.multinomial(feat, 1).view(batch, seq_len, 1)
             else:
-                aux_pred = F.log_softmax(feat) if return_aux_logprob else F.softmax(feat)
+                aux_pred = F.log_softmax(feat, dim=-1) if return_aux_logprob else F.softmax(feat, dim=-1)
                 aux_pred = aux_pred.view(batch, seq_len, self.aux_prediction)
             if return_tensor: aux_pred = aux_pred.data
         else:
@@ -303,8 +303,8 @@ class DiscreteRNNPolicy(torch.nn.Module):
                 feat = l(feat)
                 if i < len(self.policy_layers) - 1: feat = self.func(feat)
             self.logits = feat.view(batch, seq_len, self.out_dim)
-            self.prob = F.softmax(feat).view(batch, seq_len, self.out_dim)
-            self.logp = F.log_softmax(feat).view(batch, seq_len, self.out_dim)
+            self.prob = F.softmax(feat, dim=-1).view(batch, seq_len, self.out_dim)
+            self.logp = F.log_softmax(feat, dim=-1).view(batch, seq_len, self.out_dim)
 
             if sample_action:
                 ret_act = torch.multinomial(self.prob.view(-1, self.out_dim), 1).view(batch, seq_len, 1)

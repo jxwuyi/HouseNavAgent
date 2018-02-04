@@ -178,11 +178,11 @@ class JointCNNPolicyCritic(torch.nn.Module):
             eps = 1e-15  # IMPORTANT!!!!
             x = Variable(torch.log(-torch.log(u + eps) + eps))
             logits_with_noise = logits * gumbel_noise - x
-            prob = F.softmax(logits_with_noise)
-            logp = F.log_softmax(logits_with_noise)
+            prob = F.softmax(logits_with_noise, dim=-1)
+            logp = F.log_softmax(logits_with_noise, dim=-1)
         else:
-            prob = F.softmax(logits)
-            logp = F.log_softmax(logits)
+            prob = F.softmax(logits, dim=-1)
+            logp = F.log_softmax(logits, dim=-1)
         return logits, prob, logp
 
     def forward(self, x, action=None, gumbel_noise=1.0, output_critic=True, target=None):

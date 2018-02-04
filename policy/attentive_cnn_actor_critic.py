@@ -228,11 +228,11 @@ class AttentiveJointCNNPolicyCritic(torch.nn.Module):
             eps = 1e-15  # IMPORTANT!!!!
             x = Variable(torch.log(-torch.log(u + eps) + eps))
             logits_with_noise = logits * gumbel_noise - x
-            prob = F.softmax(logits_with_noise)
-            logp = F.log_softmax(logits_with_noise)
+            prob = F.softmax(logits_with_noise, dim=-1)
+            logp = F.log_softmax(logits_with_noise, dim=-1)
         else:
-            prob = F.softmax(logits)
-            logp = F.log_softmax(logits)
+            prob = F.softmax(logits, dim=-1)
+            logp = F.log_softmax(logits, dim=-1)
         return logits, prob, logp
 
     def forward(self, x, action=None, gumbel_noise = 1.0, output_critic = True):
@@ -259,7 +259,7 @@ class AttentiveJointCNNPolicyCritic(torch.nn.Module):
         for l in self.att_linear_layers:
             att_feat = self.func(l(att_feat))  # att_feat: [batch, att_heads * att_blocks]
         att_feat = att_feat.view(-1, self.att_heads, self.att_blocks).view(-1, self.att_blocks)
-        all_att_mask = F.softmax(att_feat).view(batch_size, self.att_heads, self.att_blocks)
+        all_att_mask = F.softmax(att_feat, dim=-1).view(batch_size, self.att_heads, self.att_blocks)
         cur_inp_mask = None
         # compute mask for each channel in each input frame
         att_x_slides = []

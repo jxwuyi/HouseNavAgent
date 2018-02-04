@@ -27,6 +27,6 @@ class VanilaRandomPolicy(torch.nn.Module):
         action = []
         for d in self.D_out:
             u = Variable(torch.rand(x.size(0), d)).type(FloatTensor)
-            action.append(F.softmax(u))
+            action.append(F.softmax(u, dim=-1))
             #action.append(u)
         return action
