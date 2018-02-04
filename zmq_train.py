@@ -56,7 +56,7 @@ def create_policy(model_name, args, observation_shape, n_action):
                               pure_feed_forward=(args['feed_forward'] if 'feed_forward' in args else False))
     if common.use_cuda:
         if 'train_gpu' in args:
-            model.cuda(device_id=args['train_gpu'])  # TODO: Actually we only support training on gpu_id=0
+            model.cuda(device=args['train_gpu'])  # TODO: Actually we only support training on gpu_id=0
         else:
             model.cuda()
     return model
