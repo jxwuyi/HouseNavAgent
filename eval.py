@@ -214,6 +214,9 @@ def evaluate(house, seed = 0, render_device=None,
     if hardness is not None:
         print('>>>> Hardness = {}'.format(hardness))
     set_seed(seed)
+    all_gpus = common.get_gpus_for_rendering()
+    assert len(all_gpus) > 0, "No GPU found for rendering!"
+    render_device = all_gpus[render_device]
     env = common.create_env(house, hardness=hardness, success_measure=success_measure,
                             depth_input=depth_input,
                             segment_input=args['segment_input'],
