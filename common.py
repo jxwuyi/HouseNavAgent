@@ -484,10 +484,15 @@ def create_house(houseID, genRoomTypeMap=False, cacheAllTarget=False):
     objFile = prefix + houseID + '/house.obj'
     jsonFile = prefix + houseID + '/house.json'
     cachedFile = genCacheFile(houseID)
-    assert os.path.isfile(cachedFile), '[Error] No Cached Map File Found for House <{}>!'.format(houseID)
-    house = House(jsonFile, objFile, csvFile,
-                  CachedFile=cachedFile, GenRoomTypeMap=genRoomTypeMap,
-                  MapTargetCatFile=modelObjectMapFile)
+    if not os.path.isfile(cachedFile):
+        print('Generating Cached Map File for House <{}>!'.format(houseID))
+        house = House(jsonFile, objFile, csvFile,
+                      StorageFile=cachedFile, GenRoomTypeMap=genRoomTypeMap,
+                      MapTargetCatFile=modelObjectMapFile)
+    else:
+        house = House(jsonFile, objFile, csvFile,
+                      CachedFile=cachedFile, GenRoomTypeMap=genRoomTypeMap,
+                      MapTargetCatFile=modelObjectMapFile)
     #house = House(jsonFile, objFile, csvFile,
     #              ColideRes=colide_res,
     #              CachedFile=cachedFile, EagleViewRes=default_eagle_resolution,
