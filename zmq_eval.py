@@ -267,9 +267,9 @@ def train(args=None, warmstart=None):
             print('Warmstarting from save_dir <{}> with version <{}> ...'.format(save_dir, warmstart))
             trainer.load(save_dir, warmstart)
 
-    pipedir = os.environ.get('ZMQ_PIPEDIR', '.')
-    name = 'ipc://{}/whatever'.format(pipedir)
-    name2 = 'ipc://{}/whatever2'.format(pipedir)
+    #pipedir = os.environ.get('ZMQ_PIPEDIR', '.')
+    name = 'ipc://@whatever' #.format(pipedir)
+    name2 = 'ipc://@whatever2' #.format(pipedir)
     n_proc = args['n_proc']
     config = create_zmq_config(args)
     procs = [ZMQSimulator(k, name, name2, config) for k in range(n_proc)]
