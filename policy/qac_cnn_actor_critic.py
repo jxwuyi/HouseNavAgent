@@ -185,8 +185,8 @@ class DiscreteCNNPolicyQFunc(torch.nn.Module):
                 feat = self.func(feat)
             feat = l(feat)
         self.logits = feat
-        self.prob = F.softmax(feat, dim=-1)
-        self.logp = F.log_softmax(feat, dim=-1)
+        self.prob = F.softmax(feat)
+        self.logp = F.log_softmax(feat)
         if sample_action:
             self.act = self.prob.multinomial()
         else:

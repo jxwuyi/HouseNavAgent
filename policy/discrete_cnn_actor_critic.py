@@ -133,8 +133,8 @@ class DiscreteCNNPolicyCritic(torch.nn.Module):
                 feat = self.func(feat)
             feat = l(feat)
         self.logits = feat
-        self.prob = F.softmax(feat, dim=-1)
-        self.logp = F.log_softmax(feat, dim=-1)
+        self.prob = F.softmax(feat)
+        self.logp = F.log_softmax(feat)
         self.act = self.prob.multinomial()
         if return_value:
             return self.act, self.val
