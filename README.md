@@ -1,6 +1,9 @@
 # HouseNavAgent
 Navigation agent in the 3D house environment
 
+# PyTorch Version
+Currently only support pytorch 0.1 and 0.2. It will raise run-time error in pytorch 0.3.
+
 # Note and Usage
 1. Ensure the path to the environment folder is correct in `headers.py`
 2. See `common.py` for configuring environements
