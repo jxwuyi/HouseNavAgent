@@ -118,6 +118,15 @@ def train(args=None, warmstart=None):
                                      history_frame_len=1)
 
     args['logger'] = utils.MyLogger(args['log_dir'], True)
+
+    name = 'ipc://@whatever'
+    name2 = 'ipc://@whatever2'
+    n_proc = args['n_proc']
+    config = create_zmq_config(args)
+    procs = [ZMQSimulator(k, name, name2, config) for k in range(n_proc)]
+    [k.start() for k in procs]
+    ensure_proc_terminate(procs)
+
     trainer = create_zmq_trainer(args['algo'], model='rnn', args=args)
     if warmstart is not None:
         if os.path.exists(warmstart):
@@ -128,14 +137,6 @@ def train(args=None, warmstart=None):
             print('Warmstarting from save_dir <{}> with version <{}> ...'.format(save_dir, warmstart))
             trainer.load(save_dir, warmstart)
 
-    #pipedir = os.environ.get('ZMQ_PIPEDIR', '.')
-    name = 'ipc://@whatever' #.format(pipedir)
-    name2 = 'ipc://@whatever2' #.format(pipedir)
-    n_proc = args['n_proc']
-    config = create_zmq_config(args)
-    procs = [ZMQSimulator(k, name, name2, config) for k in range(n_proc)]
-    [k.start() for k in procs]
-    ensure_proc_terminate(procs)
 
     master = ZMQMaster(name, name2, trainer=trainer, config=args)
 
