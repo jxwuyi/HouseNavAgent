@@ -199,7 +199,7 @@ def train(args=None,
 def parse_args():
     parser = argparse.ArgumentParser("Reinforcement Learning for 3D House Navigation")
     # Environment
-    parser.add_argument("--env-set", choices=['small', 'train', 'test'], default='small')
+    parser.add_argument("--env-set", choices=['small', 'train', 'test', 'color'], default='small')
     parser.add_argument("--house", type=int, default=0,
                         help="house ID (default 0); if < 0, then multi-house environment")
     parser.add_argument("--seed", type=int, help="random seed")

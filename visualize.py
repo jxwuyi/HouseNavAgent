@@ -83,7 +83,7 @@ def parse_args():
     parser = argparse.ArgumentParser("Visualization for 3D House Navigation")
     # config
     parser.add_argument("file", type=str, help="evaluation stats file")
-    parser.add_argument("--env-set", choices=['small', 'train', 'test'], default='test',
+    parser.add_argument("--env-set", choices=['small', 'train', 'test', 'color'], default='test',
                         help="the set of houses. default <test>")
     parser.add_argument("--max-iters", type=int, default=500,
                         help="at most display this number of episodes")

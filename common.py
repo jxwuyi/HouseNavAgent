@@ -48,7 +48,7 @@ def set_house_IDs(partition='small', ensure_kitchen=False):
     global all_houseIDs, house_ID_dict
     assert partition in house_ID_dict, 'Partition <{}> not found!'.format(partition)
     all_houseIDs = house_ID_dict[partition]
-    if ensure_kitchen and (partition == 'small'):  # TODO: Currently a hack to remove house#10 in small set when not multi-target!!
+    if ensure_kitchen and (partition in ['small', 'color']):  # TODO: Currently a hack to remove house#10 in small set when not multi-target!!
         all_houseIDs = all_houseIDs[:10] + all_houseIDs[11:]
 
 

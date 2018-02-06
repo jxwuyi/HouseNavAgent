@@ -386,7 +386,7 @@ def render_episode(env, images):
 def parse_args():
     parser = argparse.ArgumentParser("Evaluation for 3D House Navigation")
     # Environment
-    parser.add_argument("--env-set", choices=['small', 'train', 'test'], default='small')
+    parser.add_argument("--env-set", choices=['small', 'train', 'test', 'color'], default='small')
     parser.add_argument("--house", type=int, default=0, help="house ID")
     parser.add_argument("--render-gpu", type=int, help="gpu id for rendering the environment")
     parser.add_argument("--seed", type=int, default=0, help="random seed")
