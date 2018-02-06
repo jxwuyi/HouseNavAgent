@@ -4,6 +4,16 @@ import sys, os, platform
 
 import numpy as np
 import random
+
+import House3D
+from House3D.roomnav import n_discrete_actions
+from House3D import Environment as HouseEnv
+from House3D import MultiHouseEnv
+from House3D import House
+from House3D.house import ALLOWED_TARGET_ROOM_TYPES, ALLOWED_PREDICTION_ROOM_TYPES, ALLOWED_OBJECT_TARGET_TYPES
+from House3D.roomnav import RoomNavTask
+from House3D import objrender, load_config
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -27,14 +37,6 @@ from trainer.ddpg_joint_alter import JointAlterDDPGTrainer as AlterTrainer
 from trainer.a2c import A2CTrainer
 from trainer.qac import QACTrainer
 from trainer.dqn import DQNTrainer
-import House3D
-from House3D.roomnav import n_discrete_actions
-from House3D import Environment as HouseEnv
-from House3D import MultiHouseEnv
-from House3D import House
-from House3D.house import ALLOWED_TARGET_ROOM_TYPES, ALLOWED_PREDICTION_ROOM_TYPES, ALLOWED_OBJECT_TARGET_TYPES
-from House3D.roomnav import RoomNavTask
-from House3D import objrender, load_config
 
 from config import get_config, get_house_ids
 

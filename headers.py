@@ -11,7 +11,7 @@ n_segmentation_mask = 20  # including unknown, it is 21, we set unknown as 0
 
 if CFG.get('python_path'):
     sys.path.insert(0, CFG['python_path'])
-
+import House3D
 
 import torch
 from torch.autograd import Variable
