@@ -30,7 +30,7 @@ def create_scheduler(type='medium'):
 
 def train(args=None,
           houseID=0, reward_type='indicator', success_measure='center',
-          multi_target=False,
+          multi_target=False, include_object_target=False,
           algo='pg', model_name='cnn',  # NOTE: optional: model_name='rnn'
           iters=2000000, report_rate=20, save_rate=1000, eval_range=200,
           log_dir='./temp', save_dir='./_model_', warmstart=None,
@@ -55,7 +55,8 @@ def train(args=None,
                             depth_input=args['depth_input'],
                             render_device=args['render_gpu'],
                             cacheAllTarget=args['multi_target'],
-                            use_discrete_action=('dpg' not in algo))
+                            use_discrete_action=('dpg' not in algo),
+                            include_object_target=include_object_target)
     logger = utils.MyLogger(log_dir, True)
     if multi_target:
         assert hasattr(trainer, 'set_target')
@@ -385,6 +386,7 @@ if __name__ == '__main__':
           reward_type=cmd_args.reward_type,
           success_measure=cmd_args.success_measure,
           multi_target=cmd_args.multi_target,
+          include_object_target=cmd_args.object_target,
           algo=cmd_args.algo, model_name=cmd_args.model, iters=cmd_args.max_iters,
           report_rate=cmd_args.report_rate, save_rate=cmd_args.save_rate,
           log_dir=cmd_args.log_dir, save_dir=cmd_args.save_dir,
