@@ -267,8 +267,7 @@ if __name__ == '__main__':
     common.set_house_IDs(cmd_args.env_set, ensure_kitchen=(not cmd_args.multi_target))
     print('>> Environment Set = <%s>, Total %d Houses!' % (cmd_args.env_set, len(common.all_houseIDs)))
 
-    if cmd_args.object_target:
-        common.ensure_object_targets()
+    common.ensure_object_targets(cmd_args.object_target)
 
     if cmd_args.n_house > len(common.all_houseIDs):
         print('[ZMQ_Train.py] No enough houses! Reduce <n_house> to [{}].'.format(len(common.all_houseIDs)))

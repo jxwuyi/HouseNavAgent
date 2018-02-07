@@ -77,14 +77,23 @@ target_instruction_dict = dict()
 for i, tp in enumerate(ALLOWED_TARGET_ROOM_TYPES):
     target_instruction_dict[tp] = i
 
-def ensure_object_targets():
-    assert modelObjectMapFile is not None, 'modelOjbectMap file <map_modelid_to_targetcat.json> is missing!!!'
-    assert objectTargetFile is not None, 'objectTargetFile file <object_target_map.csv> is missing!!!'
-    global n_target_instructions, all_target_instructions, target_instruction_dict
-    all_target_instructions = ALLOWED_TARGET_ROOM_TYPES + ALLOWED_OBJECT_TARGET_TYPES
-    n_target_instructions = len(all_target_instructions)
-    for i, tp in enumerate(all_target_instructions):
-        target_instruction_dict[tp] = i
+def ensure_object_targets(flag_include_object_targets=True):
+    if flag_include_object_targets:
+        assert modelObjectMapFile is not None, 'modelOjbectMap file <map_modelid_to_targetcat.json> is missing!!!'
+        assert objectTargetFile is not None, 'objectTargetFile file <object_target_map.csv> is missing!!!'
+        global n_target_instructions, all_target_instructions, target_instruction_dict
+        all_target_instructions = ALLOWED_TARGET_ROOM_TYPES + ALLOWED_OBJECT_TARGET_TYPES
+        n_target_instructions = len(all_target_instructions)
+        for i, tp in enumerate(all_target_instructions):
+            target_instruction_dict[tp] = i
+    else:
+        global CFG, objectTargetFile, modelObjectMapFile
+        if objectTargetFile is not None:
+            del CFG['objectTargetFile']
+            objectTargetFile = None
+        if modelObjectMapFile is not None:
+            del CFG['modelObjectMap']
+            modelObjectMapFile = None
 
 all_aux_predictions = ALLOWED_PREDICTION_ROOM_TYPES
 n_aux_predictions = len(all_aux_predictions)
