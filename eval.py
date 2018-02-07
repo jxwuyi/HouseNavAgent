@@ -234,6 +234,7 @@ def evaluate(house, seed = 0, render_device=None,
                             genRoomTypeMap=aux_task,
                             cacheAllTarget=multi_target,
                             render_device=render_device,
+                            use_discrete_action=('dpg' not in algo),
                             include_object_target=include_object_target)
 
     if (fixed_target is not None) and (fixed_target != 'any-room'):
