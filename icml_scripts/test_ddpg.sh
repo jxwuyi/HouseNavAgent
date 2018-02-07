@@ -1,6 +1,6 @@
 #!/bin/bash
 
-CUDA_VISIBLE_DEVICES=0,1 python3 train.py --seed 0 --env-set small --render-gpu 1 \
+CUDA_VISIBLE_DEVICES=0,1 python3 train.py --seed 0 --env-set color --render-gpu 1 \
     --algo ddpg_joint --update-freq 2 --max-episode-len 10 \
     --house -3 --reward-type delta --success-measure see \
     --multi-target --use-target-gating --use-action-gating --include-object-target \
