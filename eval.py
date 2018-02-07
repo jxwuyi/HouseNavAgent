@@ -191,8 +191,7 @@ def evaluate(house, seed = 0, render_device=None,
                                       segmentation_input=segmentation_input,
                                       resolution_level=resolution,
                                       depth_input=depth_input,
-                                      history_frame_len=history_len,
-                                      include_object_target=include_object_target)
+                                      history_frame_len=history_len)
     args['action_gating'] = use_action_gating
     args['residual_critic'] = use_residual_critic
     args['multi_target'] = multi_target
