@@ -203,6 +203,30 @@ def evaluate(house, seed = 0, render_device=None,
     if (fixed_target is not None) and (fixed_target != 'any-room'):
         assert fixed_target in common.n_target_instructions, 'invalid fixed target <{}>'.format(fixed_target)
 
+    __backup_CFG = common.CFG.copy()
+    if fixed_target == 'any-room':
+        common.ensure_object_targets(False)
+
+    if hardness is not None:
+        print('>>>> Hardness = {}'.format(hardness))
+    set_seed(seed)
+    env = common.create_env(house, hardness=hardness, success_measure=success_measure,
+                            depth_input=depth_input,
+                            segment_input=args['segment_input'],
+                            genRoomTypeMap=aux_task,
+                            cacheAllTarget=multi_target,
+                            render_device=render_device,
+                            use_discrete_action=('dpg' not in algo),
+                            include_object_target=include_object_target and (fixed_target != 'any-room'))
+
+    if (fixed_target is not None) and (fixed_target != 'any-room'):
+        env.reset_target(fixed_target)
+
+    if fixed_target == 'any-room':
+        common.CFG = __backup_CFG
+        common.ensure_object_targets(True)
+
+    # create model
     if model_name == 'rnn':
         import zmq_train
         trainer = zmq_train.create_zmq_trainer(algo, model_name, args)
@@ -224,20 +248,6 @@ def evaluate(house, seed = 0, render_device=None,
 
     if aux_task: assert trainer.is_rnn()  # only rnn support aux_task
 
-    if hardness is not None:
-        print('>>>> Hardness = {}'.format(hardness))
-    set_seed(seed)
-    env = common.create_env(house, hardness=hardness, success_measure=success_measure,
-                            depth_input=depth_input,
-                            segment_input=args['segment_input'],
-                            genRoomTypeMap=aux_task,
-                            cacheAllTarget=multi_target,
-                            render_device=render_device,
-                            use_discrete_action=('dpg' not in algo),
-                            include_object_target=include_object_target)
-
-    if (fixed_target is not None) and (fixed_target != 'any-room'):
-        env.reset_target(fixed_target)
     flag_random_reset_target = multi_target and (fixed_target is None)
 
     logger = utils.MyLogger(log_dir, True)

@@ -81,8 +81,10 @@ def ensure_object_targets(flag_include_object_targets=True):
     global n_target_instructions, all_target_instructions, target_instruction_dict
     global CFG, objectTargetFile, modelObjectMapFile
     if flag_include_object_targets:
-        assert modelObjectMapFile is not None, 'modelOjbectMap file <map_modelid_to_targetcat.json> is missing!!!'
-        assert objectTargetFile is not None, 'objectTargetFile file <object_target_map.csv> is missing!!!'
+        assert 'modelObjectMap' in CFG, 'modelOjbectMap file <map_modelid_to_targetcat.json> is missing!!!'
+        assert 'objectTargetFile' in CFG, 'objectTargetFile file <object_target_map.csv> is missing!!!'
+        objectTargetFile = CFG['objectTargetFile']
+        modelObjectMapFile = CFG['modelObjectMap']
         all_target_instructions = ALLOWED_TARGET_ROOM_TYPES + ALLOWED_OBJECT_TARGET_TYPES
         n_target_instructions = len(all_target_instructions)
         for i, tp in enumerate(all_target_instructions):
@@ -533,7 +535,8 @@ def create_house_from_index(k, genRoomTypeMap=False, cacheAllTarget=False):
         from multiprocessing import Pool
         _args = [(all_houseIDs[j], genRoomTypeMap, cacheAllTarget) for j in range(k)]
         ret_worlds = []
-        with Pool(min(50, k)) as pool:
+        #with Pool(min(50, k)) as pool:
+        with Pool(k) as pool:
             ret_worlds = pool.starmap(create_house, _args)  # parallel version for initialization
 #        _ptr = 0
 #        while (_ptr < k):
