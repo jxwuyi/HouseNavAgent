@@ -48,7 +48,6 @@ def train(args=None,
     if hardness is not None:
         print('>>> Hardness Level = {}'.format(hardness))
 
-    trainer = common.create_trainer(algo, model_name, args)
     env = common.create_env(houseID, reward_type, hardness,
                             success_measure=success_measure,
                             segment_input=args['segment_input'],
@@ -57,6 +56,7 @@ def train(args=None,
                             cacheAllTarget=args['multi_target'],
                             use_discrete_action=('dpg' not in algo),
                             include_object_target=include_object_target)
+    trainer = common.create_trainer(algo, model_name, args)
     logger = utils.MyLogger(log_dir, True)
     if multi_target:
         assert hasattr(trainer, 'set_target')
