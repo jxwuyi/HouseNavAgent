@@ -532,8 +532,19 @@ def create_house_from_index(k, genRoomTypeMap=False, cacheAllTarget=False):
         # use the first k houses
         from multiprocessing import Pool
         _args = [(all_houseIDs[j], genRoomTypeMap, cacheAllTarget) for j in range(k)]
-        with Pool(k) as pool:
+        ret_worlds = []
+        with Pool(min(50, k)) as pool:
             ret_worlds = pool.starmap(create_house, _args)  # parallel version for initialization
+#        _ptr = 0
+#        while (_ptr < k):
+#            m = min(50, k - _ptr)
+#            print("Creating House#{} to #{}".format(_ptr, _ptr + m - 1))
+#            _cur_args = _args[_ptr:_ptr+m]
+#            with Pool(m) as pool:
+#                _cur_worlds = pool.starmap(create_house, _cur_args)  # parallel version for initialization
+#            ret_worlds = ret_worlds + _cur_worlds
+#            print("---> House#{} to #{} Cached!".format(_ptr, _ptr + m - 1))
+#            _ptr += m
         print('  >> Done! Time Elapsed = %.4f(s)' % (time.time() - ts))
         return ret_worlds
         # return [create_world(houseID, genRoomTypeMap) for houseID in all_houseIDs[:k]]
