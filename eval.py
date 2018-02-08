@@ -49,10 +49,6 @@ def evaluate_aux_pred(house, seed = 0,iters = 1000, max_episode_len = 10,
     args['target_gating'] = use_target_gating
     args['aux_task'] = True
     import zmq_train
-    trainer = zmq_train.create_zmq_trainer(algo, model_name, args)
-    if model_file is not None:
-        trainer.load(model_file)
-    trainer.eval()  # evaluation mode
     set_seed(seed)
     env = common.create_env(house, hardness=1e-8, success_measure='stay',
                             depth_input=depth_input,
@@ -60,6 +56,10 @@ def evaluate_aux_pred(house, seed = 0,iters = 1000, max_episode_len = 10,
                             genRoomTypeMap=True,
                             cacheAllTarget=True,
                             use_discrete_action=True)
+    trainer = zmq_train.create_zmq_trainer(algo, model_name, args)
+    if model_file is not None:
+        trainer.load(model_file)
+    trainer.eval()  # evaluation mode
 
     logger = utils.MyLogger(log_dir, True)
     logger.print('Start Evaluating Auxiliary Task ...')
