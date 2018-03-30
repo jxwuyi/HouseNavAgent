@@ -2,7 +2,7 @@
 Navigation agent in the 3D house environment
 
 # Note and Usage
-0. These packages are required: pytorch, gym, matplotlib, opencv, msgpack, msgpack_numpy
+0. These packages are required: `pytorch, gym, matplotlib, opencv, msgpack, msgpack_numpy`
 1. Ensure the path is properly set in `config.json` (see `config.json.example`)
 2. See `common.py` for configuring environements
     1. all the house IDs are stored in variable `all_house_IDs`
