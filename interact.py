@@ -25,7 +25,8 @@ def proc_info(info):
 
 def evaluate(house, seed = 0, render_device=None,
              iters = 1000, max_episode_len = 1000,
-             hardness = None, success_measure = 'center', multi_target=False, fixed_target=None,
+             hardness = None, max_birthplace_steps=None,
+             success_measure = 'center', multi_target=False, fixed_target=None,
              algo='nop', model_name='cnn',
              model_file=None, log_dir='./log/eval',
              store_history=False, use_batch_norm=True,
@@ -59,16 +60,22 @@ def evaluate(house, seed = 0, render_device=None,
     args['aux_task'] = aux_task
     args['no_skip_connect'] = no_skip_connect
     args['feed_forward'] = feed_forward
-    if (fixed_target is not None) and (fixed_target != 'any-room'):
+    if (fixed_target is not None) and (fixed_target != 'any-room') and (fixed_target != 'any-object'):
         assert fixed_target in common.n_target_instructions, 'invalid fixed target <{}>'.format(fixed_target)
 
-    if fixed_target == 'any-room':
+    if 'any' in fixed_target:
         common.ensure_object_targets(True)
 
     if hardness is not None:
         print('>>>> Hardness = {}'.format(hardness))
+    if max_birthplace_steps is not None:
+        print('>>>> Max_BirthPlace_Steps = {}'.format(max_birthplace_steps))
     set_seed(seed)
-    env = common.create_env(house, hardness=hardness, success_measure=success_measure,
+    env = common.create_env(house,
+                            hardness=hardness,
+                            max_birthplace_steps=max_birthplace_steps,
+                            success_measure=success_measure,
+                            reward_type='delta',
                             depth_input=depth_input,
                             segment_input=args['segment_input'],
                             genRoomTypeMap=aux_task,
@@ -77,7 +84,7 @@ def evaluate(house, seed = 0, render_device=None,
                             use_discrete_action=('dpg' not in algo),
                             include_object_target=include_object_target)
 
-    if (fixed_target is not None) and (fixed_target != 'any-room'):
+    if (fixed_target is not None) and ('any' not in fixed_target):
         env.reset_target(fixed_target)
 
     # create model
@@ -201,7 +208,8 @@ def evaluate(house, seed = 0, render_device=None,
             if model_name != 'rnn': obs = obs.transpose([1, 0, 2])
             rew += reward
             print('>> r = %.2f, done = %f, accu_rew = %.2f, step = %d' % (reward, done, rew, step))
-            print('   info: collision = %d, raw_dist = %d, scaled_dist = %.3f' % (info['collision'], info['dist'], info['scaled_dist']))
+            print('   info: collision = %d, raw_dist = %d, scaled_dist = %.3f, opt_steps = %d'
+                    % (info['collision'], info['dist'], info['scaled_dist'], info['optsteps']))
 
             #############
             # Plan Info

@@ -45,10 +45,14 @@ def train(args=None,
         args = common.create_default_args(algo)
 
     hardness = args['hardness']
+    max_birthplace_steps = args['max_birthplace_steps']
     if hardness is not None:
         print('>>> Hardness Level = {}'.format(hardness))
+    if max_birthplace_steps is not None:
+        print('>>>> Max BirthPlace Steps = {}'.format(max_birthplace_steps))
 
     env = common.create_env(houseID, reward_type, hardness,
+                            max_birthplace_steps=max_birthplace_steps,
                             success_measure=success_measure,
                             segment_input=args['segment_input'],
                             depth_input=args['depth_input'],
@@ -205,6 +209,7 @@ def parse_args():
                         help="house ID (default 0); if < 0, then multi-house environment")
     parser.add_argument("--seed", type=int, help="random seed")
     parser.add_argument("--hardness", type=float, help="real number from 0 to 1, indicating the hardness of the environment")
+    parser.add_argument("--max-birthplace-steps", type=int, help="int, the maximum steps required from birthplace to target")
     parser.add_argument("--linear-reward", action='store_true', default=False,
                         help="[Deprecated] whether to use reward according to distance; o.w. indicator reward")
     parser.add_argument("--reward-type", choices=['none','linear','indicator','delta','speed'], default='indicator',
@@ -351,6 +356,8 @@ if __name__ == '__main__':
 
     if cmd_args.hardness is not None:
         args['hardness'] = cmd_args.hardness
+
+    args['max_birthplace_steps'] = cmd_args.max_birthplace_steps
 
     if cmd_args.scheduler is not None:
         args['scheduler'] = create_scheduler(cmd_args.scheduler)

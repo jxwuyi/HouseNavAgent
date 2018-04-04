@@ -166,7 +166,8 @@ def evaluate_aux_pred(house, seed = 0,iters = 1000, max_episode_len = 10,
 
 def evaluate(house, seed = 0, render_device=None,
              iters = 1000, max_episode_len = 1000,
-             hardness = None, success_measure = 'center', multi_target=False, fixed_target=None,
+             hardness = None, max_birthplace_steps=None,
+             success_measure = 'center', multi_target=False, fixed_target=None,
              algo='nop', model_name='cnn',
              model_file=None, log_dir='./log/eval',
              store_history=False, use_batch_norm=True,
@@ -209,8 +210,11 @@ def evaluate(house, seed = 0, render_device=None,
 
     if hardness is not None:
         print('>>>> Hardness = {}'.format(hardness))
+    if max_birthplace_steps is not None:
+        print('>>>> Max BirthPlace Steps = {}'.format(max_birthplace_steps))
     set_seed(seed)
-    env = common.create_env(house, hardness=hardness, success_measure=success_measure,
+    env = common.create_env(house, hardness=hardness, max_birthplace_steps=max_birthplace_steps,
+                            success_measure=success_measure,
                             depth_input=depth_input,
                             segment_input=args['segment_input'],
                             genRoomTypeMap=aux_task,
@@ -402,6 +406,7 @@ def parse_args():
     parser.add_argument("--render-gpu", type=int, help="gpu id for rendering the environment")
     parser.add_argument("--seed", type=int, default=0, help="random seed")
     parser.add_argument("--hardness", type=float, help="real number from 0 to 1, indicating the hardness of the environment")
+    parser.add_argument("--max-birthplace-steps", type=int, help="int, the maximum steps required from birthplace to target")
     parser.add_argument("--action-dim", type=int, help="degree of freedom of the agent movement, default=4, must be in range of [2,4]")
     parser.add_argument("--segmentation-input", choices=['none', 'index', 'color', 'joint'], default='none',
                         help="whether to use segmentation mask as input; default=none; <joint>: use both pixel input and color segment input")
@@ -512,7 +517,8 @@ if __name__ == '__main__':
     else:
         episode_stats = \
             evaluate(args.house, args.seed or 0, args.render_gpu, args.max_iters, args.max_episode_len,
-                     args.hardness, args.success_measure, args.multi_target,
+                     args.hardness, args.max_birthplace_steps,
+                     args.success_measure, args.multi_target,
                      args.fixed_target or ('any-room' if args.only_eval_room else None),
                      args.algo, model_name, args.warmstart, args.log_dir,
                      args.store_history, args.use_batch_norm,

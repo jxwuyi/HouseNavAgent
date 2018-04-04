@@ -43,8 +43,8 @@ from config import get_config, get_house_ids
 house_ID_dict = get_house_ids()
 all_houseIDs = house_ID_dict['small']
 
-import platform
-flag_parallel_init = ("Ubuntu" in platform.platform())
+# only works for python 3.5
+flag_parallel_init = (sys.version_info[1] == 5)#("Ubuntu" in platform.platform())
 
 
 def set_house_IDs(partition='small', ensure_kitchen=False):
@@ -495,6 +495,26 @@ def create_trainer(algo, model, args):
         assert False, 'Trainer not defined for <{}>'.format(algo)
     return trainer
 
+"""
+self, JsonFile, ObjFile, MetaDataFile,
+             MapTargetCatFile=None,
+             CachedFile=None,
+             StorageFile=None,
+             EagleViewRes=0,
+             DebugInfoOn=False,
+             ColideRes=1000,
+             RobotRadius=0.1,
+             RobotHeight=0.75,  # 1.0,
+             CarpetHeight=0.15,
+             ObjectTargetSuccRange=0.5,
+             SetTarget=True,
+             BuildTargetGraph=False,
+             IncludeOutdoorTarget=False,
+             GenRoomTypeMap=False,   # deprecated!!! only for back-compatibility
+             _IgnoreSmallHouse=False
+"""
+
+
 
 def create_house(houseID, genRoomTypeMap=False, cacheAllTarget=False):
     objFile = prefix + houseID + '/house.obj'
@@ -503,12 +523,14 @@ def create_house(houseID, genRoomTypeMap=False, cacheAllTarget=False):
     if not os.path.isfile(cachedFile):
         print('Generating Cached Map File for House <{}>!'.format(houseID))
         house = House(jsonFile, objFile, csvFile,
+                      MapTargetCatFile=modelObjectMapFile,
                       StorageFile=cachedFile, GenRoomTypeMap=genRoomTypeMap,
-                      MapTargetCatFile=modelObjectMapFile)
+                      IncludeOutdoorTarget=True)
     else:
         house = House(jsonFile, objFile, csvFile,
+                      MapTargetCatFile=modelObjectMapFile,
                       CachedFile=cachedFile, GenRoomTypeMap=genRoomTypeMap,
-                      MapTargetCatFile=modelObjectMapFile)
+                      IncludeOutdoorTarget=True)
     #house = House(jsonFile, objFile, csvFile,
     #              ColideRes=colide_res,
     #              CachedFile=cachedFile, EagleViewRes=default_eagle_resolution,
@@ -544,22 +566,13 @@ def create_house_from_index(k, genRoomTypeMap=False, cacheAllTarget=False):
                 ret_worlds = pool.starmap(create_house, _args)  # parallel version for initialization
         else:
             ret_worlds = [create_house(all_houseIDs[j], genRoomTypeMap, cacheAllTarget) for j in range(k)]
-#        _ptr = 0
-#        while (_ptr < k):
-#            m = min(50, k - _ptr)
-#            print("Creating House#{} to #{}".format(_ptr, _ptr + m - 1))
-#            _cur_args = _args[_ptr:_ptr+m]
-#            with Pool(m) as pool:
-#                _cur_worlds = pool.starmap(create_house, _cur_args)  # parallel version for initialization
-#            ret_worlds = ret_worlds + _cur_worlds
-#            print("---> House#{} to #{} Cached!".format(_ptr, _ptr + m - 1))
-#            _ptr += m
         print('  >> Done! Time Elapsed = %.4f(s)' % (time.time() - ts))
         return ret_worlds
         # return [create_world(houseID, genRoomTypeMap) for houseID in all_houseIDs[:k]]
 
 def create_env(k=0,
-               reward_type='linear', hardness=None, success_measure='center',
+               hardness=None, max_birthplace_steps=None,
+               reward_type='linear', success_measure='see',
                segment_input='none', depth_input=False,
                max_steps=-1,
                render_device=None,
@@ -579,7 +592,8 @@ def create_env(k=0,
     else:  # multi-house environment
         all_houses = create_house_from_index(k, genRoomTypeMap, cacheAllTarget)
         env = MultiHouseEnv(api, all_houses, config=CFG)
-    task = RoomNavTask(env, reward_type=reward_type, hardness=hardness,
+    task = RoomNavTask(env, reward_type=reward_type,
+                       hardness=hardness, max_birthplace_steps=max_birthplace_steps,
                        segment_input=(segment_input != 'None'),
                        joint_visual_signal=(segment_input == 'joint'),
                        depth_signal=depth_input,

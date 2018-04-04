@@ -84,6 +84,7 @@ def create_zmq_config(args):
     config['n_house'] = args['n_house']
     config['reward_type'] = args['reward_type']
     config['hardness'] = args['hardness']
+    config['max_birthplace_steps'] = args['max_birthplace_steps']
     all_gpus = common.get_gpus_for_rendering()
     assert (len(all_gpus) > 0), 'No GPU found! There must be at least 1 GPU for rendering!'
     if args['render_gpu'] is not None:
@@ -161,9 +162,10 @@ def parse_args():
                         help="number of houses to train on. Should be no larger than --n-proc")
     parser.add_argument("--seed", type=int, help="random seed")
     parser.add_argument("--hardness", type=float, help="real number from 0 to 1, indicating the hardness of the environment")
+    parser.add_argument("--max-birthplace-steps", type=int, help="int, the maximum steps required from birthplace to target")
     parser.add_argument("--linear-reward", action='store_true', default=False,
                         help="[Deprecated] whether to use reward according to distance; o.w. indicator reward")
-    parser.add_argument("--reward-type", choices=['none', 'linear', 'indicator', 'delta', 'speed'], default='indicator',
+    parser.add_argument("--reward-type", choices=['none', 'linear', 'indicator', 'delta', 'speed', 'new'], default='indicator',
                         help="Reward shaping type")
     #parser.add_argument("--action-dim", type=int, help="degree of freedom of agent movement, must be in the range of [2, 4], default=4")
     parser.add_argument("--segmentation-input", choices=['none', 'index', 'color', 'joint'], default='none', dest='segment_input',

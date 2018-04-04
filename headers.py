@@ -108,7 +108,7 @@ class AgentTrainer(object):
             save_dir += '/'
         if target_dict_data is None:
             filename = save_dir + self.name + version + '.pkl'
-            torch.save(self.policy.state_dict(), filename)
+            torch.save(self.policy.cpu().state_dict(), filename)
         else:
             filename = save_dir + self.name + version + '.pkl'
             with open(filename, 'wb') as fp:
