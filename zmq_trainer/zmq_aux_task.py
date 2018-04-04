@@ -21,11 +21,6 @@ flag_max_kl_diff = ZMQA3C.flag_max_kl_diff
 flag_min_kl_diff = ZMQA3C.flag_min_kl_diff
 flag_lrate_coef = ZMQA3C.flag_lrate_coef
 
-# when supervised loss, weight for <indoor> is 0.1
-# when reinforce loss, reward for correctly predict <indoor> is 0.1
-aux_uncertain_weight = 0.1
-aux_uncertain_id = common.all_aux_predictions['indoor']
-
 # cache aux target mask
 aux_max_allowed_mask_value = (1 << common.n_aux_predictions)
 aux_mask_dict = []
@@ -48,10 +43,7 @@ class ZMQAuxTaskTrainer(ZMQA3CTrainer):
 
     def _create_aux_target_tensor(self, targets):
         aux_tar = torch.from_numpy(np.array(targets)).type(FloatTensor)
-        if self.use_supervised_loss:
-            aux_tar[:, :, aux_uncertain_id] *= aux_uncertain_weight
-        else:
-            aux_tar[:, :, aux_uncertain_id] *= 0.5 * (aux_uncertain_weight + 1)
+        if not self.use_supervised_loss:
             aux_tar = aux_tar * 2 - 1
         aux_tar = Variable(aux_tar)
         return aux_tar
@@ -63,10 +55,7 @@ class ZMQAuxTaskTrainer(ZMQA3CTrainer):
 
     def get_aux_task_reward(self, pred, mask):
         if (mask & (1 << pred)) > 0:
-            if pred == aux_uncertain_id:
-                return aux_uncertain_weight
-            else:
-                return 1.0
+            return 1.0
         else:
             return -1.0
 

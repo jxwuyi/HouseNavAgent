@@ -43,6 +43,9 @@ from config import get_config, get_house_ids
 house_ID_dict = get_house_ids()
 all_houseIDs = house_ID_dict['small']
 
+import platform
+flag_parallel_init = ("Ubuntu" in platform.platform())
+
 
 def set_house_IDs(partition='small', ensure_kitchen=False):
     global all_houseIDs, house_ID_dict
@@ -532,12 +535,15 @@ def create_house_from_index(k, genRoomTypeMap=False, cacheAllTarget=False):
         ts = time.time()
         print('Caching All Worlds ...')
         # use the first k houses
-        from multiprocessing import Pool
-        _args = [(all_houseIDs[j], genRoomTypeMap, cacheAllTarget) for j in range(k)]
         ret_worlds = []
-        #with Pool(min(50, k)) as pool:
-        with Pool(k) as pool:
-            ret_worlds = pool.starmap(create_house, _args)  # parallel version for initialization
+        if flag_parallel_init:
+            from multiprocessing import Pool
+            _args = [(all_houseIDs[j], genRoomTypeMap, cacheAllTarget) for j in range(k)]
+            #with Pool(min(50, k)) as pool:
+            with Pool(k) as pool:
+                ret_worlds = pool.starmap(create_house, _args)  # parallel version for initialization
+        else:
+            ret_worlds = [create_house(all_houseIDs[j], genRoomTypeMap, cacheAllTarget) for j in range(k)]
 #        _ptr = 0
 #        while (_ptr < k):
 #            m = min(50, k - _ptr)
