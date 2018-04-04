@@ -120,8 +120,8 @@ def train(args=None, warmstart=None):
 
     args['logger'] = utils.MyLogger(args['log_dir'], True)
 
-    name = 'ipc://@whatever'
-    name2 = 'ipc://@whatever2'
+    name = 'ipc://@whatever' + args['job_name']
+    name2 = 'ipc://@whatever' + args['jon_name'] + '2'
     n_proc = args['n_proc']
     config = create_zmq_config(args)
     procs = [ZMQSimulator(k, name, name2, config) for k in range(n_proc)]
@@ -156,6 +156,8 @@ def train(args=None, warmstart=None):
 
 def parse_args():
     parser = argparse.ArgumentParser("Reinforcement Learning for 3D House Navigation")
+    # Special Job Tag
+    parser.add_argument("--job-name", type=str, default='')
     # Environment
     parser.add_argument("--env-set", choices=['small', 'train', 'test', 'color'], default='small')
     parser.add_argument("--n-house", type=int, default=1,

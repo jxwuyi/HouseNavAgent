@@ -1,6 +1,7 @@
 #!/bin/bash
 
-CUDA_VISIBLE_DEVICES=3,4,5,6,7 python3 zmq_train.py --seed 0 --env-set train \
+CUDA_VISIBLE_DEVICES=3,4,5,6,7 python3 zmq_train.py --job-name large \
+    --seed 0 --env-set train \
     --n-house 200 --n-proc 200 --batch-size 64 --t-max 30 --max-episode-len 100 \
     --hardness 0.95 --max-birthplace-steps 40 \
     --reward-type new --success-measure see \
