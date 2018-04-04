@@ -121,7 +121,7 @@ def train(args=None, warmstart=None):
     args['logger'] = utils.MyLogger(args['log_dir'], True)
 
     name = 'ipc://@whatever' + args['job_name']
-    name2 = 'ipc://@whatever' + args['jon_name'] + '2'
+    name2 = 'ipc://@whatever' + args['job_name'] + '2'
     n_proc = args['n_proc']
     config = create_zmq_config(args)
     procs = [ZMQSimulator(k, name, name2, config) for k in range(n_proc)]
