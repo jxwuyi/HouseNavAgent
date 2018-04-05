@@ -124,7 +124,7 @@ class AgentTrainer(object):
                 save_dir += '/'
                 filename = save_dir + self.name + version + '.pkl'
         if os.path.exists(filename):
-            self.policy.load_state_dict(torch.load(filename))
+            self.policy.load_state_dict(torch.load(filename, map_location=lambda storage, loc: storage))
         else:
             print('[Warning] model file not found! loading skipped... target = <{}>'.format(filename))
 
