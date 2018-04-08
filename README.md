@@ -5,7 +5,8 @@ Navigation agent in the 3D house environment
 Currently only support pytorch 0.1 and 0.2. It will raise run-time error in pytorch 0.3.
 
 # Note and Usage
-1. Ensure the path to the environment folder is correct in `headers.py`
+0. These packages are required: `pytorch, gym, matplotlib, opencv, msgpack, msgpack_numpy`
+1. Ensure the path is properly set in `config.json` (see `config.json.example`)
 2. See `common.py` for configuring environements
     1. all the house IDs are stored in variable `all_house_IDs`
     2. ensure the path to config files are set correctedly (i.e., `prefix`, `csvFile`, `colorFile`)
