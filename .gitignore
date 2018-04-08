@@ -5,3 +5,4 @@ log/
 _model_/
 .idea/
 config.json
+.DS_Store

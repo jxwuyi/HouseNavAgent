@@ -121,19 +121,23 @@ def evaluate(house, seed = 0, render_device=None,
 
 
     action_dict = dict(k=7,l=9,j=10,o=3,u=4,f=5,a=6,i=8,d=11,s=12,r=-1,h=-2,q=-3)
-    policy_dict = dict(e=None,
-                       z='sofa',x='chair',c='bed',v='toilet',b='table',n='curtain',m='vehicle')
+    policy_dict = dict(e=None, w=None,
+                       z='sofa',x='chair',c='bed',v='toilet',b='table',n='dresser',m='vehicle')
     policy_dict['1']='kitchen'
     policy_dict['2']='living_room'
     policy_dict['3']='dining_room'
     policy_dict['4']='bedroom'
     policy_dict['5']='bathroom'
+    policy_dict['6']='office'
+    policy_dict['7']='garage'
+    policy_dict['8']='outdoor'
     def print_help():
         print('Usage: ')
         print('> Subpolicies:')
         print('  --> e: continue previous sub-policy')
-        print('  --> 1 (kitchen), 2 (living room), 3 (dining room), 4 (bedroom), 5 (bathroom)')
-        print('  --> z (sofa), x (chair), c (bed), v (toilet), b (table), n (curtain), m (vehicle)')
+        print('  --> w: switch to original sub-policy')
+        print('  --> 1 (kitchen), 2 (living room), 3 (dining room), 4 (bedroom), 5 (bathroom), 6 (office), 7 (garage), 8 (outdoor)')
+        print('  --> z (sofa), x (chair), c (bed), v (toilet), b (table), n (dresser), m (vehicle)')
         print('> Actions: (Simplified Version) Total 10 Actions')
         print('  --> j, k, l, i, u, o: left, back, right, forward, left-forward, right-forward')
         print('  --> a, s, d, f: left-rotate, small left-rot, small right-rot, right-rotate')
@@ -148,7 +152,7 @@ def evaluate(house, seed = 0, render_device=None,
         step = 0
         rew = 0
         good = 0
-        obs = env.reset(target='any-room')
+        obs = env.reset(target=fixed_target)
         if model_name != 'rnn': obs = obs.transpose([1, 0, 2])
         target = env.info['target_room']
         cur_policy = target
@@ -172,6 +176,9 @@ def evaluate(house, seed = 0, render_device=None,
                     if key == 'e':
                         print('Executing Sub-Policy <{}>'.format(cur_policy))
                         break
+                    elif key == 'w':
+                        cur_policy = target
+                        print('Switch to Original Sub-Policy <{}>'.format(cur_policy))
                     else:
                         cur_policy = policy_dict[key]
                         print('Switch to Sub-Policy <{}>'.format(cur_policy))
@@ -254,6 +261,7 @@ def parse_args():
     parser.add_argument("--render-gpu", type=int, help="gpu id for rendering the environment")
     parser.add_argument("--seed", type=int, default=0, help="random seed")
     parser.add_argument("--hardness", type=float, help="real number from 0 to 1, indicating the hardness of the environment")
+    parser.add_argument("--max-birthplace-steps", type=int, help="int, the maximum steps required from birthplace to target")
     parser.add_argument("--action-dim", type=int, help="degree of freedom of the agent movement, default=4, must be in range of [2,4]")
     parser.add_argument("--segmentation-input", choices=['none', 'index', 'color', 'joint'], default='none',
                         help="whether to use segmentation mask as input; default=none; <joint>: use both pixel input and color segment input")
@@ -272,9 +280,8 @@ def parse_args():
     parser.add_argument("--include-object-target", dest='object_target', action='store_true',
                         help="when this flag is set, target can be also a target. Only effective when --multi-target")
     parser.set_defaults(object_target=False)
-    parser.add_argument("--only-eval-room-target", dest='only_eval_room', action='store_true',
-                        help="when this flag is set, only evaluate room targets. only effective when --include-object-target")
-    parser.set_defaults(only_eval_room=False)
+    parser.add_argument("--eval-target-type", choices=['all', 'only-room', 'only-object'], default='only-object',
+                        help="the type of targets to evaluate on")
     parser.add_argument("--fixed-target", choices=common.ALLOWED_TARGET_ROOM_TYPES + common.ALLOWED_OBJECT_TARGET_TYPES,
                         help="once set, all the episode will be fixed to a specific target.")
     parser.add_argument("--greedy-execution", dest='greedy_execution', action='store_true',
@@ -355,12 +362,23 @@ if __name__ == '__main__':
 
     assert args.object_target
 
+    fixed_target = None
+    if args.eval_target_type == 'only-room':
+        fixed_target = 'any-room'
+    elif args.eval_target_type == 'only-object':
+        fixed_target = 'any-object'
+
     evaluate(args.house, args.seed or 0, 0, 10000, 10000,
-             args.hardness, 'see', True,
-             'any-room', 'a3c', 'rnn', args.warmstart, args.log_dir, False, args.use_batch_norm,
-             args.rnn_units, args.rnn_layers, args.rnn_cell,
-             args.action_gating, args.residual_critic, args.target_gating,
-             args.segmentation_input, args.depth_input, args.resolution, args.history_frame_len,
+             hardness=args.hardness, max_birthplace_steps=args.max_birthplace_steps,
+             success_measure='see', multi_target=True,
+             fixed_target=fixed_target,
+             algo='a3c', model_name='rnn',
+             model_file=args.warmstart, log_dir=args.log_dir,
+             store_history=False, use_batch_norm=args.use_batch_norm,
+             rnn_units=args.rnn_units, rnn_layers=args.rnn_layers, rnn_cell=args.rnn_cell,
+             use_action_gating=args.action_gating, use_residual_critic=args.residual_critic, use_target_gating=args.target_gating,
+             segmentation_input=args.segmentation_input, depth_input=args.depth_input,
+             resolution=args.resolution, history_len=args.history_frame_len,
              include_object_target=args.object_target,
              aux_task=False, no_skip_connect=args.no_skip_connect, feed_forward=args.feed_forward,
              greedy_execution=False)
