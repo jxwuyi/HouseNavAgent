@@ -17,6 +17,7 @@ class ZMQHouseEnvironment:
                  success_measure='see', multi_target=True,
                  include_object_target=True, aux_task=False,
                  hardness=None, max_birthplace_steps=None,
+                 curriculum_schedule=None,
                  segment_input='none', depth_input=False, max_steps=-1, device=0):
         assert k >= 0
         self.env = common.create_env(k, reward_type=reward_type,
@@ -28,7 +29,8 @@ class ZMQHouseEnvironment:
                                      cacheAllTarget=multi_target,
                                      include_object_target=include_object_target,
                                      use_discrete_action=True,   # assume A3C with discrete actions
-                                     reward_silence=reward_silence)
+                                     reward_silence=reward_silence,
+                                     curriculum_schedule=curriculum_schedule)
         self.obs = self.env.reset() if multi_target else self.env.reset(target='kitchen')
         self.done = False
         self.multi_target = multi_target
@@ -70,6 +72,7 @@ class ZMQSimulator(SimulatorProcess):
                                    config['multi_target'], config['object_target'],
                                    config['aux_task'],
                                    config['hardness'], config['max_birthplace_steps'],
+                                   config['curriculum_schedule'],
                                    config['segment_input'], config['depth_input'],
                                    config['max_episode_len'], device)
 

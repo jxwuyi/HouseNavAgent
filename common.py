@@ -495,26 +495,6 @@ def create_trainer(algo, model, args):
         assert False, 'Trainer not defined for <{}>'.format(algo)
     return trainer
 
-"""
-self, JsonFile, ObjFile, MetaDataFile,
-             MapTargetCatFile=None,
-             CachedFile=None,
-             StorageFile=None,
-             EagleViewRes=0,
-             DebugInfoOn=False,
-             ColideRes=1000,
-             RobotRadius=0.1,
-             RobotHeight=0.75,  # 1.0,
-             CarpetHeight=0.15,
-             ObjectTargetSuccRange=0.5,
-             SetTarget=True,
-             BuildTargetGraph=False,
-             IncludeOutdoorTarget=False,
-             GenRoomTypeMap=False,   # deprecated!!! only for back-compatibility
-             _IgnoreSmallHouse=False
-"""
-
-
 
 def create_house(houseID, genRoomTypeMap=False, cacheAllTarget=False):
     objFile = prefix + houseID + '/house.obj'
@@ -580,7 +560,8 @@ def create_env(k=0,
                cacheAllTarget=False,
                use_discrete_action=False,
                include_object_target=False,
-               reward_silence=0):
+               reward_silence=0,
+               curriculum_schedule=None):
     if render_device is None:
         render_device = get_gpus_for_rendering()[0]   # by default use the first gpu
     if segment_input is None:
@@ -601,7 +582,8 @@ def create_env(k=0,
                        max_steps=max_steps, success_measure=success_measure,
                        discrete_action=use_discrete_action,
                        include_object_target=include_object_target,
-                       reward_silence=reward_silence)
+                       reward_silence=reward_silence,
+                       birthplace_curriculum_schedule=curriculum_schedule)
     return task
 
 
