@@ -13,7 +13,8 @@ from zmq_trainer.zmqsimulator import SimulatorProcess, SimulatorMaster, ensure_p
 n_episode_evaluation = 500
 
 class ZMQHouseEnvironment:
-    def __init__(self, k=0, reward_type='indicator', success_measure='see', multi_target=True,
+    def __init__(self, k=0, reward_type='indicator', reward_silence=0,
+                 success_measure='see', multi_target=True,
                  include_object_target=True, aux_task=False,
                  hardness=None, max_birthplace_steps=None,
                  segment_input='none', depth_input=False, max_steps=-1, device=0):
@@ -26,7 +27,8 @@ class ZMQHouseEnvironment:
                                      genRoomTypeMap=aux_task,
                                      cacheAllTarget=multi_target,
                                      include_object_target=include_object_target,
-                                     use_discrete_action=True)  # assume A3C with discrete actions
+                                     use_discrete_action=True,   # assume A3C with discrete actions
+                                     reward_silence=reward_silence)
         self.obs = self.env.reset() if multi_target else self.env.reset(target='kitchen')
         self.done = False
         self.multi_target = multi_target
@@ -63,7 +65,8 @@ class ZMQSimulator(SimulatorProcess):
         device_list = config['render_devices']
         device_ind = self.idx % len(device_list)
         device = device_list[device_ind]
-        return ZMQHouseEnvironment(k, config['reward_type'], config['success_measure'],
+        return ZMQHouseEnvironment(k, config['reward_type'], config['reward_silence'],
+                                   config['success_measure'],
                                    config['multi_target'], config['object_target'],
                                    config['aux_task'],
                                    config['hardness'], config['max_birthplace_steps'],
@@ -142,7 +145,6 @@ class ZMQMaster(SimulatorMaster):
                 self.accu_stats[id]['aux_task_err'] += float(aux_rew < 0)
 
     def _perform_train(self):
-        self.train_cnt += 1
         # prepare training data
         obs = []
         hidden = []
@@ -166,6 +168,10 @@ class ZMQMaster(SimulatorMaster):
                                         target=target, aux_target=aux_target)
         else:
             stats = self.trainer.update(obs, hidden, act, rew, done, target=target)
+        if stats is None:
+            return False   # just accumulate gradient, no update performed
+
+        self.train_cnt += 1   # update performed!
         for key in stats.keys():
             if key not in self.update_stats:
                 self.update_stats[key] = []
@@ -187,6 +193,7 @@ class ZMQMaster(SimulatorMaster):
             self._evaluate_stats()
             self.save_all(version='final')
             exit(0)
+        return True
 
     def save_all(self, version=''):
         self.trainer.save(self.config['save_dir'], version=version)

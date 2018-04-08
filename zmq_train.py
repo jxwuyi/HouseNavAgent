@@ -69,7 +69,8 @@ def create_zmq_trainer(algo, model, args):
     if algo == 'a3c':
         model_gen = lambda: create_policy(model, args, observation_shape, n_action)
         if args['aux_task']:
-            trainer = ZMQAuxTaskTrainer('ZMQAuxTaskA3CTrainer', model_gen, observation_shape, [n_action], args)
+            assert False, '<aux_task> is not supported currently!'
+            #trainer = ZMQAuxTaskTrainer('ZMQAuxTaskA3CTrainer', model_gen, observation_shape, [n_action], args)
         else:
             trainer = ZMQA3CTrainer('ZMQA3CTrainer', model_gen, observation_shape, [n_action], args)
     else:
@@ -83,6 +84,7 @@ def create_zmq_config(args):
     # env param
     config['n_house'] = args['n_house']
     config['reward_type'] = args['reward_type']
+    config['reward_silence'] = args['reward_silence']
     config['hardness'] = args['hardness']
     config['max_birthplace_steps'] = args['max_birthplace_steps']
     all_gpus = common.get_gpus_for_rendering()
@@ -169,6 +171,8 @@ def parse_args():
                         help="[Deprecated] whether to use reward according to distance; o.w. indicator reward")
     parser.add_argument("--reward-type", choices=['none', 'linear', 'indicator', 'delta', 'speed', 'new'], default='indicator',
                         help="Reward shaping type")
+    parser.add_argument("--reward-silence", type=int, default=0,
+                        help="When set, the first <--reward-silence> step of each episode will not have any reward signal except collision penalty")
     #parser.add_argument("--action-dim", type=int, help="degree of freedom of agent movement, must be in the range of [2, 4], default=4")
     parser.add_argument("--segmentation-input", choices=['none', 'index', 'color', 'joint'], default='none', dest='segment_input',
                         help="whether to use segmentation mask as input; default=none; <joint>: use both pixel input and color segment input")
@@ -201,6 +205,8 @@ def parse_args():
                         help="[ZMQ] number of time steps in each batch")
     parser.add_argument("--batch-size", type=int, default=32,
                         help="[ZMQ] batch size, should be no greather than --num-proc")
+    parser.add_argument("--grad-batch", type=int, default=1,
+                        help="[ZMQ] the actual gradient descent batch-size will be <grad-batch> * <batch-size>")
 
     ###########################################################
     # Core training parameters
@@ -289,6 +295,11 @@ if __name__ == '__main__':
     if cmd_args.linear_reward:
         print('--linearReward option is now *Deprecated*!!! Use --reward-type option instead! Now force <reward_type == \'linear\'>')
         cmd_args.reward_type = 'linear'
+
+    if cmd_args.grad_batch < 1:
+        print('--grad-batch option must be a positive integer! reset to default value <1>!')
+        cmd_args.grad_batch = 1
+
     args = cmd_args.__dict__
 
     args['model_name'] = 'rnn'

@@ -36,6 +36,9 @@ class ZMQA3CTrainer(AgentTrainer):
         self.gamma = args['gamma']
         self.lrate = args['lrate']
         self.batch_size = args['batch_size']
+        self.grad_batch = args['grad_batch'] if 'grad_batch' in args else 1
+        self.accu_grad_steps = 0
+        self.accu_ret_dict = dict()
         if 't_max' not in args:
             args['t_max'] = 5
         self.t_max = args['t_max']
@@ -175,7 +178,8 @@ class ZMQA3CTrainer(AgentTrainer):
 
         tt = time.time()
 
-        self.optim.zero_grad()
+        if self.accu_grad_steps == 0:  # clear grad
+            self.optim.zero_grad()
 
         # forward pass
         logits = []
@@ -235,16 +239,35 @@ class ZMQA3CTrainer(AgentTrainer):
         loss = self.q_loss_coef * critic_loss + pg_loss
 
         # backprop
+        if self.grad_batch > 1:
+            loss = loss / float(self.grad_batch)
         loss.backward()
+
+        ret_dict = dict(pg_loss=pg_loss.data.cpu().numpy()[0],
+                        policy_entropy=p_ent.data.cpu().numpy()[0],
+                        critic_loss=critic_loss.data.cpu().numpy()[0])
+
+        if self.accu_grad_steps == 0:
+            self.accu_ret_dict = ret_dict
+        else:
+            for k in ret_dict:
+                self.accu_ret_dict[k] += ret_dict[k]
+
+        self.accu_grad_steps += 1
+        if self.accu_grad_steps < self.grad_batch:  # do not update parameter now
+            time_counter[1] += time.time() - tt
+            return None
+
+        # update parameters
+        for k in self.accu_ret_dict:
+            self.accu_ret_dict[k] /= self.grad_batch
+        ret_dict = self.accu_ret_dict
+        self.accu_grad_steps = 0
 
         # grad clip
         if self.grad_norm_clip is not None:
             utils.clip_grad_norm(self.policy.parameters(), self.grad_norm_clip)
         self.optim.step()
-
-        ret_dict = dict(pg_loss=pg_loss.data.cpu().numpy()[0],
-                        policy_entropy=p_ent.data.cpu().numpy()[0],
-                        critic_loss=critic_loss.data.cpu().numpy()[0])
 
         if return_kl_divergence:
             cur_h = init_hidden
