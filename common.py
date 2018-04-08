@@ -579,7 +579,8 @@ def create_env(k=0,
                genRoomTypeMap=False,
                cacheAllTarget=False,
                use_discrete_action=False,
-               include_object_target=False):
+               include_object_target=False,
+               reward_silence=0):
     if render_device is None:
         render_device = get_gpus_for_rendering()[0]   # by default use the first gpu
     if segment_input is None:
@@ -599,7 +600,8 @@ def create_env(k=0,
                        depth_signal=depth_input,
                        max_steps=max_steps, success_measure=success_measure,
                        discrete_action=use_discrete_action,
-                       include_object_target=include_object_target)
+                       include_object_target=include_object_target,
+                       reward_silence=reward_silence)
     return task
 
 
