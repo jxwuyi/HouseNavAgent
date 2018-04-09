@@ -10,7 +10,7 @@ import utils
 import common
 from zmq_trainer.zmqsimulator import SimulatorProcess, SimulatorMaster, ensure_proc_terminate
 
-n_episode_evaluation = 500
+n_episode_evaluation = 1000
 
 class ZMQHouseEnvironment:
     def __init__(self, k=0, task_name='roomnav', false_rate=0.0,
