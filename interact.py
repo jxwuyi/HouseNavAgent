@@ -25,6 +25,7 @@ def proc_info(info):
 
 def evaluate(house, seed = 0, render_device=None,
              iters = 1000, max_episode_len = 1000,
+             task_name = 'roomnav', false_rate = 0.0,
              hardness = None, max_birthplace_steps=None,
              success_measure = 'center', multi_target=False, fixed_target=None,
              algo='nop', model_name='cnn',
@@ -255,6 +256,9 @@ def render_episode(env, images):
 
 def parse_args():
     parser = argparse.ArgumentParser("Evaluation for 3D House Navigation")
+    # Select Task
+    parser.add_argument("--task-name", choices=['roomnav', 'objnav'], default='roomnav')
+    parser.add_argument("--false-rate", type=float, default=0, help='The Rate of Impossible Targets')
     # Environment
     parser.add_argument("--env-set", choices=['small', 'train', 'test', 'color'], default='small')
     parser.add_argument("--house", type=int, default=0, help="house ID")
@@ -369,6 +373,7 @@ if __name__ == '__main__':
         fixed_target = 'any-object'
 
     evaluate(args.house, args.seed or 0, 0, 10000, 10000,
+             task_name=args.task_name, false_rate=args.false_rate,
              hardness=args.hardness, max_birthplace_steps=args.max_birthplace_steps,
              success_measure='see', multi_target=True,
              fixed_target=fixed_target,

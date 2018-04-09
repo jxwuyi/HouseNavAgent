@@ -26,10 +26,10 @@ def visualize(args, all_stats, config):
         print('Loading Cached Epsiodes from <{}>'.format(args.load_dir))
         with open(args.load_dir, 'rb') as f:
               episode_images = pickle.load(f)
-        env = common.create_env(0, hardness=0.95, success_measure='see')
+        env = common.create_env(0, hardness=0.95, success_measure='see', task_name=args.task_name)
         env.reset()
     else:
-        env = common.create_env(config.house, hardness=config.hardness, success_measure='see')
+        env = common.create_env(config.house, hardness=config.hardness, success_measure='see', task_name=args.task_name)
         env.reset()
         print('Resolution = {}'.format(env.env.resolution))
         total_len = 0
@@ -83,6 +83,7 @@ def parse_args():
     parser = argparse.ArgumentParser("Visualization for 3D House Navigation")
     # config
     parser.add_argument("file", type=str, help="evaluation stats file")
+    parser.add_argument("--task-name", choices=['roomnav', 'objnav'], default='roomnav')
     parser.add_argument("--env-set", choices=['small', 'train', 'test', 'color'], default='test',
                         help="the set of houses. default <test>")
     parser.add_argument("--max-iters", type=int, default=500,

@@ -12,6 +12,7 @@ from House3D import MultiHouseEnv
 from House3D import House
 from House3D.house import ALLOWED_TARGET_ROOM_TYPES, ALLOWED_PREDICTION_ROOM_TYPES, ALLOWED_OBJECT_TARGET_TYPES
 from House3D.roomnav import RoomNavTask
+from House3D.objnav import ObjNavTask
 from House3D import objrender, load_config
 
 import torch
@@ -561,7 +562,8 @@ def create_env(k=0,
                use_discrete_action=False,
                include_object_target=False,
                reward_silence=0,
-               curriculum_schedule=None):
+               curriculum_schedule=None,
+               task_name='roomnav', false_rate=0.0):
     if render_device is None:
         render_device = get_gpus_for_rendering()[0]   # by default use the first gpu
     if segment_input is None:
@@ -574,16 +576,18 @@ def create_env(k=0,
     else:  # multi-house environment
         all_houses = create_house_from_index(k, genRoomTypeMap, cacheAllTarget)
         env = MultiHouseEnv(api, all_houses, config=CFG)
-    task = RoomNavTask(env, reward_type=reward_type,
-                       hardness=hardness, max_birthplace_steps=max_birthplace_steps,
-                       segment_input=(segment_input != 'None'),
-                       joint_visual_signal=(segment_input == 'joint'),
-                       depth_signal=depth_input,
-                       max_steps=max_steps, success_measure=success_measure,
-                       discrete_action=use_discrete_action,
-                       include_object_target=include_object_target,
-                       reward_silence=reward_silence,
-                       birthplace_curriculum_schedule=curriculum_schedule)
+    Task = RoomNavTask if task_name == 'roomnav' else ObjNavTask
+    task = Task(env, reward_type=reward_type,
+                hardness=hardness, max_birthplace_steps=max_birthplace_steps,
+                segment_input=(segment_input != 'None'),
+                joint_visual_signal=(segment_input == 'joint'),
+                depth_signal=depth_input,
+                max_steps=max_steps, success_measure=success_measure,
+                discrete_action=use_discrete_action,
+                include_object_target=include_object_target,
+                reward_silence=reward_silence,
+                birthplace_curriculum_schedule=curriculum_schedule,
+                false_rate=false_rate)
     return task
 
 

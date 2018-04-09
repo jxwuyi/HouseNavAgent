@@ -13,14 +13,16 @@ from zmq_trainer.zmqsimulator import SimulatorProcess, SimulatorMaster, ensure_p
 n_episode_evaluation = 500
 
 class ZMQHouseEnvironment:
-    def __init__(self, k=0, reward_type='indicator', reward_silence=0,
+    def __init__(self, k=0, task_name='roomnav', false_rate=0.0,
+                 reward_type='indicator', reward_silence=0,
                  success_measure='see', multi_target=True,
                  include_object_target=True, aux_task=False,
                  hardness=None, max_birthplace_steps=None,
                  curriculum_schedule=None,
                  segment_input='none', depth_input=False, max_steps=-1, device=0):
         assert k >= 0
-        self.env = common.create_env(k, reward_type=reward_type,
+        self.env = common.create_env(k, task_name=task_name, false_rate=false_rate,
+                                     reward_type=reward_type,
                                      hardness=hardness, max_birthplace_steps=max_birthplace_steps,
                                      success_measure=success_measure,
                                      segment_input=segment_input, depth_input=depth_input,
@@ -67,7 +69,8 @@ class ZMQSimulator(SimulatorProcess):
         device_list = config['render_devices']
         device_ind = self.idx % len(device_list)
         device = device_list[device_ind]
-        return ZMQHouseEnvironment(k, config['reward_type'], config['reward_silence'],
+        return ZMQHouseEnvironment(k, config['task_name'], config['false_rate'],
+                                   config['reward_type'], config['reward_silence'],
                                    config['success_measure'],
                                    config['multi_target'], config['object_target'],
                                    config['aux_task'],

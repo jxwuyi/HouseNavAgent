@@ -51,7 +51,8 @@ def train(args=None,
     if max_birthplace_steps is not None:
         print('>>>> Max BirthPlace Steps = {}'.format(max_birthplace_steps))
 
-    env = common.create_env(houseID, reward_type, hardness,
+    env = common.create_env(houseID, task_name=args['task_name'], false_rate=args['false_rate'],
+                            reward_type=reward_type, hardness=hardness,
                             max_birthplace_steps=max_birthplace_steps,
                             success_measure=success_measure,
                             segment_input=args['segment_input'],
@@ -203,6 +204,9 @@ def train(args=None,
 
 def parse_args():
     parser = argparse.ArgumentParser("Reinforcement Learning for 3D House Navigation")
+    # Select Task
+    parser.add_argument("--task-name", choices=['roomnav', 'objnav'], default='roomnav')
+    parser.add_argument("--false-rate", type=float, default=0, help='The Rate of Impossible Targets')
     # Environment
     parser.add_argument("--env-set", choices=['small', 'train', 'test', 'color'], default='small')
     parser.add_argument("--house", type=int, default=0,
@@ -348,6 +352,9 @@ if __name__ == '__main__':
                                       cmd_args.resolution,
                                       cmd_args.history_frame_len
                                       )
+
+    args['task_name'] = cmd_args.task_name
+    args['false_rate'] = cmd_args.false_rate
 
     args['algo'] = cmd_args.algo
 

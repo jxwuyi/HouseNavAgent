@@ -93,6 +93,10 @@ def create_zmq_trainer(algo, model, args):
 def create_zmq_config(args):
     config = dict()
 
+    # task name
+    config['task_name'] = args['task_name']
+    config['false_rate'] = args['false_rate']
+
     # env param
     config['n_house'] = args['n_house']
     config['reward_type'] = args['reward_type']
@@ -173,6 +177,9 @@ def parse_args():
     parser = argparse.ArgumentParser("Reinforcement Learning for 3D House Navigation")
     # Special Job Tag
     parser.add_argument("--job-name", type=str, default='')
+    # Select Task
+    parser.add_argument("--task-name", choices=['roomnav', 'objnav'], default='roomnav')
+    parser.add_argument("--false-rate", type=float, default=0, help='The Rate of Impossible Targets')
     # Environment
     parser.add_argument("--env-set", choices=['small', 'train', 'test', 'color'], default='small')
     parser.add_argument("--n-house", type=int, default=1,

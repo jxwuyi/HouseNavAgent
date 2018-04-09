@@ -166,6 +166,7 @@ def evaluate_aux_pred(house, seed = 0,iters = 1000, max_episode_len = 10,
 
 def evaluate(house, seed = 0, render_device=None,
              iters = 1000, max_episode_len = 1000,
+             task_name = 'roomnav', false_rate = 0.0,
              hardness = None, max_birthplace_steps=None,
              success_measure = 'center', multi_target=False, fixed_target=None,
              algo='nop', model_name='cnn',
@@ -213,7 +214,8 @@ def evaluate(house, seed = 0, render_device=None,
     if max_birthplace_steps is not None:
         print('>>>> Max BirthPlace Steps = {}'.format(max_birthplace_steps))
     set_seed(seed)
-    env = common.create_env(house, hardness=hardness, max_birthplace_steps=max_birthplace_steps,
+    env = common.create_env(house, task_name=task_name, false_rate=false_rate,
+                            hardness=hardness, max_birthplace_steps=max_birthplace_steps,
                             success_measure=success_measure,
                             depth_input=depth_input,
                             segment_input=args['segment_input'],
@@ -400,6 +402,9 @@ def render_episode(env, images):
 
 def parse_args():
     parser = argparse.ArgumentParser("Evaluation for 3D House Navigation")
+    # Select Task
+    parser.add_argument("--task-name", choices=['roomnav', 'objnav'], default='roomnav')
+    parser.add_argument("--false-rate", type=float, default=0, help='The Rate of Impossible Targets')
     # Environment
     parser.add_argument("--env-set", choices=['small', 'train', 'test', 'color'], default='small')
     parser.add_argument("--house", type=int, default=0, help="house ID")
@@ -508,6 +513,7 @@ if __name__ == '__main__':
 
     if args.hardness <= 1e-6:
         assert args.aux_task, 'When Hardness == 0, option --auxiliary-task must be set!'
+        assert args.task_name == 'roomnav'
         episode_stats = evaluate_aux_pred(args.house, args.seed or 0, args.max_iters, args.max_episode_len,
                                           args.algo, model_name, args.warmstart, args.log_dir, args.store_history,
                                           args.use_batch_norm,
@@ -517,6 +523,7 @@ if __name__ == '__main__':
     else:
         episode_stats = \
             evaluate(args.house, args.seed or 0, args.render_gpu, args.max_iters, args.max_episode_len,
+                     args.task_name, args.false_rate,
                      args.hardness, args.max_birthplace_steps,
                      args.success_measure, args.multi_target,
                      args.fixed_target or ('any-room' if args.only_eval_room else None),
