@@ -237,6 +237,9 @@ def parse_args():
     parser.add_argument('--weight-decay', type=float, help="weight decay for policy")
     parser.add_argument("--gamma", type=float, help="discount")
     parser.add_argument("--grad-clip", type=float, default = 5.0, help="gradient clipping")
+    parser.add_argument("--adv-norm", dest='adv_norm', action='store_true',
+                        help="perform advantage normalization (per-minibatch, not the full gradient batch)")
+    parser.set_defaults(adv_norm=False)
     parser.add_argument("--max-iters", type=int, default=int(1e6), help="maximum number of training episodes")
     parser.add_argument("--batch-norm", action='store_true', dest='use_batch_norm',
                         help="Whether to use batch normalization in the policy network. default=False.")

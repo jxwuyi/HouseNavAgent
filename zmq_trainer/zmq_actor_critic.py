@@ -51,6 +51,7 @@ class ZMQA3CTrainer(AgentTrainer):
         else:
             self.optim = optim.RMSprop(self.policy.parameters(), lr=self.lrate, weight_decay=args['weight_decay'])
         self.grad_norm_clip = args['grad_clip']
+        self.adv_norm = args['adv_norm'] if 'adv_norm' in args else False
         self._hidden = None
         self._normal_execution = True
 
@@ -226,7 +227,10 @@ class ZMQA3CTrainer(AgentTrainer):
         R = Variable(torch.stack(R, dim=1))  # [batch, t_max]
 
         # estimate advantage
-        A = Variable(R.data - V.data)  # stop gradient here
+        A_dat = R.data - V.data  # stop gradient here
+        if self.adv_norm:   # perform advantage normalization
+            A_dat = (A_dat - A_dat.mean()) / (A_dat.std() + 1e-10)
+        A = Variable(A_dat)
         # [optional]  A = Variable(rew) - V
 
         # compute loss
