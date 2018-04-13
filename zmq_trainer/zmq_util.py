@@ -19,13 +19,15 @@ class ZMQHouseEnvironment:
                  include_object_target=True, aux_task=False,
                  hardness=None, max_birthplace_steps=None,
                  curriculum_schedule=None,
-                 segment_input='none', depth_input=False, max_steps=-1, device=0):
+                 segment_input='none', depth_input=False, target_mask_input=False,
+                 max_steps=-1, device=0):
         assert k >= 0
         self.env = common.create_env(k, task_name=task_name, false_rate=false_rate,
                                      reward_type=reward_type,
                                      hardness=hardness, max_birthplace_steps=max_birthplace_steps,
                                      success_measure=success_measure,
                                      segment_input=segment_input, depth_input=depth_input,
+                                     target_mask_input=target_mask_input,
                                      max_steps=max_steps, render_device=device,
                                      genRoomTypeMap=aux_task,
                                      cacheAllTarget=multi_target,
@@ -77,6 +79,7 @@ class ZMQSimulator(SimulatorProcess):
                                    config['hardness'], config['max_birthplace_steps'],
                                    config['curriculum_schedule'],
                                    config['segment_input'], config['depth_input'],
+                                   config['target_mask_input'],
                                    config['max_episode_len'], device)
 
 

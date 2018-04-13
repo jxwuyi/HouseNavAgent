@@ -120,6 +120,7 @@ def create_zmq_config(args):
     config['render_devices'] = tuple(render_gpus)
     config['segment_input'] = args['segment_input']
     config['depth_input'] = args['depth_input']
+    config['target_mask_input'] = args['target_mask_input']
     config['max_episode_len'] = args['max_episode_len']
     config['success_measure'] = args['success_measure']
     config['multi_target'] = args['multi_target']
@@ -135,6 +136,7 @@ def train(args=None, warmstart=None):
                                      resolution_level=args['resolution_level'],
                                      segmentation_input=args['segment_input'],
                                      depth_input=args['depth_input'],
+                                     target_mask_input=args['target_mask_input'],
                                      history_frame_len=1)
 
     args['logger'] = utils.MyLogger(args['log_dir'], True)
@@ -201,6 +203,9 @@ def parse_args():
     parser.add_argument("--depth-input", dest='depth_input', action='store_true',
                         help="whether to include depth information as part of the input signal")
     parser.set_defaults(depth_input=False)
+    parser.add_argument("--target-mask-input", dest='target_mask_input', action='store_true',
+                        help="whether to include target mask 0/1 signal as part of the input signal")
+    parser.set_defaults(target_mask_input=False)
     parser.add_argument("--resolution", choices=['normal', 'low', 'tiny', 'high', 'square', 'square_low'],
                         dest='resolution_level', default='normal',
                         help="resolution of visual input, default normal=[120 * 90]")

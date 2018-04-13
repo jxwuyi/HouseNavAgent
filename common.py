@@ -154,7 +154,7 @@ def create_args(model='random', gamma = 0.9, lrate = 0.001, critic_lrate = 0.001
                 resolution_level=resolution_level)
 
 
-def process_observation_shape(model, resolution_level, segmentation_input, depth_input, history_frame_len=4):
+def process_observation_shape(model, resolution_level, segmentation_input, depth_input, history_frame_len=4, target_mask_input=False):
     global frame_history_len, resolution, attention_resolution, observation_shape, single_observation_shape
     if 'rnn' in model: history_frame_len = 1
     if history_frame_len != 4:
@@ -173,8 +173,8 @@ def process_observation_shape(model, resolution_level, segmentation_input, depth
             n_chn = 6
             assert (segmentation_input == 'joint')
         single_observation_shape = (n_chn, resolution[0], resolution[1])
-    if depth_input:
-        single_observation_shape = (single_observation_shape[0] + 1,
+    if depth_input or target_mask_input:
+        single_observation_shape = (single_observation_shape[0] + int(depth_input) + int(target_mask_input),
                                     single_observation_shape[1],
                                     single_observation_shape[2])
     observation_shape = (single_observation_shape[0] * frame_history_len, resolution[0], resolution[1])
@@ -563,7 +563,9 @@ def create_env(k=0,
                include_object_target=False,
                reward_silence=0,
                curriculum_schedule=None,
-               task_name='roomnav', false_rate=0.0):
+               target_mask_input=False,
+               task_name='roomnav',
+               false_rate=0.0):
     if render_device is None:
         render_device = get_gpus_for_rendering()[0]   # by default use the first gpu
     if segment_input is None:
@@ -582,6 +584,7 @@ def create_env(k=0,
                 segment_input=(segment_input != 'None'),
                 joint_visual_signal=(segment_input == 'joint'),
                 depth_signal=depth_input,
+                target_mask_signal=target_mask_input,
                 max_steps=max_steps, success_measure=success_measure,
                 discrete_action=use_discrete_action,
                 include_object_target=include_object_target,
