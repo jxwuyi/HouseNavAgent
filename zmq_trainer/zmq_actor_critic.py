@@ -46,7 +46,7 @@ class ZMQA3CTrainer(AgentTrainer):
             self.q_loss_coef = args['q_loss_coef']
         else:
             self.q_loss_coef = 1.0
-        if 'logits_penalty' in args:
+        if ('logits_penalty' in args) and (args['logits_penalty'] is not None):
             self.logit_loss_coef = args['logits_penalty']
             print("[Trainer] Using Logits Loss Coef = %.4f" % self.logit_loss_coef)
         else:
