@@ -46,7 +46,7 @@ class ZMQA3CTrainer(AgentTrainer):
             self.q_loss_coef = args['q_loss_coef']
         else:
             self.q_loss_coef = 1.0
-        if 'logit_loss_coef' in args:
+        if 'logits_penalty' in args:
             self.logit_loss_coef = args['logits_penalty']
         else:
             self.logit_loss_coef = None
@@ -246,6 +246,7 @@ class ZMQA3CTrainer(AgentTrainer):
             pg_loss -= self.args['entropy_penalty'] * p_ent  # encourage exploration
         loss = self.q_loss_coef * critic_loss + pg_loss
         if self.logit_loss_coef is not None:
+            print("[Trainer] Using Logits Loss Coef = %.4f" % self.logit_loss_coef)
             loss += self.logit_loss_coef * L_norm
 
         # backprop
