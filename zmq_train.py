@@ -250,6 +250,7 @@ def parse_args():
                         help="Whether to use batch normalization in the policy network. default=False.")
     parser.set_defaults(use_batch_norm=False)
     parser.add_argument("--entropy-penalty", type=float, help="policy entropy regularizer")
+    parser.add_argument("--logits-penalty", type=float, help="policy logits regularizer")
     parser.add_argument("--optimizer", choices=['adam', 'rmsprop'], default='adam', help="optimizer")
     parser.add_argument("--exploration-scheduler", choices=['low', 'medium', 'high', 'none', 'linear', 'exp'],
                         dest='scheduler', default='none',

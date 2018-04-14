@@ -46,6 +46,10 @@ class ZMQA3CTrainer(AgentTrainer):
             self.q_loss_coef = args['q_loss_coef']
         else:
             self.q_loss_coef = 1.0
+        if 'logit_loss_coef' in args:
+            self.logit_loss_coef = args['logits_penalty']
+        else:
+            self.logit_loss_coef = None
         if args['optimizer'] == 'adam':
             self.optim = optim.Adam(self.policy.parameters(), lr=self.lrate, weight_decay=args['weight_decay'])  #,betas=(0.5,0.999))
         else:
@@ -214,6 +218,7 @@ class ZMQA3CTrainer(AgentTrainer):
         P = torch.cat(logprobs, dim=1)  # [batch, t_max, n_act]
         L = torch.cat(logits, dim=1)
         p_ent = torch.mean(self.policy.entropy(L))  # compute entropy
+        L_norm = torch.mean(torch.norm(L, dim=-1))
 
         # estimate accumulative rewards
         rew = torch.from_numpy(rew).type(FloatTensor)  # [batch, t_max]
@@ -239,8 +244,9 @@ class ZMQA3CTrainer(AgentTrainer):
         pg_loss = -torch.mean(self.policy.logprob(act, P) * A)
         if self.args['entropy_penalty'] is not None:
             pg_loss -= self.args['entropy_penalty'] * p_ent  # encourage exploration
-
         loss = self.q_loss_coef * critic_loss + pg_loss
+        if self.logit_loss_coef is not None:
+            loss += self.logit_loss_coef * L_norm
 
         # backprop
         if self.grad_batch > 1:
@@ -249,7 +255,8 @@ class ZMQA3CTrainer(AgentTrainer):
 
         ret_dict = dict(pg_loss=pg_loss.data.cpu().numpy()[0],
                         policy_entropy=p_ent.data.cpu().numpy()[0],
-                        critic_loss=critic_loss.data.cpu().numpy()[0])
+                        critic_loss=critic_loss.data.cpu().numpy()[0],
+                        logits_norm=L_norm.data.cpu().numpy()[0])
 
         if self.accu_grad_steps == 0:
             self.accu_ret_dict = ret_dict
