@@ -219,7 +219,8 @@ class ZMQA3CTrainer(AgentTrainer):
         P = torch.cat(logprobs, dim=1)  # [batch, t_max, n_act]
         L = torch.cat(logits, dim=1)
         p_ent = torch.mean(self.policy.entropy(L))  # compute entropy
-        L_norm = torch.mean(torch.norm(L, dim=-1))
+        #L_norm = torch.mean(torch.norm(L, dim=-1))
+        L_norm = torch.mean(torch.sum(L * L, dim=-1))   # L^2 penalty
 
         # estimate accumulative rewards
         rew = torch.from_numpy(rew).type(FloatTensor)  # [batch, t_max]
