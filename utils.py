@@ -180,7 +180,7 @@ class MyLogger:
             print('Exception Caught! msg = {}'.format(e))
         else:
             return
-        while True:
+        for _ in range(3):  # retry 3 times
             time.sleep(60)   # handle GFS potential failure
             try:
                 with open(self.fname, 'a') as f:
