@@ -1,6 +1,7 @@
 import numpy as np
 import random
 import math
+import time
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -172,8 +173,22 @@ class MyLogger:
     def print(self, str, to_screen = True):
         if to_screen:
             print(str)
-        with open(self.fname, 'a') as f:
-            print(str, file=f)
+        try:
+            with open(self.fname, 'a') as f:
+                print(str, file=f)
+        except Exception as e:
+            print('Exception Caught! msg = {}'.format(e))
+        else:
+            return
+        while True:
+            time.sleep(60)   # handle GFS potential failure
+            try:
+                with open(self.fname, 'a') as f:
+                    print(str, file=f)
+            except Exception as _:
+                continue
+            else:
+                break
 
 
 class FakeLogger:
