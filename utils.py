@@ -159,7 +159,7 @@ class LinearSchedule(object):
 
 ######## Logging Utils ############
 class MyLogger:
-    def __init__(self, logdir, clear_file = False, filename = None):
+    def __init__(self, logdir, clear_file = False, filename = None, keep_file_handler = False):
         import os
         if not os.path.exists(logdir):
             os.makedirs(logdir)
@@ -169,26 +169,19 @@ class MyLogger:
                 os.remove(self.fname)
             except OSError:
                 pass
+        self._f_ptr = None if not keep_file_handler else open(self.fname, 'w')
 
     def print(self, str, to_screen = True):
         if to_screen:
             print(str)
         try:
-            with open(self.fname, 'a') as f:
-                print(str, file=f)
-        except Exception as e:
-            print('Exception Caught! msg = {}'.format(e))
-        else:
-            return
-        for _ in range(3):  # retry 3 times
-            time.sleep(60)   # handle GFS potential failure
-            try:
+            if self._f_ptr is not None:
+                print(str, file=self._f_ptr)
+            else:
                 with open(self.fname, 'a') as f:
                     print(str, file=f)
-            except Exception as _:
-                continue
-            else:
-                break
+        except Exception as e:
+            print('Exception Caught! msg = {}'.format(e))
 
 
 class FakeLogger:

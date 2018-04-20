@@ -139,7 +139,7 @@ def train(args=None, warmstart=None):
                                      target_mask_input=args['target_mask_input'],
                                      history_frame_len=1)
 
-    args['logger'] = utils.MyLogger(args['log_dir'], True)
+    args['logger'] = utils.MyLogger(args['log_dir'], True, keep_file_handler=not args['append_file'])
 
     name = 'ipc://@whatever' + args['job_name']
     name2 = 'ipc://@whatever' + args['job_name'] + '2'
@@ -300,6 +300,12 @@ def parse_args():
     parser.add_argument("--eval-rate", type=int, default=50,
                         help="report evaluation stats once every time this many *FRAMES* produced")
     parser.add_argument("--warmstart", type=str, help="model to recover from. can be either a directory or a file.")
+
+    ###################################################
+    # Logging Option
+    parser.add_argument("--append-file-handler", dest='append_file', action='store_true',
+                        help="[Logging] When set, the logger will be close when a log message is output and reopen in the next time.")
+    parser.set_defaults(append_file=False)
     return parser.parse_args()
 
 if __name__ == '__main__':
