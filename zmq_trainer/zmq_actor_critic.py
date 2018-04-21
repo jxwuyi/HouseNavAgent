@@ -235,8 +235,10 @@ class ZMQA3CTrainer(AgentTrainer):
 
         # estimate advantage
         A_dat = R.data - V.data  # stop gradient here
+        std_val = None
         if self.adv_norm:   # perform advantage normalization
-            A_dat = (A_dat - A_dat.mean()) / (A_dat.std() + 1e-10)
+            std_val = A_dat.std()
+            A_dat = (A_dat - A_dat.mean()) / (std_val + 1e-10)
         A = Variable(A_dat)
         # [optional]  A = Variable(rew) - V
 
@@ -259,6 +261,8 @@ class ZMQA3CTrainer(AgentTrainer):
                         policy_entropy=p_ent.data.cpu().numpy()[0],
                         critic_loss=critic_loss.data.cpu().numpy()[0],
                         logits_norm=L_norm.data.cpu().numpy()[0])
+        if std_val is not None:
+            ret_dict['adv_norm'] = std_val
 
         if self.accu_grad_steps == 0:
             self.accu_ret_dict = ret_dict
