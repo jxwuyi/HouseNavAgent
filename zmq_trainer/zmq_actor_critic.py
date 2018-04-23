@@ -237,7 +237,7 @@ class ZMQA3CTrainer(AgentTrainer):
         A_dat = R.data - V.data  # stop gradient here
         std_val = None
         if self.adv_norm:   # perform advantage normalization
-            std_val = A_dat.std()
+            std_val = max(A_dat.std(), 0.1)
             A_dat = (A_dat - A_dat.mean()) / (std_val + 1e-10)
         A = Variable(A_dat)
         # [optional]  A = Variable(rew) - V
