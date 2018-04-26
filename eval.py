@@ -174,7 +174,8 @@ def evaluate(house, seed = 0, render_device=None,
              store_history=False, use_batch_norm=True,
              rnn_units=None, rnn_layers=None, rnn_cell=None,
              use_action_gating=False, use_residual_critic=False, use_target_gating=False,
-             segmentation_input='none', depth_input=False, resolution='normal', history_len=4,
+             segmentation_input='none', depth_input=False, target_mask_input=False,
+             resolution='normal', history_len=4,
              include_object_target=False,
              aux_task=False, no_skip_connect=False, feed_forward=False,
              greedy_execution=False, greedy_aux_pred=False):
@@ -218,6 +219,7 @@ def evaluate(house, seed = 0, render_device=None,
                             hardness=hardness, max_birthplace_steps=max_birthplace_steps,
                             success_measure=success_measure,
                             depth_input=depth_input,
+                            target_mask_input=target_mask_input,
                             segment_input=args['segment_input'],
                             genRoomTypeMap=aux_task,
                             cacheAllTarget=multi_target,
@@ -289,7 +291,7 @@ def evaluate(house, seed = 0, render_device=None,
         episode_good.append(0)
         cur_stats = dict(best_dist=1e50,
                          success=0, good=0, reward=0, target=env.get_current_target(),
-                         length=max_episode_len, images=None)
+                         optstep=env.info['optsteps'], length=max_episode_len, images=None)
         if aux_task:
             cur_stats['aux_pred_rew'] = 0
             cur_stats['aux_pred_err'] = 0
@@ -386,6 +388,7 @@ def evaluate(house, seed = 0, render_device=None,
             logger.print(
                 '>>>>> Multi-Target <%s>: Rate = %.3f (n=%d), Good = %.3f (AvgLen=%.3f), Succ = %.3f (AvgLen=%.3f)'
                 % (tar, n/len(episode_stats), n, np.mean(good), good_len, np.mean(succ), succ_len))
+
     if aux_task:
         logger.print(' -->>> Auxiliary-Task: Mean Episode Avg Rew = %.6f, Mean Episode Avg Err = %.6f'
                      % (np.mean([float(s['aux_pred_rew']) for s in episode_stats]),
@@ -420,6 +423,9 @@ def parse_args():
     parser.add_argument("--depth-input", dest='depth_input', action='store_true',
                         help="whether to include depth information as part of the input signal")
     parser.set_defaults(depth_input=False)
+    parser.add_argument("--target-mask-input", dest='target_mask_input', action='store_true',
+                        help="whether to include target mask 0/1 signal as part of the input signal")
+    parser.set_defaults(target_mask_input=False)
     parser.add_argument("--history-frame-len", type=int, default=4,
                         help="length of the stacked frames, default=4")
     parser.add_argument("--success-measure", choices=['center', 'stay', 'see'], default='center',
@@ -531,7 +537,8 @@ if __name__ == '__main__':
                      args.store_history, args.use_batch_norm,
                      args.rnn_units, args.rnn_layers, args.rnn_cell,
                      args.action_gating, args.residual_critic, args.target_gating,
-                     args.segmentation_input, args.depth_input, args.resolution, args.history_frame_len,
+                     args.segmentation_input, args.depth_input, args.target_mask_input,
+                     args.resolution, args.history_frame_len,
                      include_object_target=args.object_target,
                      aux_task=args.aux_task, no_skip_connect=args.no_skip_connect, feed_forward=args.feed_forward,
                      greedy_execution=(args.greedy_execution and (args.algo == 'a3c')),
