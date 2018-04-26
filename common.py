@@ -198,12 +198,14 @@ def create_default_args(algo='pg', model='cnn', gamma=None,
                         segmentation_input='none',
                         depth_input=False,
                         resolution_level='normal',
-                        history_frame_len=4):
+                        history_frame_len=4,
+                        target_mask_input=False):
     process_observation_shape(model,
                               resolution_level=resolution_level,
                               segmentation_input=segmentation_input,
                               depth_input=depth_input,
-                              history_frame_len=history_frame_len)
+                              history_frame_len=history_frame_len,
+                              target_mask_input=target_mask_input)
     if algo == 'pg':  # policy gradient
         return create_args(model, gamma or 0.95, lrate or 0.001, None,
                            episode_len or 10, batch_size or 100, 1000,

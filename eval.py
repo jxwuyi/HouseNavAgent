@@ -193,7 +193,7 @@ def evaluate(house, seed = 0, render_device=None,
                                       rnn_units=rnn_units, rnn_layers=rnn_layers, rnn_cell=rnn_cell,
                                       segmentation_input=segmentation_input,
                                       resolution_level=resolution,
-                                      depth_input=depth_input,
+                                      depth_input=depth_input, target_mask_input=target_mask_input,
                                       history_frame_len=history_len)
     args['action_gating'] = use_action_gating
     args['residual_critic'] = use_residual_critic
