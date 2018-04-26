@@ -368,6 +368,7 @@ def evaluate(house, seed = 0, render_device=None,
         logger.print('  ---> Times of Reaching Target Room = %d  (rate = %.3f)'
                      % (cur_stats['good'], np.mean(episode_good)))
         logger.print('  ---> Best Distance = %d' % cur_stats['best_dist'])
+        logger.print('  ---> Birth-place Distance = %d' % cur_stats['optstep'])
         if aux_task:
             logger.print('    >>>>>> Aux-Task: Avg Rew = %.4f, Avg Err = %.4f' % (cur_stats['aux_pred_rew'], cur_stats['aux_pred_err']))
 
