@@ -33,7 +33,8 @@ def evaluate(house, seed = 0, render_device=None,
              store_history=False, use_batch_norm=True,
              rnn_units=None, rnn_layers=None, rnn_cell=None,
              use_action_gating=False, use_residual_critic=False, use_target_gating=False,
-             segmentation_input='none', depth_input=False, resolution='normal', history_len=4,
+             segmentation_input='none', depth_input=False, target_mask_input=False,
+             resolution='normal', history_len=4,
              include_object_target=False,
              aux_task=False, no_skip_connect=False, feed_forward=False,
              greedy_execution=False, greedy_aux_pred=False):
@@ -52,7 +53,8 @@ def evaluate(house, seed = 0, render_device=None,
                                       segmentation_input=segmentation_input,
                                       resolution_level=resolution,
                                       depth_input=depth_input,
-                                      history_frame_len=history_len)
+                                      history_frame_len=history_len,
+                                      target_mask_input=target_mask_input)
     args['action_gating'] = use_action_gating
     args['residual_critic'] = use_residual_critic
     args['multi_target'] = multi_target
@@ -83,7 +85,8 @@ def evaluate(house, seed = 0, render_device=None,
                             cacheAllTarget=multi_target,
                             render_device=render_device,
                             use_discrete_action=('dpg' not in algo),
-                            include_object_target=include_object_target)
+                            include_object_target=include_object_target,
+                            target_mask_input=target_mask_input)
 
     if (fixed_target is not None) and ('any' not in fixed_target):
         env.reset_target(fixed_target)
@@ -274,6 +277,9 @@ def parse_args():
     parser.add_argument("--depth-input", dest='depth_input', action='store_true',
                         help="whether to include depth information as part of the input signal")
     parser.set_defaults(depth_input=False)
+    parser.add_argument("--target-mask-input", dest='target_mask_input', action='store_true',
+                        help="whether to include target mask 0/1 signal as part of the input signal")
+    parser.set_defaults(target_mask_input=False)
     parser.add_argument("--history-frame-len", type=int, default=4,
                         help="length of the stacked frames, default=4")
     parser.add_argument("--success-measure", choices=['center', 'stay', 'see'], default='center',
@@ -382,7 +388,7 @@ if __name__ == '__main__':
              store_history=False, use_batch_norm=args.use_batch_norm,
              rnn_units=args.rnn_units, rnn_layers=args.rnn_layers, rnn_cell=args.rnn_cell,
              use_action_gating=args.action_gating, use_residual_critic=args.residual_critic, use_target_gating=args.target_gating,
-             segmentation_input=args.segmentation_input, depth_input=args.depth_input,
+             segmentation_input=args.segmentation_input, depth_input=args.depth_input, target_mask_input=args.target_mask_input,
              resolution=args.resolution, history_len=args.history_frame_len,
              include_object_target=args.object_target,
              aux_task=False, no_skip_connect=args.no_skip_connect, feed_forward=args.feed_forward,
