@@ -568,7 +568,7 @@ def create_env(k=0,
                target_mask_input=False,
                task_name='roomnav',
                false_rate=0.0,
-               discrete_angle=False,
+               discrete_angle=True,
                cache_supervision=False):
     if render_device is None:
         render_device = get_gpus_for_rendering()[0]   # by default use the first gpu
