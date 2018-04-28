@@ -567,12 +567,17 @@ def create_env(k=0,
                curriculum_schedule=None,
                target_mask_input=False,
                task_name='roomnav',
-               false_rate=0.0):
+               false_rate=0.0,
+               discrete_angle=False,
+               cache_supervision=False):
     if render_device is None:
         render_device = get_gpus_for_rendering()[0]   # by default use the first gpu
     if segment_input is None:
         segment_input = 'none'
     api = objrender.RenderAPI(w=resolution[0], h=resolution[1], device=render_device)
+    if cache_supervision:
+        assert discrete_angle and use_discrete_action
+        cacheAllTarget = True
     if k >= 0:
         house = create_house_from_index(k, genRoomTypeMap, cacheAllTarget)
         env = HouseEnv(api, house, config=CFG)
@@ -592,7 +597,9 @@ def create_env(k=0,
                 include_object_target=include_object_target,
                 reward_silence=reward_silence,
                 birthplace_curriculum_schedule=curriculum_schedule,
-                false_rate=false_rate)
+                false_rate=false_rate,
+                discrete_angle=discrete_angle,
+                supervision_signal=cache_supervision)
     return task
 
 

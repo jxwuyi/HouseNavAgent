@@ -86,7 +86,9 @@ def evaluate(house, seed = 0, render_device=None,
                             render_device=render_device,
                             use_discrete_action=('dpg' not in algo),
                             include_object_target=include_object_target,
-                            target_mask_input=target_mask_input)
+                            target_mask_input=target_mask_input,
+                            discrete_angle=True,
+                            cache_supervision=True)   # compute supervision signal
 
     if (fixed_target is not None) and ('any' not in fixed_target):
         env.reset_target(fixed_target)
@@ -163,8 +165,15 @@ def evaluate(house, seed = 0, render_device=None,
 
         trainer.reset_agent()
 
+        def get_supervision_name(act):
+            if act < 0: return 'N/A'
+            discrete_action_names = ['Forward', 'Right', 'Left', 'Right-Fwd', 'Left-Fwd', 'Right-Rotate', 'Left-Rotate',
+                                     'Backward', 'Small-Forward', 'Small-Right', 'Small-Left', 'Small-Right-Rot', 'Small-Left-Rot', 'Stay']
+            return discrete_action_names[act]
+
         while True:
             print('Step#%d, Instruction = <go to %s>' % (step, target))
+            print('  ->>>> supervision = {}'.format(get_supervision_name(env.info['supervision'])))
             mat = env.debug_show()
             mat = cv2.resize(mat, (800, 600), interpolation=cv2.INTER_NEAREST)
             cv2.imshow("aaa", mat)
