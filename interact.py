@@ -37,7 +37,8 @@ def evaluate(house, seed = 0, render_device=None,
              resolution='normal', history_len=4,
              include_object_target=False,
              aux_task=False, no_skip_connect=False, feed_forward=False,
-             greedy_execution=False, greedy_aux_pred=False):
+             greedy_execution=False, greedy_aux_pred=False,
+             cache_supervision=True):
 
     assert not aux_task, 'Do not support Aux-Task now!'
 
@@ -88,7 +89,7 @@ def evaluate(house, seed = 0, render_device=None,
                             include_object_target=include_object_target,
                             target_mask_input=target_mask_input,
                             discrete_angle=True,
-                            cache_supervision=True)   # compute supervision signal
+                            cache_supervision=cache_supervision)   # compute supervision signal
 
     if (fixed_target is not None) and ('any' not in fixed_target):
         env.reset_target(fixed_target)
@@ -345,6 +346,10 @@ def parse_args():
     parser.add_argument("--feed-forward-a3c", dest='feed_forward', action='store_true',
                         help="[A3C-LSTM Only] skip rnn completely. essentially cnn-a3c")
     parser.set_defaults(feed_forward=False)
+    # Other Options
+    parser.add_argument("--no-cache-supervision", dest='cache_supervision', action='store_false',
+                        help="When set, will not show supervision signal at each timestep (for saving caching time)")
+    parser.set_defaults(cache_supervision=True)
     # Checkpointing
     parser.add_argument("--log-dir", type=str, default="./log/eval", help="directory in which logs eval stats")
     parser.add_argument("--warmstart", type=str, help="file to load the model")
@@ -401,4 +406,5 @@ if __name__ == '__main__':
              resolution=args.resolution, history_len=args.history_frame_len,
              include_object_target=args.object_target,
              aux_task=False, no_skip_connect=args.no_skip_connect, feed_forward=args.feed_forward,
-             greedy_execution=False)
+             greedy_execution=False,
+             cache_supervision=args.cache_supervision)
