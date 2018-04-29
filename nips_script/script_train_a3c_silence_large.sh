@@ -7,7 +7,7 @@
 # gradient clip = 2
 
 CUDA_VISIBLE_DEVICES=3,4,5,6,7 python3 zmq_train.py --job-name large \
-    --seed 0 --env-set train \
+    --seed 0 --env-set train --rew-clip \
     --n-house 200 --n-proc 200 --batch-size 32 --t-max 60 --grad-batch 4 \
     --max-episode-len 80 \
     --hardness 0.95 --max-birthplace-steps 20 \

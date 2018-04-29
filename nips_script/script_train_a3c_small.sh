@@ -1,6 +1,6 @@
 #!/bin/bash
 
-CUDA_VISIBLE_DEVICES=0,1,2 python3 zmq_train.py --seed 0 --env-set small \
+CUDA_VISIBLE_DEVICES=0,1,2 python3 zmq_train.py --seed 0 --env-set small --rew-clip \
     --n-house 20 --n-proc 90 --batch-size 64 --t-max 30 --grad-batch 1 \
     --max-episode-len 40 \
     --hardness 0.95 --max-birthplace-steps 5 \

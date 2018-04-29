@@ -3,6 +3,7 @@
 CUDA_VISIBLE_DEVICES=0,1,2 python3 zmq_train.py --seed 0 --env-set small --rew-clip \
     --job-name mask --n-house 20 --n-proc 90 --batch-size 50 --t-max 30 --grad-batch 1 \
     --max-episode-len 40 \
+    --supervised-learning \
     --hardness 0.95 --max-birthplace-steps 5 \
     --reward-type new --success-measure see \
     --multi-target --use-target-gating --include-object-target \
@@ -12,5 +13,5 @@ CUDA_VISIBLE_DEVICES=0,1,2 python3 zmq_train.py --seed 0 --env-set small --rew-c
     --entropy-penalty 0.05 --q-loss-coef 1.0 --grad-clip 1.0 --adv-norm \
     --rnn-units 256 --rnn-layers 1 --rnn-cell lstm \
     --report-rate 20 --save-rate 1000 --eval-rate 1000000 \
-    --save-dir ./_model_/nips/small/birth5_seg_mask/test \
-    --log-dir ./log/nips/small/birth5_seg_mask/test
+    --save-dir ./_model_/nips/sup_small/birth5_seg_mask/ \
+    --log-dir ./log/nips/sup_small/birth5_seg_mask/

@@ -1,3 +1,5 @@
+#!/bin/bash
+
 # a3c-seg-nog
 python3 interact.py --seed 0 --env-set test --house -10 \
     --hardness 0.6 --max-birthplace-steps 10 \
