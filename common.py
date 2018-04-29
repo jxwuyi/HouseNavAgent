@@ -503,15 +503,15 @@ def create_house(houseID, genRoomTypeMap=False, cacheAllTarget=False):
     objFile = prefix + houseID + '/house.obj'
     jsonFile = prefix + houseID + '/house.json'
     cachedFile = genCacheFile(houseID)
-    if not os.path.isfile(cachedFile):
-        assert False, 'No Cache File Found! file={}'.format(cachedFile)
-        print('Generating Cached Map File for House <{}>!'.format(houseID))
-        house = House(jsonFile, objFile, csvFile,
-                      MapTargetCatFile=modelObjectMapFile,
-                      StorageFile=cachedFile, GenRoomTypeMap=genRoomTypeMap,
-                      IncludeOutdoorTarget=True)
-    else:
-        house = House(jsonFile, objFile, csvFile,
+    #if not os.path.isfile(cachedFile):
+    #    assert False, 'No Cache File Found! file={}'.format(cachedFile)
+    #    print('Generating Cached Map File for House <{}>!'.format(houseID))
+    #    house = House(jsonFile, objFile, csvFile,
+    #                  MapTargetCatFile=modelObjectMapFile,
+    #                  StorageFile=cachedFile, GenRoomTypeMap=genRoomTypeMap,
+    #                  IncludeOutdoorTarget=True)
+    #else:
+    house = House(jsonFile, objFile, csvFile,
                       MapTargetCatFile=modelObjectMapFile,
                       CachedFile=cachedFile, GenRoomTypeMap=genRoomTypeMap,
                       IncludeOutdoorTarget=True)
