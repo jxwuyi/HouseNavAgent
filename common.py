@@ -504,6 +504,7 @@ def create_house(houseID, genRoomTypeMap=False, cacheAllTarget=False):
     jsonFile = prefix + houseID + '/house.json'
     cachedFile = genCacheFile(houseID)
     if not os.path.isfile(cachedFile):
+        assert False, 'No Cache File Found! file={}'.format(cachedFile)
         print('Generating Cached Map File for House <{}>!'.format(houseID))
         house = House(jsonFile, objFile, csvFile,
                       MapTargetCatFile=modelObjectMapFile,
