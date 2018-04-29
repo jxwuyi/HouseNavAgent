@@ -122,7 +122,7 @@ class ZMQMaster(SimulatorMaster):
         self.multi_target = config['multi_target']
         if self.multi_target:
             self.episode_stats['target'] = []
-        self.supervision = config['supervision'] if 'supervision' in config else False
+        self.supervision = config['cache_supervision'] if 'cache_supervision' in config else False
         if self.supervision:
             self.curr_sup_act = dict()
         self.aux_task = config['aux_task']
