@@ -57,6 +57,7 @@ class ZMQA3CTrainer(AgentTrainer):
             self.optim = optim.RMSprop(self.policy.parameters(), lr=self.lrate, weight_decay=args['weight_decay'])
         self.grad_norm_clip = args['grad_clip']
         self.adv_norm = args['adv_norm'] if 'adv_norm' in args else False
+        self.rew_clip = args['rew_clip'] if 'rew_clip' in args else False
         self._hidden = None
         self._normal_execution = True
 
@@ -153,7 +154,8 @@ class ZMQA3CTrainer(AgentTrainer):
     def process_experience(self, idx, act, rew, done, terminal, info):
         pass
 
-    def update(self, obs, init_hidden, act, rew, done, target=None, return_kl_divergence=True):
+    def update(self, obs, init_hidden, act, rew, done,
+                target=None, supervision_mask=None, return_kl_divergence=True):
         """
         :param obs:  list of list of [dims]...
         :param init_hidden: list of [layer, 1, units]
@@ -161,11 +163,12 @@ class ZMQA3CTrainer(AgentTrainer):
         :param rew: [batch, seq_len]
         :param done: [batch, seq_len]
         :param target: [batch, seq_len, n_instruction] or None (when single-target)
+        :param supervision_mask: timesteps marked with supervised learning loss [batch, seq_len] or None (pure RL)
         """
         tt = time.time()
 
         # reward clipping
-        rew = np.clip(rew, -1, 1)
+        if self.rew_clip: rew = np.clip(rew, -1, 1)
 
         # convert data to Variables
         obs = self._create_gpu_tensor(obs, return_variable=True)  # [batch, t_max+1, dims...]
@@ -175,6 +178,7 @@ class ZMQA3CTrainer(AgentTrainer):
         act = Variable(torch.from_numpy(act).type(LongTensor))  # [batch, t_max]
         mask = 1.0 - torch.from_numpy(done).type(FloatTensor) # [batch, t_max]
         mask_var = Variable(mask)
+        sup_mask = None if supervision_mask is None else torch.from_numpy(supervision_mask).type(ByteTensor)  # [batch, t_max]
 
         time_counter[0] += time.time() - tt
 
@@ -239,6 +243,8 @@ class ZMQA3CTrainer(AgentTrainer):
         if self.adv_norm:   # perform advantage normalization
             std_val = max(A_dat.std(), 0.1)
             A_dat = (A_dat - A_dat.mean()) / (std_val + 1e-10)
+        if sup_mask is not None:  # supervision
+            A_dat[sup_mask > 0] = 1.0    # change A * log P(a) to log P(supervised_a), act has been modified in zmq_util
         A = Variable(A_dat)
         # [optional]  A = Variable(rew) - V
 

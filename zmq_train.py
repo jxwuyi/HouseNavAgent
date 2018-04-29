@@ -126,6 +126,7 @@ def create_zmq_config(args):
     config['multi_target'] = args['multi_target']
     config['object_target'] = args['object_target']
     config['aux_task'] = args['aux_task']
+    config['cache_supervision'] = args['cache_supervision']
     return config
 
 
@@ -238,6 +239,9 @@ def parse_args():
     ###########################################################
     # Core training parameters
     parser.add_argument("--algo", choices=['a3c'], default="a3c", help="algorithm")
+    parser.add_argument("--supervised-learning", dest='cache_supervision', action='store_true',
+                        help="when set, use Dagger style supervised learning + RL fine-tuning (when close to target)")
+    parser.set_defaults(cache_supervision=False)
     parser.add_argument("--lrate", type=float, help="learning rate for policy")
     parser.add_argument('--weight-decay', type=float, help="weight decay for policy")
     parser.add_argument("--gamma", type=float, help="discount")
@@ -245,6 +249,9 @@ def parse_args():
     parser.add_argument("--adv-norm", dest='adv_norm', action='store_true',
                         help="perform advantage normalization (per-minibatch, not the full gradient batch)")
     parser.set_defaults(adv_norm=False)
+    parser.add_argument("--rew-clip", dest='rew_clip', action='store_true',
+                        help="clip reward to [-1, 1]")
+    parser.set_defaults(rew_clip=False)
     parser.add_argument("--max-iters", type=int, default=int(1e6), help="maximum number of training episodes")
     parser.add_argument("--batch-norm", action='store_true', dest='use_batch_norm',
                         help="Whether to use batch normalization in the policy network. default=False.")
