@@ -175,7 +175,7 @@ class ZMQMaster(SimulatorMaster):
         done = np.zeros((self.batch_size, self.t_max), dtype=np.float32)
         target = None if not self.multi_target else []
         aux_target = None if not self.aux_task else []
-        sup_mask = None if not self.supervision else np.zeros((self.batch_size, self.t_max), dtype=np.int8)
+        sup_mask = None if not self.supervision else np.zeros((self.batch_size, self.t_max), dtype=np.uint8)
         for i,id in enumerate(self.train_buffer.keys()):
             dat = self.train_buffer[id]
             obs.append(dat['obs'])
