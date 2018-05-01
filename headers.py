@@ -130,3 +130,15 @@ class AgentTrainer(object):
 
     def is_rnn(self):
         return False
+
+
+class BaseMotion(object):
+    def __init__(self, task, trainer):
+        self.task = task
+        self.trainer = trainer
+
+    """
+    return a list of [aux_mask, action, reward, done]
+    """
+    def run(self, target, max_steps):
+        pass
