@@ -74,7 +74,8 @@ class FakeMotion(BaseMotion):
     """
     def run(self, target, max_steps):
         house = self.env.house
-        info = self.env.info
+        info = self.task.last_info
+        # obs = self.task.cached_obs
         cx, cy = info['loc']
         gx, gy = info['grid']
         mask = house.get_global_mask_feature(cx, cy)
