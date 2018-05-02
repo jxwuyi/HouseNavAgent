@@ -127,6 +127,7 @@ def create_zmq_config(args):
     config['object_target'] = args['object_target']
     config['aux_task'] = args['aux_task']
     config['cache_supervision'] = args['cache_supervision']
+    config['outdoor_target'] = args['outdoor_target']
     return config
 
 
@@ -221,6 +222,9 @@ def parse_args():
     parser.add_argument("--include-object-target", dest='object_target', action='store_true',
                         help="when this flag is set, target can be also a target. Only effective when --multi-target")
     parser.set_defaults(object_target=False)
+    parser.add_argument("--no-outdoor-target", dest='outdoor_target', action='store_false',
+                        help="when this flag is set, we will exclude <outdoor> target")
+    parser.add_argument(outdoor_target=True)
     ########################################################
     # ZMQ training parameters
     parser.add_argument("--train-gpu", type=int,
