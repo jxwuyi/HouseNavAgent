@@ -142,3 +142,9 @@ class BaseMotion(object):
     """
     def run(self, target, max_steps):
         pass
+
+    """
+    clear motion state
+    """
+    def reset(self):
+        pass

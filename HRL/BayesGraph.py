@@ -1,6 +1,6 @@
 from headers import *
 
-import sys, os, platform
+import sys, os, platform, time
 
 import numpy as np
 import random
@@ -63,6 +63,11 @@ def _get_object_index_from_mask(mask):
     mask = mask >> len(ALLOWED_TARGET_ROOM_TYPES)
     return [i for i in range(n_objects) if (mask & (1 << i)) > 0]
 
+def _log_it(logger, msg):
+    if logger is None:
+        print(msg)
+    else:
+        logger.print(msg)
 
 class GraphPlanner(object):
     def __init__(self, motion):
@@ -77,7 +82,8 @@ class GraphPlanner(object):
         self.param_idx = [(0, (i, j)) for i in range(n_rooms) for j in range(i+1, n_rooms)] + \
                          [(1, (i, j)) for i in range(n_rooms) for j in range(n_objects)] + \
                          [(2, 0), (2, 1)]
-        self.data_buff = []
+        self.param_size = n_rooms * (n_rooms - 1) // 2 + n_rooms * n_objects + 2
+        self.param_group_size = [n_rooms * (n_rooms - 1) // 2, n_rooms * n_objects, 2]
         self.g_rooms = np.zeros((n_rooms, n_rooms), dtype=np.float32)
         self.g_objs = np.zeros((n_rooms, n_objects), dtype=np.float32)
         self.obs_rooms = np.zeros((n_rooms, n_rooms), dtype=np.int32)
@@ -88,6 +94,12 @@ class GraphPlanner(object):
         self.stats_obs = [self.obs_rooms, self.obs_objs]
         self.graph = [self.g_rooms, self.g_objs]
         self.cached_eps = 0
+
+    def get_param_size(self):
+        return self.param_size
+
+    def get_param_group_size(self):
+        return self.param_group_size
 
     def get_param(self, i):
         idx = self.param_idx[i]
@@ -113,6 +125,7 @@ class GraphPlanner(object):
         self.conn_objs = params[1]
         self.conn_noise = params[2]
         self.params = params
+        self.cached_eps = max(1e-4, np.min(self.params[0]))
 
     """
     n_trials: the number of episodes to estimate the connectivity between two rooms
@@ -124,7 +137,7 @@ class GraphPlanner(object):
         -- sum up: 56 * n_trials * max_allowed_steps * #houses
         -- default params on 200 houses -> 8,400,000 frames
     """
-    def learn(self, n_trial=25, max_allowed_steps=30, eps=1e-4):
+    def learn(self, n_trial=25, max_allowed_steps=30, eps=1e-4, logger=None):
         self.cached_eps = eps
         if hasattr(self.env, 'all_houses'):
             all_houses = self.env.all_houses
@@ -137,7 +150,11 @@ class GraphPlanner(object):
         cnt_objs = np.zeros((n_rooms, n_objects), dtype=np.int32)
         pos_objs = np.zeros((n_rooms, n_objects), dtype=np.int32)
         pos_rooms = np.zeros((n_rooms, n_rooms), dtype=np.int32)
-        for house in all_houses:
+
+        ts = time.time()
+        _log_it(logger, "House Enumerating & Sampling ... Total {} Houses...".format(len(all_houses)))
+        for _i, house in enumerate(all_houses):
+            _log_it(logger, ">> House#{} ...".format(_i))
             self.env.reset_house(house._id)
             all_rooms = house.all_desired_roomTypes
             all_objects = house.all_desired_targetObj
@@ -186,8 +203,12 @@ class GraphPlanner(object):
                     cnt_objs[r1_id, o_id] += 1
                     if (in_msk & (1 << o_pos)) > 0:
                         pos_objs[r1_id, o_id] += 1
+            _log_it(logger, "  ---> %d / %d houses processed! time elapsed = %.4fs" % (_i+1, len(all_houses), time.time()-ts))
+        dur = time.time() - ts
+        _log_it(logger, ("Sampling Done! Total Sampling Time Elapsed = %.4fs" % dur))
 
         # compute all the MLE for graph parameters
+        _log_it(logger, "Computing Statistics and Parameters ...")
         for r1 in range(n_rooms):
             for r2 in range(r1+1, n_rooms):
                 base_cnt = cnt_rooms[r1, r2] + cnt_rooms[r2, r1]
@@ -201,9 +222,11 @@ class GraphPlanner(object):
                     self.conn_objs[r1, o] = 0
                 else:
                     self.conn_objs[r1, o] = pos_objs[r1, o] / cnt_objs[r1, o]
+        dur = time.time() - ts
+        _log_it(logger, ("Training Done! Total Computation Time = %.4fs" % dur))
 
     def evolve(self):
-        pass
+        raise NotImplementedError()
 
     """
     Variable X ~ Bernoulli(p)
@@ -320,8 +343,7 @@ class GraphPlanner(object):
         full_plan.reverse()
         return full_plan[0] if not return_list else full_plan
 
-    def clear(self):
-        self.data_buff = []
+    def reset(self):
         self.g_rooms[...] = self.conn_rooms
         self.g_objs[...] = self.conn_objs
         self.obs_rooms[...] = 0
@@ -332,27 +354,28 @@ class GraphPlanner(object):
     #########################
     # DEBUG Functionalities
     #########################
-    def _show_prior_object(self, object_id=None):
+    def _show_prior_object(self, object_id=None, logger=None):
         object_range = list(range(n_objects)) if object_id is None else [object_id]
         for i in object_range:
-            print('Object#{}, <{}>:'.format(i, ALLOWED_OBJECT_TARGET_INDEX[i]))
+            _log_it(logger, 'Object#{}, <{}>:'.format(i, ALLOWED_OBJECT_TARGET_INDEX[i]))
             for r in range(n_rooms):
                 r_name = 'indoor' if r == n_rooms - 1 else ALLOWED_TARGET_ROOM_TYPES[r]
-                if self.conn_objs[r, i] > self.cached_eps + 1e-10:
-                    print('  --> Room#{}, <{}>, Prob = {}'.format(r, r_name, self.conn_objs[r, i]))
+                if self.conn_objs[r, i] > self.cached_eps + 1e-9:
+                    _log_it(logger, '  --> Room#{}, <{}>, Prob = {}'.format(r, r_name, self.conn_objs[r, i]))
 
 
-    def _show_prior_room(self, room_id=None):
+    def _show_prior_room(self, room_id=None, logger=None):
         room_range = list(range(n_rooms)) if room_id is None else [room_id]
         for r in room_range:
             r_name = 'indoor' if r == n_rooms - 1 else ALLOWED_TARGET_ROOM_TYPES[r]
-            print('Room#{}, <{}>:'.format(r, r_name))
+            _log_it(logger, 'Room#{}, <{}>:'.format(r, r_name))
             for y in range(n_rooms):
                 if y == r: continue
                 y_name = 'indoor' if y == n_rooms - 1 else ALLOWED_TARGET_ROOM_TYPES[y]
-                if self.conn_rooms[r, y] > self.cached_eps + 1e-10:
-                    print('  --> Room#{}, <{}>, Prob = {}'.format(y, y_name, self.conn_rooms[r, y]))
+                if self.conn_rooms[r, y] > self.cached_eps + 1e-9:
+                    _log_it(logger, '  --> Room#{}, <{}>, Prob = {}'.format(y, y_name, self.conn_rooms[r, y]))
+
             for o in range(n_objects):
                 o_name = ALLOWED_OBJECT_TARGET_INDEX[o]
-                if self.conn_objs[r, o] > self.cached_eps + 1e-10:
-                    print('  --> Object#{}, <{}>, Prob = {}'.format(o, o_name, self.conn_objs[r, o]))
+                if self.conn_objs[r, o] > self.cached_eps + 1e-9:
+                    _log_it(logger, '  --> Object#{}, <{}>, Prob = {}'.format(o, o_name, self.conn_objs[r, o]))

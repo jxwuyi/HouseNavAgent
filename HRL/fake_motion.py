@@ -65,12 +65,12 @@ class FakeMotion(BaseMotion):
         self.env.reset(x=cx, y=cy)
         mask = self.env.house.get_global_mask_feature(cx, cy)
         if flag_done:
-            return mask, n_discrete_actions - 1, 10, True
+            return mask, n_discrete_actions - 1, 10, True, self.task.info
         else:
-            return mask, -1, 0, False
+            return mask, -1, 0, False, self.task.info
 
     """
-    return a list of [aux_mask, action, reward, done]
+    return a list of [aux_mask, action, reward, done, info]
     """
     def run(self, target, max_steps):
         house = self.env.house

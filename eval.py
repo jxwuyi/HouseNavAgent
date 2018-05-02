@@ -176,7 +176,7 @@ def evaluate(house, seed = 0, render_device=None,
              use_action_gating=False, use_residual_critic=False, use_target_gating=False,
              segmentation_input='none', depth_input=False, target_mask_input=False,
              resolution='normal', history_len=4,
-             include_object_target=False,
+             include_object_target=False, include_outdoor_target=True,
              aux_task=False, no_skip_connect=False, feed_forward=False,
              greedy_execution=False, greedy_aux_pred=False):
 
@@ -225,7 +225,9 @@ def evaluate(house, seed = 0, render_device=None,
                             cacheAllTarget=multi_target,
                             render_device=render_device,
                             use_discrete_action=('dpg' not in algo),
-                            include_object_target=include_object_target and (fixed_target != 'any-room'))
+                            include_object_target=include_object_target and (fixed_target != 'any-room'),
+                            include_outdoor_target=include_outdoor_target,
+                            discrete_angle=True)
 
     if (fixed_target is not None) and (fixed_target != 'any-room'):
         env.reset_target(fixed_target)
@@ -256,7 +258,7 @@ def evaluate(house, seed = 0, render_device=None,
 
     if aux_task: assert trainer.is_rnn()  # only rnn support aux_task
 
-    flag_random_reset_target = multi_target and (fixed_target is None)
+    #flag_random_reset_target = multi_target and (fixed_target is None)
 
     logger = utils.MyLogger(log_dir, True)
     logger.print('Start Evaluating ...')
@@ -437,6 +439,9 @@ def parse_args():
     parser.add_argument("--include-object-target", dest='object_target', action='store_true',
                         help="when this flag is set, target can be also a target. Only effective when --multi-target")
     parser.set_defaults(object_target=False)
+    parser.add_argument("--no-outdoor-target", dest='outdoor_target', action='store_false',
+                        help="when this flag is set, we will exclude <outdoor> target")
+    parser.set_defaults(outdoor_target=True)
     parser.add_argument("--only-eval-room-target", dest='only_eval_room', action='store_true',
                         help="when this flag is set, only evaluate room targets. only effective when --include-object-target")
     parser.set_defaults(only_eval_room=False)
@@ -541,6 +546,7 @@ if __name__ == '__main__':
                      args.segmentation_input, args.depth_input, args.target_mask_input,
                      args.resolution, args.history_frame_len,
                      include_object_target=args.object_target,
+                     include_outdoor_target=args.outdoor_target,
                      aux_task=args.aux_task, no_skip_connect=args.no_skip_connect, feed_forward=args.feed_forward,
                      greedy_execution=(args.greedy_execution and (args.algo == 'a3c')),
                      greedy_aux_pred=(args.greedy_aux_pred and (args.algo == 'a3c') and args.aux_task))

@@ -36,6 +36,7 @@ def evaluate(house, seed = 0, render_device=None,
              segmentation_input='none', depth_input=False, target_mask_input=False,
              resolution='normal', history_len=4,
              include_object_target=False,
+             include_outdoor_target=True,
              aux_task=False, no_skip_connect=False, feed_forward=False,
              greedy_execution=False, greedy_aux_pred=False,
              cache_supervision=True):
@@ -87,6 +88,7 @@ def evaluate(house, seed = 0, render_device=None,
                             render_device=render_device,
                             use_discrete_action=('dpg' not in algo),
                             include_object_target=include_object_target,
+                            include_outdoor_target=include_outdoor_target,
                             target_mask_input=target_mask_input,
                             discrete_angle=True,
                             cache_supervision=cache_supervision)   # compute supervision signal
@@ -300,6 +302,9 @@ def parse_args():
     parser.add_argument("--include-object-target", dest='object_target', action='store_true',
                         help="when this flag is set, target can be also a target. Only effective when --multi-target")
     parser.set_defaults(object_target=False)
+    parser.add_argument("--no-outdoor-target", dest='outdoor_target', action='store_false',
+                        help="when this flag is set, we will exclude <outdoor> target")
+    parser.set_defaults(outdoor_target=True)
     parser.add_argument("--eval-target-type", choices=['all', 'only-room', 'only-object'], default='only-object',
                         help="the type of targets to evaluate on")
     parser.add_argument("--fixed-target", choices=common.ALLOWED_TARGET_ROOM_TYPES + common.ALLOWED_OBJECT_TARGET_TYPES,
@@ -405,6 +410,7 @@ if __name__ == '__main__':
              segmentation_input=args.segmentation_input, depth_input=args.depth_input, target_mask_input=args.target_mask_input,
              resolution=args.resolution, history_len=args.history_frame_len,
              include_object_target=args.object_target,
+             include_outdoor_target=args.outdoor_target,
              aux_task=False, no_skip_connect=args.no_skip_connect, feed_forward=args.feed_forward,
              greedy_execution=False,
              cache_supervision=args.cache_supervision)

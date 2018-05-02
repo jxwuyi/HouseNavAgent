@@ -80,7 +80,7 @@ def create_zmq_trainer(algo, model, args):
     n_action = common.n_discrete_actions
     if algo == 'a3c':
         model_gen = lambda: create_policy(model, args, observation_shape, n_action)
-        if args['aux_task']:
+        if ('aux_task' in args) and args['aux_task']:
             assert False, '<aux_task> is not supported currently!'
             #trainer = ZMQAuxTaskTrainer('ZMQAuxTaskA3CTrainer', model_gen, observation_shape, [n_action], args)
         else:
