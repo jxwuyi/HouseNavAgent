@@ -224,7 +224,7 @@ def parse_args():
     parser.set_defaults(object_target=False)
     parser.add_argument("--no-outdoor-target", dest='outdoor_target', action='store_false',
                         help="when this flag is set, we will exclude <outdoor> target")
-    parser.add_argument(outdoor_target=True)
+    parser.set_defaults(outdoor_target=True)
     ########################################################
     # ZMQ training parameters
     parser.add_argument("--train-gpu", type=int,
