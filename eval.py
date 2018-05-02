@@ -203,7 +203,7 @@ def evaluate(house, seed = 0, render_device=None,
     args['aux_task'] = aux_task
     args['no_skip_connect'] = no_skip_connect
     args['feed_forward'] = feed_forward
-    if (fixed_target is not None) and (fixed_target != 'any-room'):
+    if (fixed_target is not None) and (fixed_target not in ['any-room', 'any-object']):
         assert fixed_target in common.n_target_instructions, 'invalid fixed target <{}>'.format(fixed_target)
 
     __backup_CFG = common.CFG.copy()
@@ -229,7 +229,7 @@ def evaluate(house, seed = 0, render_device=None,
                             include_outdoor_target=include_outdoor_target,
                             discrete_angle=True)
 
-    if (fixed_target is not None) and (fixed_target != 'any-room'):
+    if (fixed_target is not None) and (fixed_target != 'any-room') and (fixed_target != 'any-object'):
         env.reset_target(fixed_target)
 
     if fixed_target == 'any-room':
@@ -445,6 +445,9 @@ def parse_args():
     parser.add_argument("--only-eval-room-target", dest='only_eval_room', action='store_true',
                         help="when this flag is set, only evaluate room targets. only effective when --include-object-target")
     parser.set_defaults(only_eval_room=False)
+    parser.add_argument("--only-eval-object-target", dest='only_eval_object', action='store_true',
+                        help="when this flag is set, only evaluate object targets. only effective when --include-object-target")
+    parser.set_defaults(only_eval_object=False)
     parser.add_argument("--fixed-target", choices=common.ALLOWED_TARGET_ROOM_TYPES + common.ALLOWED_OBJECT_TARGET_TYPES,
                         help="once set, all the episode will be fixed to a specific target.")
     parser.add_argument("--greedy-execution", dest='greedy_execution', action='store_true',
@@ -533,12 +536,18 @@ if __name__ == '__main__':
                                           args.multi_target, args.target_gating,
                                           args.segmentation_input, args.depth_input, args.resolution)
     else:
+        fixed_target = args.fixed_target
+        if fixed_target is None:
+            if args.only_eval_room:
+                fixed_target = 'any-room'
+            elif args.only_eval_object:
+                fixed_target = 'any-object'
         episode_stats = \
             evaluate(args.house, args.seed or 0, args.render_gpu, args.max_iters, args.max_episode_len,
                      args.task_name, args.false_rate,
                      args.hardness, args.max_birthplace_steps,
                      args.success_measure, args.multi_target,
-                     args.fixed_target or ('any-room' if args.only_eval_room else None),
+                     fixed_target,
                      args.algo, model_name, args.warmstart, args.log_dir,
                      args.store_history, args.use_batch_norm,
                      args.rnn_units, args.rnn_layers, args.rnn_cell,

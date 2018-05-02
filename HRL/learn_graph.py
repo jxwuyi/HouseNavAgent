@@ -91,7 +91,7 @@ def learn_graph(args):
 
 
 def parse_args():
-    parser = argparse.ArgumentParser("Evaluation for 3D House Navigation")
+    parser = argparse.ArgumentParser("Learning Bayes Graph for 3D House Navigation")
     # Select Task
     parser.add_argument("--task-name", choices=['roomnav', 'objnav'], default='roomnav')
     parser.add_argument("--false-rate", type=float, default=0, help='The Rate of Impossible Targets')
@@ -117,17 +117,6 @@ def parse_args():
     parser.add_argument("--multi-target", dest='multi_target', action='store_true',
                         help="when this flag is set, a new target room will be selected per episode")
     parser.set_defaults(multi_target=False)
-    parser.add_argument("--include-object-target", dest='object_target', action='store_true',
-                        help="when this flag is set, target can be also a target. Only effective when --multi-target")
-    parser.set_defaults(object_target=False)
-    parser.add_argument("--no-outdoor-target", dest='outdoor_target', action='store_false',
-                        help="when this flag is set, we will exclude <outdoor> target")
-    parser.set_defaults(outdoor_target=True)
-    parser.add_argument("--only-eval-room-target", dest='only_eval_room', action='store_true',
-                        help="when this flag is set, only evaluate room targets. only effective when --include-object-target")
-    parser.set_defaults(only_eval_room=False)
-    parser.add_argument("--fixed-target", choices=common.ALLOWED_TARGET_ROOM_TYPES + common.ALLOWED_OBJECT_TARGET_TYPES,
-                        help="once set, all the episode will be fixed to a specific target.")
     # Core learning parameters
     parser.add_argument("--training-mode", choices=['mle', 'evolution', 'joint'], default='mle',
                         help="training mode: Maximum-Likelihood-Estimate; Evolutional Methods (assume warmstart); MLE+Evolutional")

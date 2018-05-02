@@ -30,7 +30,7 @@ def evaluate(args):
     common.debugger = utils.FakeLogger()
 
     fixed_target = args['fixed_target']
-    if (fixed_target is not None) and (fixed_target != 'any-room'):
+    if (fixed_target is not None) and (fixed_target != 'any-room') and (fixed_target != 'any-object'):
         assert fixed_target in common.n_target_instructions, 'invalid fixed target <{}>'.format(fixed_target)
 
     __backup_CFG = common.CFG.copy()
@@ -56,7 +56,7 @@ def evaluate(args):
                             include_outdoor_target=args['outdoor_target'],
                             discrete_angle=True)
 
-    if (fixed_target is not None) and (fixed_target != 'any-room'):
+    if (fixed_target is not None) and (fixed_target != 'any-room') and (fixed_target != 'any-object'):
         task.reset_target(fixed_target)
 
     if fixed_target == 'any-room':
@@ -161,7 +161,7 @@ def evaluate(args):
 
 
 def parse_args():
-    parser = argparse.ArgumentParser("Evaluation for 3D House Navigation")
+    parser = argparse.ArgumentParser("Evaluation Locomotion for 3D House Navigation")
     # Select Task
     parser.add_argument("--task-name", choices=['roomnav', 'objnav'], default='roomnav')
     parser.add_argument("--false-rate", type=float, default=0, help='The Rate of Impossible Targets')
@@ -196,6 +196,9 @@ def parse_args():
     parser.add_argument("--only-eval-room-target", dest='only_eval_room', action='store_true',
                         help="when this flag is set, only evaluate room targets. only effective when --include-object-target")
     parser.set_defaults(only_eval_room=False)
+    parser.add_argument("--only-eval-object-target", dest='only_eval_object', action='store_true',
+                        help="when this flag is set, only evaluate object targets. only effective when --include-object-target")
+    parser.set_defaults(only_eval_object=False)
     parser.add_argument("--fixed-target", choices=common.ALLOWED_TARGET_ROOM_TYPES + common.ALLOWED_OBJECT_TARGET_TYPES,
                         help="once set, all the episode will be fixed to a specific target.")
     # Core parameters
@@ -248,6 +251,8 @@ if __name__ == '__main__':
     if args.fixed_target is None:
         if args.only_eval_room:
             args.fixed_target = 'any-room'
+        elif args.only_eval_object:
+            args.fixed_target = 'any-object'
 
     if args.seed is None:
         args.seed = 0
