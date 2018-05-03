@@ -32,6 +32,7 @@ class RNNMotion(BaseMotion):
         trainer = self.trainer
         target_id = common.target_instruction_dict[target]
         trainer.set_target(target)
+        consistent_target = (target == self.task.get_current_target())
 
         episode_stats = []
         obs = task._cached_obs
@@ -44,6 +45,6 @@ class RNNMotion(BaseMotion):
             feature_mask = task.get_feature_mask()
             episode_stats.append((feature_mask, action, rew, done, info))
             # check terminate
-            if done or ((feature_mask & (1 << target_id)) > 0):
+            if done or (not consistent_target and (feature_mask[target_id] > 0)):
                 break
         return episode_stats

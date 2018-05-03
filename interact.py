@@ -10,6 +10,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import time
 
+from HRL.BayesGraph import GraphPlanner, combined_target_index
 
 def set_seed(seed):
     random.seed(seed)
@@ -39,8 +40,8 @@ def evaluate(house, seed = 0, render_device=None,
              include_outdoor_target=True,
              aux_task=False, no_skip_connect=False, feed_forward=False,
              greedy_execution=False, greedy_aux_pred=False,
-             cache_supervision=True):
-
+             cache_supervision=True,
+             graph_model=None, motion_steps=None):
     assert not aux_task, 'Do not support Aux-Task now!'
 
     elap = time.time()
@@ -76,11 +77,23 @@ def evaluate(house, seed = 0, render_device=None,
     if max_birthplace_steps is not None:
         print('>>>> Max_BirthPlace_Steps = {}'.format(max_birthplace_steps))
     set_seed(seed)
+
+    # create model
+    if model_name == 'rnn':
+        import zmq_train
+        trainer = zmq_train.create_zmq_trainer(algo, model_name, args)
+    else:
+        trainer = common.create_trainer(algo, model_name, args)
+    if model_file is not None:
+        trainer.load(model_file)
+    trainer.eval()  # evaluation mode
+
+    # create env
     env = common.create_env(house,
                             hardness=hardness,
                             max_birthplace_steps=max_birthplace_steps,
                             success_measure=success_measure,
-                            reward_type='delta',
+                            reward_type='new',
                             depth_input=depth_input,
                             segment_input=args['segment_input'],
                             genRoomTypeMap=aux_task,
@@ -93,18 +106,17 @@ def evaluate(house, seed = 0, render_device=None,
                             discrete_angle=True,
                             cache_supervision=cache_supervision)   # compute supervision signal
 
+    graph = None if graph_model is None else GraphPlanner(motion=None, task=env)
+    graph_data = []
+    if graph is not None:
+        print('Loading Graph Parameters ....')
+        with open(graph_model, 'rb') as f:
+            params = pickle.load(f)
+        graph.set_parameters(params)
+
     if (fixed_target is not None) and ('any' not in fixed_target):
         env.reset_target(fixed_target)
 
-    # create model
-    if model_name == 'rnn':
-        import zmq_train
-        trainer = zmq_train.create_zmq_trainer(algo, model_name, args)
-    else:
-        trainer = common.create_trainer(algo, model_name, args)
-    if model_file is not None:
-        trainer.load(model_file)
-    trainer.eval()  # evaluation mode
     if greedy_execution and hasattr(trainer, 'set_greedy_execution'):
         trainer.set_greedy_execution()
     else:
@@ -140,11 +152,16 @@ def evaluate(house, seed = 0, render_device=None,
     policy_dict['6']='office'
     policy_dict['7']='garage'
     policy_dict['8']='outdoor'
+    if graph is not None:
+        policy_dict['g'] = policy_dict['y'] = None
     def print_help():
         print('Usage: ')
         print('> Subpolicies:')
         print('  --> e: continue previous sub-policy')
         print('  --> w: switch to original sub-policy')
+        if graph is not None:
+            print('  --> g: switch to graph-planner sub-policy')
+            print('  --> y: output debug information of graph')
         print('  --> 1 (kitchen), 2 (living room), 3 (dining room), 4 (bedroom), 5 (bathroom), 6 (office), 7 (garage), 8 (outdoor)')
         print('  --> z (sofa), x (chair), c (bed), v (toilet), b (table), n (dresser), m (vehicle)')
         print('> Actions: (Simplified Version) Total 10 Actions')
@@ -167,6 +184,7 @@ def evaluate(house, seed = 0, render_device=None,
         cur_policy = target
 
         trainer.reset_agent()
+        if graph is not None: graph.reset()
 
         def get_supervision_name(act):
             if act < 0: return 'N/A'
@@ -180,6 +198,16 @@ def evaluate(house, seed = 0, render_device=None,
             mat = env.debug_show()
             mat = cv2.resize(mat, (800, 600), interpolation=cv2.INTER_NEAREST)
             cv2.imshow("aaa", mat)
+            #############
+            # Plan Info
+            #############
+            print('   S_aux = {}'.format(env.get_aux_tags()))
+            print('   plan info: {}'.format(env.get_optimal_plan()))
+
+            if graph is not None:
+                graph_plan = graph.plan(env.get_feature_mask(), target, return_list=True)
+                print('   >> graph plan = {}'.format(graph_plan))
+
             while True:
                 key = cv2.waitKey(0)
                 key = chr(key)
@@ -195,6 +223,11 @@ def evaluate(house, seed = 0, render_device=None,
                     elif key == 'w':
                         cur_policy = target
                         print('Switch to Original Sub-Policy <{}>'.format(cur_policy))
+                    elif key == 'g':
+                        cur_policy = graph_plan[0]
+                        print('Switch to GraphPlanner Sub-Policy <{}>'.format(cur_policy))
+                    elif key == 'y':
+                        graph._show_posterior_room()
                     else:
                         cur_policy = policy_dict[key]
                         print('Switch to Sub-Policy <{}>'.format(cur_policy))
@@ -227,18 +260,19 @@ def evaluate(house, seed = 0, render_device=None,
                     action = trainer.action(None if greedy_execution else 1.0)  # use gumbel noise
 
             obs, reward, done, info = env.step(action)
+            if graph is not None:
+                graph_data.append([env.get_feature_mask(), action, reward, done, info])
+                target_idx = combined_target_index[cur_policy]
+                if (len(graph_data) >= motion_steps) or (graph_data[-1][0][target_idx] > 0):
+                    print('  >> graph updated! exploration data size = {}'.format(len(graph_data)))
+                    graph.observe(graph_data, cur_policy)
+                    graph_data.clear()
 
             if model_name != 'rnn': obs = obs.transpose([1, 0, 2])
             rew += reward
             print('>> r = %.2f, done = %f, accu_rew = %.2f, step = %d' % (reward, done, rew, step))
             print('   info: collision = %d, raw_dist = %d, scaled_dist = %.3f, opt_steps = %d'
                     % (info['collision'], info['dist'], info['scaled_dist'], info['optsteps']))
-
-            #############
-            # Plan Info
-            #############
-            print('   S_aux = {}'.format(env.get_aux_tags()))
-            print('   plan info: {}'.format(env.get_optimal_plan()))
 
             if done:
                 good = 1
@@ -355,6 +389,9 @@ def parse_args():
     parser.add_argument("--no-cache-supervision", dest='cache_supervision', action='store_false',
                         help="When set, will not show supervision signal at each timestep (for saving caching time)")
     parser.set_defaults(cache_supervision=True)
+    # HRL Options
+    parser.add_argument("--graph-model", type=str, help='graph model')
+    parser.add_argument("--motion-steps", type=int, default=50, help='exploration steps for locomotion policy')
     # Checkpointing
     parser.add_argument("--log-dir", type=str, default="./log/eval", help="directory in which logs eval stats")
     parser.add_argument("--warmstart", type=str, help="file to load the model")
@@ -413,4 +450,5 @@ if __name__ == '__main__':
              include_outdoor_target=args.outdoor_target,
              aux_task=False, no_skip_connect=args.no_skip_connect, feed_forward=args.feed_forward,
              greedy_execution=False,
-             cache_supervision=args.cache_supervision)
+             cache_supervision=args.cache_supervision,
+             graph_model=args.graph_model, motion_steps=args.motion_steps)

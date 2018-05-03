@@ -37,6 +37,7 @@ for i, o in enumerate(ALLOWED_OBJECT_TARGET_TYPES):
 
 n_mask_feature = len(ALLOWED_OBJECT_TARGET_TYPES) + len(ALLOWED_TARGET_ROOM_TYPES)
 
+all_graph_rooms_names = ALLOWED_TARGET_ROOM_TYPES + ['indoor']
 n_rooms = len(ALLOWED_TARGET_ROOM_TYPES) + 1   # room types + indoor
 n_objects = len(ALLOWED_OBJECT_TARGET_TYPES)
 
@@ -76,9 +77,9 @@ def _log_it(logger, msg):
 
 
 class GraphPlanner(object):
-    def __init__(self, motion):
-        self.task = motion.task
-        self.env = motion.task.env
+    def __init__(self, motion, task=None):
+        self.task = motion.task if motion is not None else task
+        self.env = self.task.env
         self.motion = motion
         self.n_param = n_rooms * (n_rooms - 1) // 2 + n_rooms * n_objects + 2
         self.conn_rooms = np.ones((n_rooms, n_rooms), dtype=np.float32)
@@ -101,6 +102,12 @@ class GraphPlanner(object):
         self.graph = [self.g_rooms, self.g_objs]
         self.cached_eps = 0
 
+    def get_target_index(self, target):
+        if target in combined_target_index:
+            return combined_target_index[target]
+        else:
+            return -1
+
     def get_param_size(self):
         return self.param_size
 
@@ -108,10 +115,12 @@ class GraphPlanner(object):
         return self.param_group_size
 
     def get_param(self, i):
+        i = (i % self.param_size)
         idx = self.param_idx[i]
         return self.params[idx[0]][idx[1]]
 
     def set_param(self, i, val):
+        i = (i % self.param_size)
         idx = self.param_idx[i]
         if idx[0] < 2:
             x, y = idx[1]
@@ -306,6 +315,9 @@ class GraphPlanner(object):
         target_id = combined_target_index[target]
         if mask[target_id] > 0:
             return target if not return_list else [target]  # already there, directly go
+
+        #print('[Graph] start planning ... target = {}, id = {}, mask = {}'.format(target, target_id, mask))
+
         # shortest path planning
         curr_rooms = _get_room_index_from_mask(mask)
         opt_rooms = np.zeros(n_rooms, dtype=np.float32)
@@ -326,13 +338,14 @@ class GraphPlanner(object):
                 if cur_p > opt_rooms[i]:
                     opt_rooms[i] = cur_p
                     prev_rooms[i] = sl_r
+        #print('[Graph] SSP Done!')
         full_plan = []
         if target in ALLOWED_OBJECT_TARGET_INDEX:   # object target
             full_plan.append(target)
             object_id = independent_object_index[target]
             tar_room = -1
             best_p = 0
-            for r in range(n_rooms):
+            for r in range(n_rooms - 1):   # exclude <indoor>
                 curr_p = opt_rooms[r] * self.g_objs[r, object_id]
                 if (tar_room < 0) or (best_p < curr_p):
                     best_p = curr_p
@@ -340,15 +353,24 @@ class GraphPlanner(object):
         else:  #  room target
             tar_room = target_id
         # need to reach room <tar_room>
+        #print('[Graph] curr_rooms = {}'.format(curr_rooms))
+        #print('[Graph] opt_rooms = {}'.format(opt_rooms))
+        #print('[Graph] prev_rooms = {}'.format(prev_rooms))
+        #print('[Graph] Target Room ID = {}, Type = {}, Probability = {}'.format(tar_room, all_graph_rooms_names[tar_room], opt_rooms[tar_room]))
         ptr = tar_room
-        if mask[ptr] > 0: # we should directly execute target
+        if ptr in curr_rooms: # we should directly execute target
             return target if not return_list else [target]
-        full_plan.append(ptr)
+        full_plan.append(all_graph_rooms_names[ptr])
         assert prev_rooms[ptr] > -1, '[BayesGraph.plan] Currently Target Room is {}, however it is not reachable!!!!'.format(combined_target_list[ptr])
-        while mask[prev_rooms[ptr]] == 0:
+        #print('[Graph] Fetching SSP Path ...')
+        while prev_rooms[ptr] not in curr_rooms:
             ptr = prev_rooms[ptr]
-            full_plan.append(combined_target_list[ptr])
+            if ptr != n_rooms - 1:  # exclude <indoor>
+                full_plan.append(all_graph_rooms_names[ptr])
+            #print('[Graph] --> add ptr = {}, prev = {}'.format(all_graph_rooms_names[ptr], prev_rooms[ptr]))
+            assert prev_rooms[ptr] > -1
         full_plan.reverse()
+        #print('[Graph] Done! Path = {}'.format(full_plan))
         return full_plan[0] if not return_list else full_plan
 
     def reset(self):
@@ -387,3 +409,19 @@ class GraphPlanner(object):
                 o_name = ALLOWED_OBJECT_TARGET_TYPES[o]
                 if self.conn_objs[r, o] > self.cached_eps + 1e-9:
                     _log_it(logger, '  --> Object#{}, <{}>, Prob = {}'.format(o, o_name, self.conn_objs[r, o]))
+
+    def _show_posterior_room(self, room_id=None, logger=None):
+        room_range = list(range(n_rooms)) if room_id is None else [room_id]
+        for r in room_range:
+            r_name = 'indoor' if r == n_rooms - 1 else ALLOWED_TARGET_ROOM_TYPES[r]
+            _log_it(logger, 'Room#{}, <{}>:'.format(r, r_name))
+            for y in range(n_rooms):
+                if y == r: continue
+                y_name = 'indoor' if y == n_rooms - 1 else ALLOWED_TARGET_ROOM_TYPES[y]
+                if self.conn_rooms[r, y] > self.cached_eps + 1e-9:
+                    _log_it(logger, '  --> Room#%d, <%s>, Prob = %.5f (prior = %.5f)' % (y, y_name, self.g_rooms[r, y], self.conn_rooms[r, y]))
+
+            for o in range(n_objects):
+                o_name = ALLOWED_OBJECT_TARGET_TYPES[o]
+                if self.conn_objs[r, o] > self.cached_eps + 1e-9:
+                    _log_it(logger, '  --> Object#%d, <%s>, Prob = %.5f (prior = %.5f)' % (o, o_name, self.g_objs[r, o], self.conn_objs[r, o]))
