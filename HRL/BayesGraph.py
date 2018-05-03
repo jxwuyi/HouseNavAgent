@@ -363,7 +363,7 @@ class GraphPlanner(object):
     def _show_prior_object(self, object_id=None, logger=None):
         object_range = list(range(n_objects)) if object_id is None else [object_id]
         for i in object_range:
-            _log_it(logger, 'Object#{}, <{}>:'.format(i, ALLOWED_OBJECT_TARGET_INDEX[i]))
+            _log_it(logger, 'Object#{}, <{}>:'.format(i, ALLOWED_OBJECT_TARGET_TYPES[i]))
             for r in range(n_rooms):
                 r_name = 'indoor' if r == n_rooms - 1 else ALLOWED_TARGET_ROOM_TYPES[r]
                 if self.conn_objs[r, i] > self.cached_eps + 1e-9:
