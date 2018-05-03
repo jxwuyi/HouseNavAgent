@@ -161,7 +161,7 @@ class GraphPlanner(object):
             # check connectivity to indoor
             indoor_id = n_rooms - 1
             in_msk, out_msk = house.getRegionMaskForRoomMask(0)
-            if in_msk > -1: # has region indoor
+            if in_msk is not None: # has region indoor
                 for r in all_rooms:   # connect to other rooms
                     r_id = combined_target_index[r]
                     cnt_rooms[r_id,indoor_id] += 1
