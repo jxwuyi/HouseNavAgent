@@ -151,5 +151,5 @@ class FakeMotion(BaseMotion):
             ret.append(curr[0])
             if curr[0][3]:
                 break
-            max_steps -= 30
+            max_steps -= 50
         return ret
