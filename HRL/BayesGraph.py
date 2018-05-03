@@ -382,6 +382,6 @@ class GraphPlanner(object):
                     _log_it(logger, '  --> Room#{}, <{}>, Prob = {}'.format(y, y_name, self.conn_rooms[r, y]))
 
             for o in range(n_objects):
-                o_name = ALLOWED_OBJECT_TARGET_INDEX[o]
+                o_name = ALLOWED_OBJECT_TARGET_TYPES[o]
                 if self.conn_objs[r, o] > self.cached_eps + 1e-9:
                     _log_it(logger, '  --> Object#{}, <{}>, Prob = {}'.format(o, o_name, self.conn_objs[r, o]))
