@@ -109,9 +109,6 @@ def parse_args():
     parser.set_defaults(target_mask_input=False)
     parser.add_argument("--success-measure", choices=['center', 'stay', 'see'], default='center',
                         help="criteria for a successful episode")
-    parser.add_argument("--multi-target", dest='multi_target', action='store_true',
-                        help="when this flag is set, a new target room will be selected per episode")
-    parser.set_defaults(multi_target=False)
     # Core learning parameters
     parser.add_argument("--training-mode", choices=['mle', 'evolution', 'joint'], default='mle',
                         help="training mode: Maximum-Likelihood-Estimate; Evolutional Methods (assume warmstart); MLE+Evolutional")
@@ -151,7 +148,7 @@ if __name__ == '__main__':
     common.ensure_object_targets()
 
     if not os.path.exists(args.save_dir):
-        print('Directory <{}> does not exist! Creating directory ...'.format(args.log_dir))
+        print('Directory <{}> does not exist! Creating directory ...'.format(args.save_dir))
         os.makedirs(args.save_dir)
 
     if args.motion != 'fake':
