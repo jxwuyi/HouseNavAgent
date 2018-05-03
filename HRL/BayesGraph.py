@@ -40,34 +40,40 @@ n_mask_feature = len(ALLOWED_OBJECT_TARGET_TYPES) + len(ALLOWED_TARGET_ROOM_TYPE
 n_rooms = len(ALLOWED_TARGET_ROOM_TYPES) + 1   # room types + indoor
 n_objects = len(ALLOWED_OBJECT_TARGET_TYPES)
 
+
 def _feature_mask_to_names(mask):
-    ret = []
-    for i, t in enumerate(combined_target_list):
-        if (mask & (1 << i)) > 0:
-            ret.append(t)
-    return ret
+    return [_t for _i, _t in enumerate(combined_target_list) if mask[_i] > 0]
+
 
 def _feature_mask_to_index(mask):
-    ret = []
-    for i in range(n_mask_feature):
-        if (mask & (1 << i)) > 0:
-            ret.append(i)
-    return ret
+    return [_i for _i in range(n_mask_feature) if mask[_i] > 0]
+
 
 def _get_room_index_from_mask(mask):
-    mask = mask & ((1 << len(ALLOWED_TARGET_ROOM_TYPES)) - 1)
-    if mask == 0: return [n_rooms-1]  # only indoor
-    return [i for i in range(n_rooms - 1) if (mask & (1 << i)) > 0]
+    if np.sum(mask[:n_rooms-1]) == 0:
+        return [n_rooms-1]  # only indoor
+    return [_i for _i in range(n_rooms - 1) if mask[_i] > 0]
+
 
 def _get_object_index_from_mask(mask):
-    mask = mask >> len(ALLOWED_TARGET_ROOM_TYPES)
-    return [i for i in range(n_objects) if (mask & (1 << i)) > 0]
+    base = n_rooms - 1
+    return [_i for _i in range(n_objects) if mask[base + _i] > 0]
+
+
+def _mask_feature_to_bits(mask):
+    ret = 0
+    for i in range(n_mask_feature):
+        if mask[i] > 0:
+            ret |= 1 << i
+    return ret
+
 
 def _log_it(logger, msg):
     if logger is None:
         print(msg)
     else:
         logger.print(msg)
+
 
 class GraphPlanner(object):
     def __init__(self, motion):
@@ -166,14 +172,14 @@ class GraphPlanner(object):
                     r_id = combined_target_index[r]
                     cnt_rooms[r_id,indoor_id] += 1
                     cnt_rooms[indoor_id, r_id] += 1
-                    if (out_msk & (1 << r_id)) > 0:
+                    if out_msk[r_id] > 0:
                         pos_rooms[r_id, indoor_id] += 1
                         pos_rooms[indoor_id, r_id] += 1
                 for o in all_objects:  # connect to objects
                     o_id = independent_object_index[o]
                     o_pos = combined_target_index[o]
                     cnt_objs[indoor_id, o_id] += 1
-                    if (in_msk & (1 << o_pos)) > 0:
+                    if in_msk[o_pos] > 0:
                         pos_objs[indoor_id, o_id] += 1
             # check other normal room types
             for r1 in all_rooms:
@@ -183,7 +189,7 @@ class GraphPlanner(object):
                 for r2 in all_rooms:
                     if r1 == r2: continue
                     r2_id = combined_target_index[r2]
-                    if (out_msk & (1 << r2_id)) > 0:
+                    if out_msk[r2_id] > 0:
                         pos_rooms[r1_id, r2_id] += 1
                         cnt_rooms[r1_id, r2_id] += 1
                     else:  # not connected closely, need to run exploration
@@ -193,7 +199,7 @@ class GraphPlanner(object):
                             cx, cy = house.getRandomLocation(r1)
                             self.task.reset(target=r2, reset_house=False, birthplace=(cx, cy))
                             D = self.motion.run(r2, max_allowed_steps)
-                            if D[-1][3] or any([(d[0] & (1 << r2_id)) > 0 for d in D]):
+                            if D[-1][3] or any([(d[0][r2_id] > 0) for d in D]):
                                 n_pos += 1
                         pos_rooms[r1_id, r2_id] += n_pos
                 # connecitivity towards objects
@@ -201,7 +207,7 @@ class GraphPlanner(object):
                     o_id = independent_object_index[o]
                     o_pos = combined_target_index[o]
                     cnt_objs[r1_id, o_id] += 1
-                    if (in_msk & (1 << o_pos)) > 0:
+                    if in_msk[o_pos] > 0:
                         pos_objs[r1_id, o_id] += 1
             _log_it(logger, "  ---> %d / %d houses processed! time elapsed = %.4fs" % (_i+1, len(all_houses), time.time()-ts))
         dur = time.time() - ts
@@ -253,13 +259,13 @@ class GraphPlanner(object):
 
     def observe(self, exp_data, target):
         # execute sub-policy <target>, observe experiences <data>
-        full_mask = 0
         orig_mask = prev_mask = exp_data[0][0]
+        full_mask = orig_mask.copy()
         visit = set()
         for i, dat in enumerate(exp_data):
             msk = dat[0]  # dat = (mask, act, reward, done)
             full_mask |= msk
-            if msk != prev_mask:
+            if any(msk != prev_mask):
                 curr_rooms = _get_room_index_from_mask(msk)
                 curr_objs = _get_object_index_from_mask(msk)
                 for r in curr_rooms:
@@ -270,7 +276,7 @@ class GraphPlanner(object):
                 prev_mask = msk
 
         target_id = combined_target_index[target]
-        if (full_mask & (1 << target_id)) == 0:   # fail to reach target!!!!!
+        if full_mask[target_id] == 0:   # fail to reach target!!!!!
             orig_rooms = _get_room_index_from_mask(orig_mask)
             if target in ALLOWED_PREDICTION_ROOM_TYPES:   # target is a room
                 for r in orig_rooms:
@@ -296,7 +302,7 @@ class GraphPlanner(object):
     def plan(self, mask, target, return_list = False):
         # find shortest path towards target in self.graph
         target_id = combined_target_index[target]
-        if (mask & (1 << target_id)) > 0:
+        if mask[target_id] > 0:
             return target if not return_list else [target]  # already there, directly go
         # shortest path planning
         curr_rooms = _get_room_index_from_mask(mask)
@@ -333,11 +339,11 @@ class GraphPlanner(object):
             tar_room = target_id
         # need to reach room <tar_room>
         ptr = tar_room
-        if (mask & (1 << ptr)) > 0: # we should directly execute target
+        if mask[ptr] > 0: # we should directly execute target
             return target if not return_list else [target]
-        full_plan.append(target)
+        full_plan.append(ptr)
         assert prev_rooms[ptr] > -1, '[BayesGraph.plan] Currently Target Room is {}, however it is not reachable!!!!'.format(combined_target_list[ptr])
-        while (mask & (1 << prev_rooms[ptr])) == 0:
+        while mask[prev_rooms[ptr]] == 0:
             ptr = prev_rooms[ptr]
             full_plan.append(combined_target_list[ptr])
         full_plan.reverse()
