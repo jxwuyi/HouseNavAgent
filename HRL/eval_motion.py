@@ -17,8 +17,7 @@ def set_seed(seed):
 
 
 def proc_info(info):
-    return dict(pos=(info['pos'].x, info['pos'].y, info['pos'].z),
-                yaw=info['yaw'], loc=info['loc'], grid=info['grid'],
+    return dict(yaw=info['yaw'], loc=info['loc'], grid=info['grid'],
                 dist=info['dist'])
 
 

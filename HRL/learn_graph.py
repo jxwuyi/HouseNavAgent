@@ -11,15 +11,10 @@ from HRL.fake_motion import FakeMotion
 from HRL.rnn_motion import RNNMotion
 from HRL.BayesGraph import GraphPlanner
 
+
 def set_seed(seed):
     random.seed(seed)
     np.random.seed(seed)
-
-
-def proc_info(info):
-    return dict(pos=(info['pos'].x, info['pos'].y, info['pos'].z),
-                yaw=info['yaw'], loc=info['loc'], grid=info['grid'],
-                dist=info['dist'])
 
 
 def learn_graph(args):
