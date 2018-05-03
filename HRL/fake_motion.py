@@ -77,6 +77,8 @@ class FakeMotion(BaseMotion):
         gx, gy = info['grid']
         mask = house.get_global_mask_feature(cx, cy)
         dist = house.targetDist(target, gx, gy)
+        if dist < 0:  # not connected
+            return [self._jump(cx, cy, False)]
         target_idx = _get_target_index(target)
         if dist == 0:
             cx, cy = house.getRandomLocation(target)
