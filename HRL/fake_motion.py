@@ -69,12 +69,9 @@ class FakeMotion(BaseMotion):
         else:
             return mask, -1, 0, False, self.task.info
 
-    """
-    return a list of [aux_mask, action, reward, done, info]
-    """
-    def run(self, target, max_steps):
+    def _run_single_step(self, target):
         house = self.env.house
-        info = self.task.last_info
+        info = self.env.info
         # obs = self.task.cached_obs
         cx, cy = info['loc']
         gx, gy = info['grid']
@@ -89,10 +86,10 @@ class FakeMotion(BaseMotion):
         if dist <= house.getOptSteps(range_sight, self.task.move_sensitivity):
             if rand() < rate_succ_within_sight:
                 cx, cy = house.getRandomLocation(target)
-                return [self._jump(cx, cy, True)]   # directly reach the target
+                return [self._jump(cx, cy, True)]  # directly reach the target
             else:
                 cx, cy = house.getRandomLocationFromRange(target, (0, dist // 2))
-                return [self._jump(cx, cy, False)]   # fail to reach
+                return [self._jump(cx, cy, False)]  # fail to reach
 
         # check object type
         object_within_room = False
@@ -133,7 +130,7 @@ class FakeMotion(BaseMotion):
                 cx, cy = house.getRandomLocationFromRange(new_t, (lo, new_dist))
             return [self._jump(cx, cy, False)]
 
-        close_target_idx = [i for i,s in enumerate(steps_to_targets) if s <= range_for_exploration]
+        close_target_idx = [i for i, s in enumerate(steps_to_targets) if s <= range_for_exploration]
         if (len(close_target_idx) < 2) and (target_idx not in close_target_idx):
             close_target_idx.append(target_idx)
 
@@ -142,3 +139,17 @@ class FakeMotion(BaseMotion):
         lo = max(0, new_dist - house.getAllowedGridDist(steps_guess_right_direction))
         cx, cy = house.getRandomLocationFromRange(new_t, (lo, new_dist))
         return [self._jump(cx, cy, False)]
+
+    """
+    return a list of [aux_mask, action, reward, done, info]
+    """
+    def run(self, target, max_steps):
+        assert max_steps > 0
+        ret = []
+        while max_steps > 0:
+            curr = self._run_single_step(target)
+            ret.append(curr[0])
+            if curr[0][3]:
+                break
+            max_steps -= 30
+        return ret
