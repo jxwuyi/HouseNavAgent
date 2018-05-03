@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-python3 HRL/learn_graph.py --task-name roomnav --env-set train --house 200 --seed 0 \
+python3 HRL/learn_graph.py --task-name roomnav --env-set train --house -200 --seed 0 \
     --render-gpu 0 \
     --segmentation-input none --depth-input \
     --success-measure see \

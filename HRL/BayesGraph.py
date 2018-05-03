@@ -149,6 +149,7 @@ class GraphPlanner(object):
             all_houses = self.env.all_houses
         else:
             all_houses = [self.env.house]
+
         # set hardness of the task to 0
         self.task.reset_hardness(hardness=0)
         # learning graph prior over rooms
@@ -209,6 +210,7 @@ class GraphPlanner(object):
                     cnt_objs[r1_id, o_id] += 1
                     if in_msk[o_pos] > 0:
                         pos_objs[r1_id, o_id] += 1
+
             _log_it(logger, "  ---> %d / %d houses processed! time elapsed = %.4fs" % (_i+1, len(all_houses), time.time()-ts))
         dur = time.time() - ts
         _log_it(logger, ("Sampling Done! Total Sampling Time Elapsed = %.4fs" % dur))

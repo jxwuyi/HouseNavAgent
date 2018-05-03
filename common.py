@@ -45,7 +45,7 @@ house_ID_dict = get_house_ids()
 all_houseIDs = house_ID_dict['small']
 
 # only works for python 3.5
-flag_parallel_init = (sys.version_info[1] == 5)#("Ubuntu" in platform.platform())
+flag_parallel_init = False # (sys.version_info[1] == 5)#("Ubuntu" in platform.platform())
 
 
 def set_house_IDs(partition='small', ensure_kitchen=False):

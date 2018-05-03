@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-python3 HRL/eval_motion.py --task-name roomnav --env-set test --house 50 --seed 0 \
+python3 HRL/eval_motion.py --task-name roomnav --env-set test --house -50 --seed 0 \
     --render-gpu 0 --hardness 0.95 \
     --segmentation-input none --depth-input \
     --success-measure see --multi-target --include-object-target \

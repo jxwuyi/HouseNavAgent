@@ -52,7 +52,7 @@ class FakeMotion(BaseMotion):
         super(FakeMotion, self).__init__(task, trainer)
         # fetch target mask graph
         self.env = task.env
-        all_houses = self.env.all_hosues if hasattr(self.env, 'all_houses') else [self.env.house]
+        all_houses = self.env.all_houses if hasattr(self.env, 'all_houses') else [self.env.house]
         self.target_dist = []
         self.target_list = []
         self.target_rooms = []
