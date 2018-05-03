@@ -47,7 +47,7 @@ def evaluate(args):
                             success_measure=args['success_measure'],
                             depth_input=args['depth_input'],
                             target_mask_input=args['target_mask_input'],
-                            segment_input=args['segment_input'],
+                            segment_input=args['segmentation_input'],
                             genRoomTypeMap=False,
                             cacheAllTarget=args['multi_target'],
                             render_device=args['render_gpu'],

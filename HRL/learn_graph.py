@@ -36,7 +36,7 @@ def learn_graph(args):
                              success_measure=args['success_measure'],
                              depth_input=args['depth_input'],
                              target_mask_input=args['target_mask_input'],
-                             segment_input=args['segment_input'],
+                             segment_input=args['segmentation_input'],
                              cacheAllTarget=True,
                              render_device=args['render_gpu'],
                              use_discrete_action=True,
