@@ -132,11 +132,11 @@ class FakeMotion(BaseMotion):
                 cx, cy = house.getRandomLocationFromRange(new_t, (lo, new_dist))
             return [self._jump(cx, cy, False)]
 
-        close_target_idx = [i for i, s in enumerate(steps_to_targets) if s <= range_for_exploration]
-        if (len(close_target_idx) < 2) and (target_idx not in close_target_idx):
-            close_target_idx.append(target_idx)
+        close_targets = [all_targets[i] for i, s in enumerate(steps_to_targets) if s <= range_for_exploration]
+        if (len(close_targets) < 2) and (target not in close_targets):
+            close_targets.append(target)
 
-        new_t = all_targets[np.random.choice(close_target_idx)]
+        new_t = np.random.choice(close_targets)
         new_dist = house.targetDist(new_t, gx, gy)
         lo = max(0, new_dist - house.getAllowedGridDist(steps_guess_right_direction))
         cx, cy = house.getRandomLocationFromRange(new_t, (lo, new_dist))
