@@ -265,7 +265,7 @@ class ZMQMaster(SimulatorMaster):
         avg_rew = sum(rew_stats) / len(rew_stats)
         avg_len = sum(len_stats) / len(len_stats)
         avg_succ = sum(succ_stats) / len(succ_stats)
-        self.logger.print("  > Avg Reward = %.6f, Avg Path Len = %.6f, Succ Rate = %.2f" % (avg_rew, avg_len, avg_succ))
+        self.logger.print("  > Avg Reward = %.6f, Avg Path Len = %.6f, Succ Rate = %.2f, Max-BirthPlace = %d" % (avg_rew, avg_len, avg_succ, self.global_birthplace))
         if self.aux_task:
             aux_rew_stats = self.episode_stats['aux_task_rew'][-n_episode_evaluation:]
             aux_err_stats = self.episode_stats['aux_task_err'][-n_episode_evaluation:]
