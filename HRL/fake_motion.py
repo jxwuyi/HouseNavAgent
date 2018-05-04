@@ -98,7 +98,7 @@ class FakeMotion(BaseMotion):
         if _is_object_target(target):
             for i, r in enumerate(ALLOWED_TARGET_ROOM_TYPES):
                 if mask[i] > 0:
-                    room_mask = self.env.house.getRegionMaskForTarget(r)
+                    room_mask = self.env.house.getRegionMaskForTarget(r)[0]
                     if room_mask[target_idx] > 0:
                         object_within_room = True
                         break

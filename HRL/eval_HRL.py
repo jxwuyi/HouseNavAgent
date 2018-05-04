@@ -24,10 +24,18 @@ def proc_info(info):
 
 def evaluate(args):
 
+    args['segment_input'] = args['segmentation_input']
+
     elap = time.time()
 
     # Do not need to log detailed computation stats
     common.debugger = utils.FakeLogger()
+
+    # ensure observation shape
+    common.process_observation_shape('rnn', args['resolution'],
+                                     args['segmentation_input'],
+                                     args['depth_input'],
+                                     target_mask_input=args['target_mask_input'])
 
     fixed_target = args['fixed_target']
     if (fixed_target is not None) and (fixed_target != 'any-room') and (fixed_target != 'any-object'):
@@ -82,8 +90,10 @@ def evaluate(args):
         assert False, 'Currently only support Graph-planner'
     else:
         graph = GraphPlanner(motion)
+        if not args['outdoor_target']:
+            graph.add_excluded_target('outdoor')
         # hack
-        graph.set_param(-1, 0.85)
+        #graph.set_param(-1, 0.85)
 
     logger = utils.MyLogger(args['log_dir'], True)
     logger.print('Start Evaluating ...')
@@ -116,11 +126,18 @@ def evaluate(args):
             cur_infos.append(proc_info(task.info))
 
         episode_step = 0
+
+        # reset planner
+        if graph is not None:
+            graph.reset()
+
         while episode_step < max_episode_len:
             graph_target = graph.plan(task.get_feature_mask(), task_target)
             graph_target_id = graph.get_target_index(graph_target)
             allowed_steps = min(max_episode_len - episode_step, max_motion_steps)
+
             motion_data = motion.run(graph_target, allowed_steps)
+
             cur_stats['plan'].append((graph_target, len(motion_data), (motion_data[-1][0][graph_target_id] > 0)))
 
             # store stats
@@ -136,13 +153,13 @@ def evaluate(args):
                     cur_stats['best_dist'] = cur_dist
 
             # update graph
-            graph.observe(motion_data)
+            graph.observe(motion_data, graph_target)
 
             episode_step += len(motion_data)
 
             # check done
-            if motion_data[-1][4]:
-                if motion_data[-1][3] > 5: # magic number
+            if motion_data[-1][3]:
+                if motion_data[-1][2] > 5: # magic number
                     episode_success[-1] = 1
                     cur_stats['success'] = 1
                 break
@@ -164,7 +181,7 @@ def evaluate(args):
                      % (cur_stats['good'], np.mean(episode_good)))
         logger.print('  ---> Best Distance = %d' % cur_stats['best_dist'])
         logger.print('  ---> Birth-place Distance = %d' % cur_stats['optstep'])
-        logger.print('  ---> Planner Results = {}' % cur_stats['plan'])
+        logger.print('  ---> Planner Results = {}'.format(cur_stats['plan']))
 
     logger.print('######## Final Stats ###########')
     logger.print('Success Rate = %.3f' % np.mean(episode_success))

@@ -33,9 +33,9 @@ class ZMQA3CTrainer(AgentTrainer):
         # training args
         self.args = args
         self.multi_target = args['multi_target']
-        self.gamma = args['gamma']
-        self.lrate = args['lrate']
-        self.batch_size = args['batch_size']
+        self.gamma = args['gamma'] if 'gamma' in args else 0.99
+        self.lrate = args['lrate'] if 'lrate' in args else 0.001
+        self.batch_size = args['batch_size'] if 'batch_size' in args else 64
         self.grad_batch = args['grad_batch'] if 'grad_batch' in args else 1
         self.accu_grad_steps = 0
         self.accu_ret_dict = dict()
@@ -51,11 +51,13 @@ class ZMQA3CTrainer(AgentTrainer):
             print("[Trainer] Using Logits Loss Coef = %.4f" % self.logit_loss_coef)
         else:
             self.logit_loss_coef = None
-        if args['optimizer'] == 'adam':
+        if 'optimizer' not in args:
+            self.optim = None
+        elif args['optimizer'] == 'adam':
             self.optim = optim.Adam(self.policy.parameters(), lr=self.lrate, weight_decay=args['weight_decay'])  #,betas=(0.5,0.999))
         else:
             self.optim = optim.RMSprop(self.policy.parameters(), lr=self.lrate, weight_decay=args['weight_decay'])
-        self.grad_norm_clip = args['grad_clip']
+        self.grad_norm_clip = args['grad_clip'] if 'grad_clip' in args else None
         self.adv_norm = args['adv_norm'] if 'adv_norm' in args else False
         self.rew_clip = args['rew_clip'] if 'rew_clip' in args else False
         self._hidden = None

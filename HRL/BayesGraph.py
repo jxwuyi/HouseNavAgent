@@ -101,6 +101,11 @@ class GraphPlanner(object):
         self.stats_obs = [self.obs_rooms, self.obs_objs]
         self.graph = [self.g_rooms, self.g_objs]
         self.cached_eps = 0
+        self.excluded_targets = set()
+        self.excluded_targets.add('indoor')
+
+    def add_excluded_target(self, target):
+        self.excluded_targets.add(target)
 
     def get_target_index(self, target):
         if target in combined_target_index:
@@ -316,6 +321,7 @@ class GraphPlanner(object):
         if mask[target_id] > 0:
             return target if not return_list else [target]  # already there, directly go
 
+        #print('[Graph] current house id = {}'.format(self.task.house._id))
         #print('[Graph] start planning ... target = {}, id = {}, mask = {}'.format(target, target_id, mask))
 
         # shortest path planning
@@ -346,6 +352,7 @@ class GraphPlanner(object):
             tar_room = -1
             best_p = 0
             for r in range(n_rooms - 1):   # exclude <indoor>
+                if all_graph_rooms_names[r] in self.excluded_targets: continue
                 curr_p = opt_rooms[r] * self.g_objs[r, object_id]
                 if (tar_room < 0) or (best_p < curr_p):
                     best_p = curr_p
@@ -360,13 +367,16 @@ class GraphPlanner(object):
         ptr = tar_room
         if ptr in curr_rooms: # we should directly execute target
             return target if not return_list else [target]
-        full_plan.append(all_graph_rooms_names[ptr])
-        assert prev_rooms[ptr] > -1, '[BayesGraph.plan] Currently Target Room is {}, however it is not reachable!!!!'.format(combined_target_list[ptr])
+        ptr_name = all_graph_rooms_names[ptr]
+        if ptr_name not in self.excluded_targets:
+            full_plan.append(ptr_name)
+        assert prev_rooms[ptr] > -1, '[BayesGraph.plan] Currently Target Room is {}, however it is not reachable!!!! curr house id = {}'.format(combined_target_list[ptr], self.task.house._id)
         #print('[Graph] Fetching SSP Path ...')
         while prev_rooms[ptr] not in curr_rooms:
             ptr = prev_rooms[ptr]
-            if ptr != n_rooms - 1:  # exclude <indoor>
-                full_plan.append(all_graph_rooms_names[ptr])
+            ptr_name = all_graph_rooms_names[ptr]
+            if ptr_name not in self.excluded_targets:
+                full_plan.append(ptr_name)
             #print('[Graph] --> add ptr = {}, prev = {}'.format(all_graph_rooms_names[ptr], prev_rooms[ptr]))
             assert prev_rooms[ptr] > -1
         full_plan.reverse()

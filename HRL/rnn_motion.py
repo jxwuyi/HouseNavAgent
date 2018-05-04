@@ -31,7 +31,7 @@ class RNNMotion(BaseMotion):
         task = self.task
         trainer = self.trainer
         target_id = common.target_instruction_dict[target]
-        trainer.set_target(target)
+        #trainer.set_target(target)
         consistent_target = (target == self.task.get_current_target())
 
         episode_stats = []
