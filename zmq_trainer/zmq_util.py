@@ -62,7 +62,7 @@ class ZMQHouseEnvironment:
                 return self.obs, self._target, self._sup_act
 
     def action(self, _act):
-        if isinstance(_act, tuple):
+        if isinstance(_act, list) or isinstance(_act, tuple):
             act, nxt_birthplace = _act
             self.env.reset_hardness(self.env.hardness, max_birthplace_steps=nxt_birthplace)
         else:
@@ -139,11 +139,11 @@ class ZMQMaster(SimulatorMaster):
             self.episode_stats['aux_task_rew'] = []
             self.episode_stats['aux_task_err'] = []
             self.curr_aux_mask = dict()
-        self.curriculum_schedule = args['curriculum_schedule']
-        self.max_episode_len = args['max_episode_len']
+        self.curriculum_schedule = config['curriculum_schedule']
+        self.max_episode_len = config['max_episode_len']
         self.curr_birthplace = dict()
-        self.max_birthplace_steps = args['max_birthplace_steps']
-        self.global_birthplace = args['max_birthplace_steps'] if self.curriculum_schedule is None else self.curriculum_schedule[0]
+        self.max_birthplace_steps = config['max_birthplace_steps']
+        self.global_birthplace = config['max_birthplace_steps'] if self.curriculum_schedule is None else self.curriculum_schedule[0]
 
     def _rand_select(self, ids):
         if not isinstance(ids, list): ids = list(ids)
