@@ -24,9 +24,10 @@ class ZMQHouseEnvironment:
                  include_outdoor_target=True,
                  max_steps=-1, device=0):
         assert k >= 0
+        init_birthplace = max_birthplace_steps if curriculum_schedule is None else curriculum_schedule[0]
         self.env = common.create_env(k, task_name=task_name, false_rate=false_rate,
                                      reward_type=reward_type,
-                                     hardness=hardness, max_birthplace_steps=max_birthplace_steps,
+                                     hardness=hardness, max_birthplace_steps=init_birthplace,
                                      success_measure=success_measure,
                                      segment_input=segment_input, depth_input=depth_input,
                                      target_mask_input=target_mask_input,
@@ -36,7 +37,7 @@ class ZMQHouseEnvironment:
                                      include_object_target=include_object_target,
                                      use_discrete_action=True,   # assume A3C with discrete actions
                                      reward_silence=reward_silence,
-                                     curriculum_schedule=curriculum_schedule,
+                                     #curriculum_schedule=curriculum_schedule,
                                      cache_supervision=cache_supervision,
                                      include_outdoor_target=include_outdoor_target)
         self.obs = self.env.reset() if multi_target else self.env.reset(target='kitchen')
@@ -60,7 +61,12 @@ class ZMQHouseEnvironment:
             else:
                 return self.obs, self._target, self._sup_act
 
-    def action(self, act):
+    def action(self, _act):
+        if isinstance(_act, tuple):
+            act, nxt_birthplace = _act
+            self.env.reset_hardness(self.env.hardness, max_birthplace_steps=nxt_birthplace)
+        else:
+            act = _act
         obs, rew, done, info = self.env.step(act)
         if done:
             if self.multi_target:
@@ -133,6 +139,11 @@ class ZMQMaster(SimulatorMaster):
             self.episode_stats['aux_task_rew'] = []
             self.episode_stats['aux_task_err'] = []
             self.curr_aux_mask = dict()
+        self.curriculum_schedule = args['curriculum_schedule']
+        self.max_episode_len = args['max_episode_len']
+        self.curr_birthplace = dict()
+        self.max_birthplace_steps = args['max_birthplace_steps']
+        self.global_birthplace = args['max_birthplace_steps'] if self.curriculum_schedule is None else self.curriculum_schedule[0]
 
     def _rand_select(self, ids):
         if not isinstance(ids, list): ids = list(ids)
@@ -161,7 +172,11 @@ class ZMQMaster(SimulatorMaster):
                 act = random.randint(self.n_action)
             else:
                 act = cpu_action[i]
-            self.send_message(id, act)  # send action to simulator
+            if (self.curriculum_schedule is not None) and (self.curr_birthplace[id] < self.global_birthplace):
+                self.curr_birthplace[id] = self.global_birthplace
+                self.send_message(id, (act, self.global_birthplace))  # send action and curriculum
+            else:
+                self.send_message(id, act)  # send action to simulator
             self.train_buffer[id]['act'].append(act)
             self.hidden_state[id] = next_hidden[i]
             if self.aux_task:
@@ -316,6 +331,8 @@ class ZMQMaster(SimulatorMaster):
         if ident not in self.hidden_state:  # new process passed in
             self.hidden_state[ident] = trainer.get_init_hidden()
             self.accu_stats[ident] = dict(rew=0, len=0, succ=0)
+            if self.curriculum_schedule is not None:
+                self.curr_birthplace[ident] = self.curriculum_schedule[0]
             if self.multi_target:
                 self.accu_stats[ident]['target'] = target
             if self.aux_task:
@@ -340,6 +357,12 @@ class ZMQMaster(SimulatorMaster):
             self.episode_stats['rew'].append(self.accu_stats[ident]['rew'])
             self.episode_stats['len'].append(self.accu_stats[ident]['len'])
             self.episode_stats['succ'].append(self.accu_stats[ident]['succ'])
+            # curriculum learning counter increases
+            n_episode = len(self.episode_stats['rew'])
+            if self.curriculum_schedule is not None:
+                if (n_episode % self.curriculum_schedule[2] == 0):
+                    self.global_birthplace = min(self.max_birthplace_steps, self.global_birthplace + self.curriculum_schedule[1])
+            # reset stats
             self.accu_stats[ident]['rew'] = 0
             self.accu_stats[ident]['len'] = 1
             self.accu_stats[ident]['succ'] = 0

@@ -181,7 +181,7 @@ def parse_args():
     parser.add_argument("--target-mask-input", dest='target_mask_input', action='store_true',
                         help="whether to include target mask 0/1 signal as part of the input signal")
     parser.set_defaults(target_mask_input=False)
-    parser.add_argument("--success-measure", choices=['center', 'stay', 'see'], default='center',
+    parser.add_argument("--success-measure", choices=['stop', 'stay', 'see'], default='see',
                         help="criteria for a successful episode")
     parser.add_argument("--multi-target", dest='multi_target', action='store_true',
                         help="when this flag is set, a new target room will be selected per episode")
