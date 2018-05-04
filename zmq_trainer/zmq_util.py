@@ -222,6 +222,11 @@ class ZMQMaster(SimulatorMaster):
             return False   # just accumulate gradient, no update performed
 
         self.train_cnt += 1   # update performed!
+        # curriculum learning counter increases
+        if self.curriculum_schedule is not None:
+            if (self.train_cnt % self.curriculum_schedule[2] == 0):
+                self.global_birthplace = min(self.max_birthplace_steps, self.global_birthplace + self.curriculum_schedule[1])
+        # update stats
         for key in stats.keys():
             if key not in self.update_stats:
                 self.update_stats[key] = []
@@ -357,11 +362,6 @@ class ZMQMaster(SimulatorMaster):
             self.episode_stats['rew'].append(self.accu_stats[ident]['rew'])
             self.episode_stats['len'].append(self.accu_stats[ident]['len'])
             self.episode_stats['succ'].append(self.accu_stats[ident]['succ'])
-            # curriculum learning counter increases
-            n_episode = len(self.episode_stats['rew'])
-            if self.curriculum_schedule is not None:
-                if (n_episode % self.curriculum_schedule[2] == 0):
-                    self.global_birthplace = min(self.max_birthplace_steps, self.global_birthplace + self.curriculum_schedule[1])
             # reset stats
             self.accu_stats[ident]['rew'] = 0
             self.accu_stats[ident]['len'] = 1
