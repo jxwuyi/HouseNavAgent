@@ -106,13 +106,16 @@ class AgentTrainer(object):
             version = "_" + version
         if save_dir[-1] != '/':
             save_dir += '/'
-        if target_dict_data is None:
-            filename = save_dir + self.name + version + '.pkl'
-            torch.save(self.policy.state_dict(), filename)
-        else:
-            filename = save_dir + self.name + version + '.pkl'
-            with open(filename, 'wb') as fp:
-                pickle.dump(target_dict_data, fp)
+        try:
+            if target_dict_data is None:
+                filename = save_dir + self.name + version + '.pkl'
+                torch.save(self.policy.state_dict(), filename)
+            else:
+                filename = save_dir + self.name + version + '.pkl'
+                with open(filename, 'wb') as fp:
+                    pickle.dump(target_dict_data, fp)
+        except Exception as e:
+            print('[AgentTrainer.save] fail to save model <{}>! Err = {}... Saving Skipped ...'.format(filename, e), file=sys.stderr)
 
     def load(self, save_dir, version=""):
         if os.path.isfile(save_dir) or (version is None):

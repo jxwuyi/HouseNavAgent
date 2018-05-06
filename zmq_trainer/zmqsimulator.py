@@ -5,7 +5,7 @@
 import multiprocessing as mp
 import threading
 import atexit
-import os
+import os, sys
 from abc import abstractmethod, ABCMeta
 from six.moves import queue
 import weakref
@@ -54,7 +54,12 @@ class SimulatorProcess(mp.Process):
         pass
 
     def run(self):
-        player = self._build_player()
+        try:
+            player = self._build_player()
+            assert player is not None
+        except Exception as e:
+            print('[ERROR] <ZMQSimulator> Fail to create player for <{}>, Msg = {}'.format(self.identity, e), file=sys.stderr)
+            return
         context = zmq.Context()
         c2s_socket = context.socket(zmq.PUSH)
         c2s_socket.setsockopt(zmq.IDENTITY, self.identity)
