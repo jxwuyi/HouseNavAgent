@@ -140,8 +140,7 @@ def evaluate(house, seed = 0, render_device=None,
     episode_stats = []
     t = 0
 
-
-    action_dict = dict(k=7,l=9,j=10,o=3,u=4,f=5,a=6,i=8,d=11,s=12,r=-1,h=-2,q=-3)
+    action_dict = dict(k=11,l=9,j=10,o=1,u=2,f=3,a=4,i=5,d=6,s=7,r=-1,h=-2,q=-3)
     policy_dict = dict(e=None, w=None,
                        z='sofa',x='chair',c='bed',v='toilet',b='table',n='dresser',m='vehicle')
     policy_dict['1']='kitchen'
@@ -188,8 +187,8 @@ def evaluate(house, seed = 0, render_device=None,
 
         def get_supervision_name(act):
             if act < 0: return 'N/A'
-            discrete_action_names = ['Forward', 'Right', 'Left', 'Right-Fwd', 'Left-Fwd', 'Right-Rotate', 'Left-Rotate',
-                                     'Backward', 'Small-Forward', 'Small-Right', 'Small-Left', 'Small-Right-Rot', 'Small-Left-Rot', 'Stay']
+            discrete_action_names = ['Forward', 'Left-Fwd', 'Right-Fwd', 'Left-Rotate', 'Right-Rotate',
+                                     'Small-Forward', 'Small-Left-Rot', 'Small-Right-Rot', 'Stay', 'Left', 'Right', 'Backward']
             return discrete_action_names[act]
 
         while True:
@@ -328,7 +327,7 @@ def parse_args():
     parser.set_defaults(target_mask_input=False)
     parser.add_argument("--history-frame-len", type=int, default=4,
                         help="length of the stacked frames, default=4")
-    parser.add_argument("--success-measure", choices=['stop', 'stay', 'see'], default='see',
+    parser.add_argument("--success-measure", choices=['stay', 'see'], default='see',
                         help="criteria for a successful episode")
     parser.add_argument("--multi-target", dest='multi_target', action='store_true',
                         help="when this flag is set, a new target room will be selected per episode")
