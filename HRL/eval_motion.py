@@ -254,7 +254,7 @@ if __name__ == '__main__':
         print('Directory <{}> does not exist! Creating directory ...'.format(args.log_dir))
         os.makedirs(args.log_dir)
 
-    if args.motion != 'fake':
+    if args.motion in ['rnn', 'mixture']:
         assert args.warmstart is not None
 
     if args.fixed_target is None:
