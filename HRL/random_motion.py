@@ -12,7 +12,7 @@ n_allowed_actions = len(allowed_action_index)
 class RandomMotion(BaseMotion):
     def __init__(self, task, trainer=None, pass_target=True, term_measure='mask'):
         assert trainer is None
-        assert mask != 'stay'
+        assert term_measure != 'stay'
         super(RandomMotion, self).__init__(task, trainer, pass_target, term_measure)
 
     """
