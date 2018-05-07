@@ -17,7 +17,7 @@ all_allowed_targets = ALLOWED_PREDICTION_ROOM_TYPES + ALLOWED_OBJECT_TARGET_TYPE
 trainer: a dictionary from <target> -> trainer
 """
 class MixMotion(RNNMotion):
-    def __init__(self, task, trainer=None, pass_target=None):
+    def __init__(self, task, trainer=None, pass_target=None, term_measure='mask'):
         assert isinstance(trainer, dict), '[MixMotion] trainer must be a dict!'
         assert isinstance(pass_target, bool) or isinstance(pass_target, dict), '[MixMotion] pass_target must be a dict or a boolean!'
         assert sorted(trainer.keys()) == sorted(all_allowed_targets), '[MixMotion] keys of trainer must contain all the targets!'
@@ -31,7 +31,7 @@ class MixMotion(RNNMotion):
 
         self.pass_target_dict = pass_target
         self.trainer_dict = trainer
-        super(MixMotion, self).__init__(task, None, True)
+        super(MixMotion, self).__init__(task, None, True, term_measure)
 
     def reset(self):
         for trainer in self.trainer_dict.keys():

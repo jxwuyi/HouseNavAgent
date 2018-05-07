@@ -136,10 +136,32 @@ class AgentTrainer(object):
 
 
 class BaseMotion(object):
-    def __init__(self, task, trainer, pass_target=True):
+    def __init__(self, task, trainer, pass_target=True, term_measure='mask'):
         self.task = task
+        self.env = self.task.env
         self.trainer = trainer
-        self.pass_target=pass_target
+        self.pass_target = pass_target
+        assert term_measure in ['mask', 'stay', 'see']
+        self.term_measure = term_measure
+
+    def _is_success(self, target_id, mask=None, term_measure=None, is_stay=False, obs_seg=None):
+        if mask is None: mask = self.env.get_feature_mask()
+        if mask[target_id] == 0: return False
+        if term_measure is None: term_measure = self.term_measure
+        if term_measure == 'mask':
+            return True
+        if term_measure == 'stay':
+            return is_stay
+        if term_measure == 'see':
+            obs_seg = obs_seg or self.env.render(mode='semantic')
+            object_color_list = self.env.room_target_object[self.env.house.targetRoomTp]
+            _object_cnt = 0
+            for c in object_color_list:
+                cur_n = np.sum(np.all(obs_seg == c, axis=2))
+                _object_cnt += cur_n
+                if _object_cnt >= 50:
+                    return True
+        return False
 
     """
     return a list of [aux_mask, action, reward, done]
