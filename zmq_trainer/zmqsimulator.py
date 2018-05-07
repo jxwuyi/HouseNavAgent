@@ -120,7 +120,7 @@ class SimulatorMaster(object):
                 ident, state, reward, isOver = msg
                 self.recv_message(ident, state, reward, isOver)
         except zmq.ContextTerminated:
-            logger.info("[Simulator] Context was terminated.")
+            print("[Simulator] Context was terminated.", file=sys.stderr)
 
     def __del__(self):
         self.context.destroy(linger=0)

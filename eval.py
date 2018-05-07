@@ -452,7 +452,7 @@ def parse_args():
     parser.add_argument("--only-eval-object-target", dest='only_eval_object', action='store_true',
                         help="when this flag is set, only evaluate object targets. only effective when --include-object-target")
     parser.set_defaults(only_eval_object=False)
-    parser.add_argument("--fixed-target", choices=common.ALLOWED_TARGET_ROOM_TYPES + common.ALLOWED_OBJECT_TARGET_TYPES,
+    parser.add_argument("--fixed-target", choices=common.ALLOWED_TARGET_ROOM_TYPES + common.ALLOWED_OBJECT_TARGET_TYPES + ['any-room', 'any-object'],
                         help="once set, all the episode will be fixed to a specific target.")
     parser.add_argument("--greedy-execution", dest='greedy_execution', action='store_true',
                         help="When --greedy-execution, we directly take the action with the maximum probability instead of sampling. For DDPG, we turn off the gumbel-noise. For NOP, we will use discrete actions.")

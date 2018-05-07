@@ -9,6 +9,7 @@ import random
 
 from HRL.fake_motion import FakeMotion
 from HRL.rnn_motion import RNNMotion
+from HRL.random_motion import RandomMotion
 from HRL.BayesGraph import GraphPlanner
 
 
@@ -80,6 +81,8 @@ def evaluate(args):
             trainer.load(model_file)
         trainer.eval()
         motion = RNNMotion(task, trainer)
+    elif args['motion'] == 'random':
+        motion = RandomMotion(task, None)
     else:
         motion = FakeMotion(task, None)
 
@@ -247,10 +250,10 @@ def parse_args():
     parser.add_argument("--only-eval-object-target", dest='only_eval_object', action='store_true',
                         help="when this flag is set, only evaluate object targets. only effective when --include-object-target")
     parser.set_defaults(only_eval_object=False)
-    parser.add_argument("--fixed-target", choices=common.ALLOWED_TARGET_ROOM_TYPES + common.ALLOWED_OBJECT_TARGET_TYPES,
+    parser.add_argument("--fixed-target", choices=common.ALLOWED_TARGET_ROOM_TYPES + common.ALLOWED_OBJECT_TARGET_TYPES + ['any-room', 'any-object'],
                         help="once set, all the episode will be fixed to a specific target.")
     # Core parameters
-    parser.add_argument("--motion", choices=['rnn', 'fake'], default="fake", help="type of the locomotion")
+    parser.add_argument("--motion", choices=['rnn', 'fake', 'random'], default="fake", help="type of the locomotion")
     parser.add_argument("--max-episode-len", type=int, default=2000, help="maximum episode length")
     parser.add_argument("--max-iters", type=int, default=1000, help="maximum number of eval episodes")
     parser.add_argument("--store-history", action='store_true', default=False, help="whether to store all the episode frames")

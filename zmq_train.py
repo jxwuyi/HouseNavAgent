@@ -125,6 +125,7 @@ def create_zmq_config(args):
     config['success_measure'] = args['success_measure']
     config['multi_target'] = args['multi_target']
     config['object_target'] = args['object_target']
+    config['fixed_target'] = args['fixed_target']
     config['aux_task'] = args['aux_task']
     config['cache_supervision'] = args['cache_supervision']
     config['outdoor_target'] = args['outdoor_target']
@@ -222,6 +223,7 @@ def parse_args():
     parser.add_argument("--include-object-target", dest='object_target', action='store_true',
                         help="when this flag is set, target can be also a target. Only effective when --multi-target")
     parser.set_defaults(object_target=False)
+    parser.add_argument("--fixed-target", type=str, help="fixed training targets: candidate values room, object or any-room/object")
     parser.add_argument("--no-outdoor-target", dest='outdoor_target', action='store_false',
                         help="when this flag is set, we will exclude <outdoor> target")
     parser.set_defaults(outdoor_target=True)
@@ -347,6 +349,12 @@ if __name__ == '__main__':
     if cmd_args.grad_batch < 1:
         print('--grad-batch option must be a positive integer! reset to default value <1>!')
         cmd_args.grad_batch = 1
+
+    if cmd_args.fixed_target is not None:
+        allowed_targets = list(common.target_instruction_dict.keys()) + ['any-room']
+        if cmd_args.object_target:
+            allowed_targets.append('any-object')
+        assert cmd_args.fixed_target in allowed_targets, '--fixed-target specified an invalid target <{}>!'.format(cmd_args.fixed_target)
 
     args = cmd_args.__dict__
 

@@ -16,7 +16,7 @@ class ZMQHouseEnvironment:
     def __init__(self, k=0, task_name='roomnav', false_rate=0.0,
                  reward_type='indicator', reward_silence=0,
                  success_measure='see', multi_target=True,
-                 include_object_target=True, aux_task=False,
+                 include_object_target=True, fixed_target=None, aux_task=False,
                  hardness=None, max_birthplace_steps=None,
                  curriculum_schedule=None,
                  segment_input='none', depth_input=False, target_mask_input=False,
@@ -43,6 +43,7 @@ class ZMQHouseEnvironment:
         self.obs = self.env.reset() if multi_target else self.env.reset(target='kitchen')
         self.done = False
         self.multi_target = multi_target
+        self.fixed_target = fixed_target
         self.aux_task = aux_task
         self.supervision = cache_supervision
         self._sup_act = self.env.info['supervision'] if self.supervision else None
@@ -70,7 +71,7 @@ class ZMQHouseEnvironment:
         obs, rew, done, info = self.env.step(act)
         if done:
             if self.multi_target:
-                obs = self.env.reset()
+                obs = self.env.reset(target=self.fixed_target)
                 self._target = common.target_instruction_dict[self.env.get_current_target()]
             else:
                 obs = self.env.reset(target=self.env.get_current_target())
@@ -92,7 +93,7 @@ class ZMQSimulator(SimulatorProcess):
                                    config['reward_type'], config['reward_silence'],
                                    config['success_measure'],
                                    config['multi_target'], config['object_target'],
-                                   config['aux_task'],
+                                   config['fixed_target'], config['aux_task'],
                                    config['hardness'], config['max_birthplace_steps'],
                                    config['curriculum_schedule'],
                                    config['segment_input'], config['depth_input'],
