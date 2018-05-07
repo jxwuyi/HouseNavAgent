@@ -292,6 +292,7 @@ def evaluate(house, seed = 0, render_device=None,
         episode_good.append(0)
         cur_stats = dict(best_dist=1e50,
                          success=0, good=0, reward=0, target=env.get_current_target(),
+                         meters=env.info['meters'],
                          optstep=env.info['optsteps'], length=max_episode_len, images=None)
         if aux_task:
             cur_stats['aux_pred_rew'] = 0
@@ -375,9 +376,11 @@ def evaluate(house, seed = 0, render_device=None,
 
     logger.print('######## Final Stats ###########')
     logger.print('Success Rate = %.3f' % np.mean(episode_success))
-    logger.print('Avg Length per Success = %.3f' % np.mean([s['length'] for s in episode_stats if s['success'] > 0]))
+    logger.print('> Avg Ep-Length per Success = %.3f' % np.mean([s['length'] for s in episode_stats if s['success'] > 0]))
+    logger.print('> Avg Birth-Meters per Success = %.3f' % np.mean([s['meters'] for s in episode_stats if s['success'] > 0]))
     logger.print('Reaching Target Rate = %.3f' % np.mean(episode_good))
-    logger.print('Avg Length per Target Reach = %.3f' % np.mean([s['length'] for s in episode_stats if s['good'] > 0]))
+    logger.print('> Avg Ep-Length per Target Reach = %.3f' % np.mean([s['length'] for s in episode_stats if s['good'] > 0]))
+    logger.print('> Avg Birth-Meters per Target Reach = %.3f' % np.mean([s['meters'] for s in episode_stats if s['good'] > 0]))
     if multi_target:
         all_targets = list(set([s['target'] for s in episode_stats]))
         for tar in all_targets:
@@ -385,11 +388,13 @@ def evaluate(house, seed = 0, render_device=None,
             succ = [float(s['success'] > 0) for s in episode_stats if s['target'] == tar]
             good = [float(s['good'] > 0) for s in episode_stats if s['target'] == tar]
             length = [s['length'] for s in episode_stats if s['target'] == tar]
-            good_len = np.mean([l for l,g in zip(length, good) if g > 0.5])
-            succ_len = np.mean([l for l,s in zip(length, succ) if s > 0.5])
-            logger.print(
-                '>>>>> Multi-Target <%s>: Rate = %.3f (n=%d), Good = %.3f (AvgLen=%.3f), Succ = %.3f (AvgLen=%.3f)'
-                % (tar, n/len(episode_stats), n, np.mean(good), good_len, np.mean(succ), succ_len))
+            meters = [s['meters'] for s in episode_stats if s['target'] == tar]
+            good_len = np.mean([l for l, g in zip(length, good) if g > 0.5])
+            succ_len = np.mean([l for l, s in zip(length, succ) if s > 0.5])
+            good_mts = np.mean([l for l, g in zip(meters, good) if g > 0.5])
+            succ_mts = np.mean([l for l, s in zip(meters, succ) if s > 0.5])
+            logger.print('>>>>> Multi-Target <%s>: Rate = %.3f (n=%d), Good = %.3f (AvgLen=%.3f; Mts=%.3f), Succ = %.3f (AvgLen=%.3f; Mts=%.3f)'
+                % (tar, n / len(episode_stats), n, np.mean(good), good_len, good_mts, np.mean(succ), succ_len, succ_mts))
 
     if aux_task:
         logger.print(' -->>> Auxiliary-Task: Mean Episode Avg Rew = %.6f, Mean Episode Avg Err = %.6f'
@@ -430,7 +435,7 @@ def parse_args():
     parser.set_defaults(target_mask_input=False)
     parser.add_argument("--history-frame-len", type=int, default=4,
                         help="length of the stacked frames, default=4")
-    parser.add_argument("--success-measure", choices=['center', 'stay', 'see'], default='center',
+    parser.add_argument("--success-measure", choices=['stop', 'stay', 'see'], default='see',
                         help="criteria for a successful episode")
     parser.add_argument("--multi-target", dest='multi_target', action='store_true',
                         help="when this flag is set, a new target room will be selected per episode")
@@ -447,7 +452,7 @@ def parse_args():
     parser.add_argument("--only-eval-object-target", dest='only_eval_object', action='store_true',
                         help="when this flag is set, only evaluate object targets. only effective when --include-object-target")
     parser.set_defaults(only_eval_object=False)
-    parser.add_argument("--fixed-target", choices=common.ALLOWED_TARGET_ROOM_TYPES + common.ALLOWED_OBJECT_TARGET_TYPES,
+    parser.add_argument("--fixed-target", choices=common.ALLOWED_TARGET_ROOM_TYPES + common.ALLOWED_OBJECT_TARGET_TYPES + ['any-room', 'any-object'],
                         help="once set, all the episode will be fixed to a specific target.")
     parser.add_argument("--greedy-execution", dest='greedy_execution', action='store_true',
                         help="When --greedy-execution, we directly take the action with the maximum probability instead of sampling. For DDPG, we turn off the gumbel-noise. For NOP, we will use discrete actions.")

@@ -103,6 +103,7 @@ def create_zmq_config(args):
     config['reward_silence'] = args['reward_silence']
     config['hardness'] = args['hardness']
     config['max_birthplace_steps'] = args['max_birthplace_steps']
+    config['min_birthplace_grids'] = args['min_birthplace_grids']
     config['curriculum_schedule'] = args['curriculum_schedule']
     all_gpus = common.get_gpus_for_rendering()
     assert (len(all_gpus) > 0), 'No GPU found! There must be at least 1 GPU for rendering!'
@@ -125,6 +126,7 @@ def create_zmq_config(args):
     config['success_measure'] = args['success_measure']
     config['multi_target'] = args['multi_target']
     config['object_target'] = args['object_target']
+    config['fixed_target'] = args['fixed_target']
     config['aux_task'] = args['aux_task']
     config['cache_supervision'] = args['cache_supervision']
     config['outdoor_target'] = args['outdoor_target']
@@ -191,6 +193,8 @@ def parse_args():
     parser.add_argument("--seed", type=int, help="random seed")
     parser.add_argument("--hardness", type=float, help="real number from 0 to 1, indicating the hardness of the environment")
     parser.add_argument("--max-birthplace-steps", type=int, help="int, the maximum steps required from birthplace to target")
+    parser.add_argument("--min-birthplace-grids", type=int, default=0,
+                        help="int, the minimum grid distance of the birthplace towards target. Default 0, namely possible to born with gird_dist=0.")
     parser.add_argument("--curriculum-schedule", type=str,
                         help="in format of <a,b,c>, comma seperated 3 ints, the curriculum schedule. a: start birthsteps; b: brithstep increment; c: increment frequency")
     parser.add_argument("--linear-reward", action='store_true', default=False,
@@ -214,7 +218,7 @@ def parse_args():
     #parser.add_argument("--history-frame-len", type=int, default=4,
     #                    help="length of the stacked frames, default=4")
     parser.add_argument("--max-episode-len", type=int, default=50, help="maximum episode length")
-    parser.add_argument("--success-measure", choices=['center', 'stay', 'see'], default='see',
+    parser.add_argument("--success-measure", choices=['stop', 'stay', 'see'], default='see',
                         help="criteria for a successful episode")
     parser.add_argument("--multi-target", dest='multi_target', action='store_true',
                         help="when this flag is set, a new target room will be selected per episode")
@@ -222,6 +226,7 @@ def parse_args():
     parser.add_argument("--include-object-target", dest='object_target', action='store_true',
                         help="when this flag is set, target can be also a target. Only effective when --multi-target")
     parser.set_defaults(object_target=False)
+    parser.add_argument("--fixed-target", type=str, help="fixed training targets: candidate values room, object or any-room/object")
     parser.add_argument("--no-outdoor-target", dest='outdoor_target', action='store_false',
                         help="when this flag is set, we will exclude <outdoor> target")
     parser.set_defaults(outdoor_target=True)
@@ -253,9 +258,7 @@ def parse_args():
     parser.add_argument("--adv-norm", dest='adv_norm', action='store_true',
                         help="perform advantage normalization (per-minibatch, not the full gradient batch)")
     parser.set_defaults(adv_norm=False)
-    parser.add_argument("--rew-clip", dest='rew_clip', action='store_true',
-                        help="clip reward to [-1, 1]")
-    parser.set_defaults(rew_clip=False)
+    parser.add_argument("--rew-clip", type=int, help="if set [r], clip reward to [-r, r]")
     parser.add_argument("--max-iters", type=int, default=int(1e6), help="maximum number of training episodes")
     parser.add_argument("--batch-norm", action='store_true', dest='use_batch_norm',
                         help="Whether to use batch normalization in the policy network. default=False.")
@@ -347,6 +350,12 @@ if __name__ == '__main__':
     if cmd_args.grad_batch < 1:
         print('--grad-batch option must be a positive integer! reset to default value <1>!')
         cmd_args.grad_batch = 1
+
+    if cmd_args.fixed_target is not None:
+        allowed_targets = list(common.target_instruction_dict.keys()) + ['any-room']
+        if cmd_args.object_target:
+            allowed_targets.append('any-object')
+        assert cmd_args.fixed_target in allowed_targets, '--fixed-target specified an invalid target <{}>!'.format(cmd_args.fixed_target)
 
     args = cmd_args.__dict__
 

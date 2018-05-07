@@ -10,6 +10,7 @@ import random
 from HRL.fake_motion import FakeMotion
 from HRL.rnn_motion import RNNMotion
 from HRL.random_motion import RandomMotion
+from HRL.BayesGraph import GraphPlanner
 
 
 def set_seed(seed):
@@ -24,10 +25,18 @@ def proc_info(info):
 
 def evaluate(args):
 
+    args['segment_input'] = args['segmentation_input']
+
     elap = time.time()
 
     # Do not need to log detailed computation stats
     common.debugger = utils.FakeLogger()
+
+    # ensure observation shape
+    common.process_observation_shape('rnn', args['resolution'],
+                                     args['segmentation_input'],
+                                     args['depth_input'],
+                                     target_mask_input=args['target_mask_input'])
 
     fixed_target = args['fixed_target']
     if (fixed_target is not None) and (fixed_target != 'any-room') and (fixed_target != 'any-object'):
@@ -71,11 +80,23 @@ def evaluate(args):
         if model_file is not None:
             trainer.load(model_file)
         trainer.eval()
-        motion = RNNMotion(task, trainer, term_measure=args['terminate_measure'])
+        motion = RNNMotion(task, trainer)
     elif args['motion'] == 'random':
-        motion = RandomMotion(task, None, term_measure=args['terminate_measure'])
+        motion = RandomMotion(task, None)
     else:
-        motion = FakeMotion(task, None, term_measure=args['terminate_measure'])
+        motion = FakeMotion(task, None)
+
+    # create planner
+    graph = None
+    max_motion_steps = args['n_exp_steps']
+    if args['planner'] == 'rnn':
+        assert False, 'Currently only support Graph-planner'
+    else:
+        graph = GraphPlanner(motion)
+        if not args['outdoor_target']:
+            graph.add_excluded_target('outdoor')
+        # hack
+        #graph.set_param(-1, 0.85)
 
     logger = utils.MyLogger(args['log_dir'], True)
     logger.print('Start Evaluating ...')
@@ -95,8 +116,10 @@ def evaluate(args):
 
         episode_success.append(0)
         episode_good.append(0)
+        task_target = task.get_current_target()
         cur_stats = dict(best_dist=info['dist'],
-                         success=0, good=0, reward=0, target=task.get_current_target(),
+                         success=0, good=0, reward=0, target=task_target,
+                         plan=[],
                          meters=task.info['meters'], optstep=task.info['optsteps'], length=max_episode_len, images=None)
         if hasattr(task.house, "_id"):
             cur_stats['world_id'] = task.house._id
@@ -105,24 +128,45 @@ def evaluate(args):
         if store_history:
             cur_infos.append(proc_info(task.info))
 
-        ep_data = motion.run(task.get_current_target(), max_episode_len)
+        episode_step = 0
 
-        for dat in ep_data:
-            info = dat[4]
-            if store_history:
-                cur_infos.append(proc_info(info))
-            cur_dist = info['dist']
-            if cur_dist == 0:
-                cur_stats['good'] += 1
-                episode_good[-1] = 1
-            if cur_dist < cur_stats['best_dist']:
-                cur_stats['best_dist'] = cur_dist
+        # reset planner
+        if graph is not None:
+            graph.reset()
 
-        episode_step = len(ep_data)
-        if ep_data[-1][3]:  # done
-            if ep_data[-1][2] > 5:  # magic number:
-                episode_success[-1] = 1
-                cur_stats['success'] = 1
+        while episode_step < max_episode_len:
+            graph_target = graph.plan(task.get_feature_mask(), task_target)
+            graph_target_id = graph.get_target_index(graph_target)
+            allowed_steps = min(max_episode_len - episode_step, max_motion_steps)
+
+            motion_data = motion.run(graph_target, allowed_steps)
+
+            cur_stats['plan'].append((graph_target, len(motion_data), (motion_data[-1][0][graph_target_id] > 0)))
+
+            # store stats
+            for dat in motion_data:
+                info = dat[4]
+                if store_history:
+                    cur_infos.append(proc_info(info))
+                cur_dist = info['dist']
+                if cur_dist == 0:
+                    cur_stats['good'] += 1
+                    episode_good[-1] = 1
+                if cur_dist < cur_stats['best_dist']:
+                    cur_stats['best_dist'] = cur_dist
+
+            # update graph
+            graph.observe(motion_data, graph_target)
+
+            episode_step += len(motion_data)
+
+            # check done
+            if motion_data[-1][3]:
+                if motion_data[-1][2] > 5: # magic number
+                    episode_success[-1] = 1
+                    cur_stats['success'] = 1
+                break
+
         cur_stats['length'] = episode_step   # store length
 
         if store_history:
@@ -139,7 +183,8 @@ def evaluate(args):
         logger.print('  ---> Times of Reaching Target Room = %d  (rate = %.3f)'
                      % (cur_stats['good'], np.mean(episode_good)))
         logger.print('  ---> Best Distance = %d' % cur_stats['best_dist'])
-        logger.print('  ---> Birth-place Distance = %d' % cur_stats['optstep'])
+        logger.print('  ---> Birth-place Meters = %.4f (optstep = %d)' % (cur_stats['meters'], cur_stats['optstep']))
+        logger.print('  ---> Planner Results = {}'.format(cur_stats['plan']))
 
     logger.print('######## Final Stats ###########')
     logger.print('Success Rate = %.3f' % np.mean(episode_success))
@@ -156,13 +201,12 @@ def evaluate(args):
             good = [float(s['good'] > 0) for s in episode_stats if s['target'] == tar]
             length = [s['length'] for s in episode_stats if s['target'] == tar]
             meters = [s['meters'] for s in episode_stats if s['target'] == tar]
-            good_len = np.mean([l for l,g in zip(length, good) if g > 0.5])
-            succ_len = np.mean([l for l,s in zip(length, succ) if s > 0.5])
+            good_len = np.mean([l for l, g in zip(length, good) if g > 0.5])
+            succ_len = np.mean([l for l, s in zip(length, succ) if s > 0.5])
             good_mts = np.mean([l for l, g in zip(meters, good) if g > 0.5])
             succ_mts = np.mean([l for l, s in zip(meters, succ) if s > 0.5])
-            logger.print(
-                '>>>>> Multi-Target <%s>: Rate = %.3f (n=%d), Good = %.3f (AvgLen=%.3f; Mts=%.3f), Succ = %.3f (AvgLen=%.3f; Mts=%.3f)'
-                % (tar, n/len(episode_stats), n, np.mean(good), good_len, good_mts, np.mean(succ), succ_len, succ_mts))
+            logger.print('>>>>> Multi-Target <%s>: Rate = %.3f (n=%d), Good = %.3f (AvgLen=%.3f; Mts=%.3f), Succ = %.3f (AvgLen=%.3f; Mts=%.3f)'
+                % (tar, n / len(episode_stats), n, np.mean(good), good_len, good_mts, np.mean(succ), succ_len, succ_mts))
 
     return episode_stats
 
@@ -191,8 +235,6 @@ def parse_args():
     parser.set_defaults(target_mask_input=False)
     parser.add_argument("--success-measure", choices=['stop', 'stay', 'see'], default='see',
                         help="criteria for a successful episode")
-    parser.add_argument("--terminate-measure", choices=['mask', 'stay', 'see'], default='mask',
-                        help="criteria for terminating a motion execution")
     parser.add_argument("--multi-target", dest='multi_target', action='store_true',
                         help="when this flag is set, a new target room will be selected per episode")
     parser.set_defaults(multi_target=False)
@@ -228,6 +270,10 @@ def parse_args():
                         help="[RNN-Only] number of layers in RNN")
     parser.add_argument("--rnn-cell", choices=['lstm', 'gru'],
                         help="[RNN-Only] RNN cell type")
+    # Planner Parameters
+    parser.add_argument("--planner", choices=['rnn', 'graph'], default='graph', help='type of the planner')
+    parser.add_argument("--planner-filename", type=str, help='parameters for the planners')
+    parser.add_argument("--n-exp-steps", type=int, default=40, help='maximum number of steps for exploring a sub-policy')
     # Auxiliary Task Options
     parser.add_argument("--auxiliary-task", dest='aux_task', action='store_true',
                         help="Whether to perform auxiliary task of predicting room types")

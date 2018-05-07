@@ -4,7 +4,7 @@ CUDA_VISIBLE_DEVICES=3,4,5,6,7 python3 zmq_train.py --job-name large \
     --seed 0 --env-set train --rew-clip \
     --n-house 200 --n-proc 200 --batch-size 64 --t-max 30 --grad-batch 1  \
     --max-episode-len 40 \
-    --hardness 0.95 --max-birthplace-steps 5 \
+    --hardness 0.95 --max-birthplace-steps 5 --min-birthplace-grids 2 \
     --reward-type new --success-measure see \
     --multi-target --use-target-gating --include-object-target \
     --segmentation-input color --depth-input --resolution normal \

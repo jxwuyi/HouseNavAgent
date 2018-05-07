@@ -48,10 +48,8 @@ def _get_target_index(target):
         return ALLOWED_OBJECT_TARGET_INDEX[target]
 
 class FakeMotion(BaseMotion):
-    def __init__(self, task, trainer=None):
-        super(FakeMotion, self).__init__(task, trainer)
-        # fetch target mask graph
-        self.env = task.env
+    def __init__(self, task, trainer=None, pass_target=True, term_measure='mask'):
+        super(FakeMotion, self).__init__(task, trainer, pass_target, term_measure)
         all_houses = self.env.all_houses if hasattr(self.env, 'all_houses') else [self.env.house]
         self.target_dist = []
         self.target_list = []
@@ -98,7 +96,7 @@ class FakeMotion(BaseMotion):
         if _is_object_target(target):
             for i, r in enumerate(ALLOWED_TARGET_ROOM_TYPES):
                 if mask[i] > 0:
-                    room_mask = self.env.house.getRegionMaskForTarget(r)
+                    room_mask = self.env.house.getRegionMaskForTarget(r)[0]
                     if room_mask[target_idx] > 0:
                         object_within_room = True
                         break
