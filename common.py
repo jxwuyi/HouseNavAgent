@@ -571,7 +571,8 @@ def create_env(k=0,
                false_rate=0.0,
                discrete_angle=True,
                cache_supervision=False,
-               include_outdoor_target=True):
+               include_outdoor_target=True,
+               min_birthplace_steps=0):
     if render_device is None:
         render_device = get_gpus_for_rendering()[0]   # by default use the first gpu
     if segment_input is None:
@@ -601,7 +602,8 @@ def create_env(k=0,
                 birthplace_curriculum_schedule=curriculum_schedule,
                 false_rate=false_rate,
                 discrete_angle=discrete_angle,
-                supervision_signal=cache_supervision)
+                supervision_signal=cache_supervision,
+                min_birth_grid_dist=min_birthplace_grids)
     return task
 
 

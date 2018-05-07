@@ -103,6 +103,7 @@ def create_zmq_config(args):
     config['reward_silence'] = args['reward_silence']
     config['hardness'] = args['hardness']
     config['max_birthplace_steps'] = args['max_birthplace_steps']
+    config['min_birthplace_grids'] = args['min_birthplace_grids']
     config['curriculum_schedule'] = args['curriculum_schedule']
     all_gpus = common.get_gpus_for_rendering()
     assert (len(all_gpus) > 0), 'No GPU found! There must be at least 1 GPU for rendering!'
@@ -192,6 +193,8 @@ def parse_args():
     parser.add_argument("--seed", type=int, help="random seed")
     parser.add_argument("--hardness", type=float, help="real number from 0 to 1, indicating the hardness of the environment")
     parser.add_argument("--max-birthplace-steps", type=int, help="int, the maximum steps required from birthplace to target")
+    parser.add_argument("--min-birthplace-grids", type=int, default=0,
+                        help="int, the minimum grid distance of the birthplace towards target. Default 0, namely possible to born with gird_dist=0.")
     parser.add_argument("--curriculum-schedule", type=str,
                         help="in format of <a,b,c>, comma seperated 3 ints, the curriculum schedule. a: start birthsteps; b: brithstep increment; c: increment frequency")
     parser.add_argument("--linear-reward", action='store_true', default=False,

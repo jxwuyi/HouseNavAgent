@@ -17,7 +17,7 @@ class ZMQHouseEnvironment:
                  reward_type='indicator', reward_silence=0,
                  success_measure='see', multi_target=True,
                  include_object_target=True, fixed_target=None, aux_task=False,
-                 hardness=None, max_birthplace_steps=None,
+                 hardness=None, max_birthplace_steps=None, min_birthplace_grids=0,
                  curriculum_schedule=None,
                  segment_input='none', depth_input=False, target_mask_input=False,
                  cache_supervision=False,
@@ -39,7 +39,8 @@ class ZMQHouseEnvironment:
                                      reward_silence=reward_silence,
                                      #curriculum_schedule=curriculum_schedule,
                                      cache_supervision=cache_supervision,
-                                     include_outdoor_target=include_outdoor_target)
+                                     include_outdoor_target=include_outdoor_target,
+                                     min_birthplace_grids=min_birthplace_grids)
         self.obs = self.env.reset() if multi_target else self.env.reset(target='kitchen')
         self.done = False
         self.multi_target = multi_target
@@ -95,6 +96,7 @@ class ZMQSimulator(SimulatorProcess):
                                    config['multi_target'], config['object_target'],
                                    config['fixed_target'], config['aux_task'],
                                    config['hardness'], config['max_birthplace_steps'],
+                                   config['min_birthplace_grids'],
                                    config['curriculum_schedule'],
                                    config['segment_input'], config['depth_input'],
                                    config['target_mask_input'],
