@@ -136,9 +136,10 @@ class AgentTrainer(object):
 
 
 class BaseMotion(object):
-    def __init__(self, task, trainer):
+    def __init__(self, task, trainer, pass_target=True):
         self.task = task
         self.trainer = trainer
+        self.pass_target=pass_target
 
     """
     return a list of [aux_mask, action, reward, done]

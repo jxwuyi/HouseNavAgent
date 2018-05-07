@@ -18,8 +18,8 @@ from House3D.objnav import ObjNavTask
 
 
 class RNNMotion(BaseMotion):
-    def __init__(self, task, trainer=None):
-        super(RNNMotion, self).__init__(task, trainer)
+    def __init__(self, task, trainer=None, pass_target=True):
+        super(RNNMotion, self).__init__(task, trainer, pass_target)
 
     def reset(self):
         self.trainer.reset_agent()
@@ -38,7 +38,7 @@ class RNNMotion(BaseMotion):
         obs = task._cached_obs
         for _st in range(max_steps):
             # get action
-            action, _ = trainer.action(obs, return_numpy=True, target=[[target_id]])
+            action, _ = trainer.action(obs, return_numpy=True, target=[[target_id]] if self.pass_target else None)
             action = int(action.squeeze())
             # environment step
             _, rew, done, info = task.step(action)

@@ -292,6 +292,7 @@ def evaluate(house, seed = 0, render_device=None,
         episode_good.append(0)
         cur_stats = dict(best_dist=1e50,
                          success=0, good=0, reward=0, target=env.get_current_target(),
+                         meters=env.info['meters'],
                          optstep=env.info['optsteps'], length=max_episode_len, images=None)
         if aux_task:
             cur_stats['aux_pred_rew'] = 0
@@ -375,9 +376,11 @@ def evaluate(house, seed = 0, render_device=None,
 
     logger.print('######## Final Stats ###########')
     logger.print('Success Rate = %.3f' % np.mean(episode_success))
-    logger.print('Avg Length per Success = %.3f' % np.mean([s['length'] for s in episode_stats if s['success'] > 0]))
+    logger.print('> Avg Ep-Length per Success = %.3f' % np.mean([s['length'] for s in episode_stats if s['success'] > 0]))
+    logger.print('> Avg Birth-Meters per Success = %.3f' % np.mean([s['meters'] for s in episode_stats if s['success'] > 0]))
     logger.print('Reaching Target Rate = %.3f' % np.mean(episode_good))
-    logger.print('Avg Length per Target Reach = %.3f' % np.mean([s['length'] for s in episode_stats if s['good'] > 0]))
+    logger.print('> Avg Ep-Length per Target Reach = %.3f' % np.mean([s['length'] for s in episode_stats if s['good'] > 0]))
+    logger.print('> Avg Birth-Meters per Target Reach = %.3f' % np.mean([s['meters'] for s in episode_stats if s['good'] > 0]))
     if multi_target:
         all_targets = list(set([s['target'] for s in episode_stats]))
         for tar in all_targets:
@@ -385,11 +388,13 @@ def evaluate(house, seed = 0, render_device=None,
             succ = [float(s['success'] > 0) for s in episode_stats if s['target'] == tar]
             good = [float(s['good'] > 0) for s in episode_stats if s['target'] == tar]
             length = [s['length'] for s in episode_stats if s['target'] == tar]
-            good_len = np.mean([l for l,g in zip(length, good) if g > 0.5])
-            succ_len = np.mean([l for l,s in zip(length, succ) if s > 0.5])
-            logger.print(
-                '>>>>> Multi-Target <%s>: Rate = %.3f (n=%d), Good = %.3f (AvgLen=%.3f), Succ = %.3f (AvgLen=%.3f)'
-                % (tar, n/len(episode_stats), n, np.mean(good), good_len, np.mean(succ), succ_len))
+            meters = [s['meters'] for s in episode_stats if s['target'] == tar]
+            good_len = np.mean([l for l, g in zip(length, good) if g > 0.5])
+            succ_len = np.mean([l for l, s in zip(length, succ) if s > 0.5])
+            good_mts = np.mean([l for l, g in zip(meters, good) if g > 0.5])
+            succ_mts = np.mean([l for l, s in zip(meters, succ) if s > 0.5])
+            logger.print('>>>>> Multi-Target <%s>: Rate = %.3f (n=%d), Good = %.3f (AvgLen=%.3f; Mts=%.3f), Succ = %.3f (AvgLen=%.3f; Mts=%.3f)'
+                % (tar, n / len(episode_stats), n, np.mean(good), good_len, good_mts, np.mean(succ), succ_len, succ_mts))
 
     if aux_task:
         logger.print(' -->>> Auxiliary-Task: Mean Episode Avg Rew = %.6f, Mean Episode Avg Err = %.6f'
