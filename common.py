@@ -572,7 +572,7 @@ def create_env(k=0,
                discrete_angle=True,
                cache_supervision=False,
                include_outdoor_target=True,
-               min_birthplace_steps=0):
+               min_birthplace_grids=0):
     if render_device is None:
         render_device = get_gpus_for_rendering()[0]   # by default use the first gpu
     if segment_input is None:
