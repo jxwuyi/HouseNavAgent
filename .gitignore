@@ -6,3 +6,5 @@ _model_/
 .idea/
 config.json
 .DS_Store
+tmp*
+__backup*
