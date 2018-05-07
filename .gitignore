@@ -7,3 +7,5 @@ _graph_/
 .idea/
 config.json
 .DS_Store
+tmp*
+__backup*
