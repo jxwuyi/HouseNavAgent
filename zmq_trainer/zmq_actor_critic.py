@@ -59,7 +59,7 @@ class ZMQA3CTrainer(AgentTrainer):
             self.optim = optim.RMSprop(self.policy.parameters(), lr=self.lrate, weight_decay=args['weight_decay'])
         self.grad_norm_clip = args['grad_clip'] if 'grad_clip' in args else None
         self.adv_norm = args['adv_norm'] if 'adv_norm' in args else False
-        self.rew_clip = args['rew_clip'] if 'rew_clip' in args else False
+        self.rew_clip = args['rew_clip'] if 'rew_clip' in args else None
         self._hidden = None
         self._normal_execution = True
 
@@ -170,7 +170,7 @@ class ZMQA3CTrainer(AgentTrainer):
         tt = time.time()
 
         # reward clipping
-        if self.rew_clip: rew = np.clip(rew, -1, 1)
+        if self.rew_clip is not None: rew = np.clip(rew, -self.rew_clip, self.rew_clip)
 
         # convert data to Variables
         obs = self._create_gpu_tensor(obs, return_variable=True)  # [batch, t_max+1, dims...]
