@@ -59,7 +59,7 @@ class SimulatorProcess(mp.Process):
             assert player is not None
         except Exception as e:
             print('[ERROR] <ZMQSimulator> Fail to create player for <{}>, Msg = {}'.format(self.identity, e), file=sys.stderr)
-            return
+            raise e
         context = zmq.Context()
         c2s_socket = context.socket(zmq.PUSH)
         c2s_socket.setsockopt(zmq.IDENTITY, self.identity)
