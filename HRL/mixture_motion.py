@@ -22,7 +22,7 @@ class MixMotion(RNNMotion):
         assert isinstance(pass_target, bool) or isinstance(pass_target, dict), '[MixMotion] pass_target must be a dict or a boolean!'
         assert sorted(trainer.keys()) == sorted(all_allowed_targets), '[MixMotion] keys of trainer must contain all the targets!'
         if isinstance(pass_target, dict):
-            assert sorted(trainer.keys()) == sorted(all_allowed_targets), '[MixMotion] keys of pass_target must contain all the targets!'
+            assert sorted(pass_target.keys()) == sorted(all_allowed_targets), '[MixMotion] keys of pass_target must contain all the targets!'
         else:
             flag = pass_target
             pass_target = dict()
