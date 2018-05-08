@@ -15,9 +15,8 @@ common.ensure_object_targets()
 
 task = common.create_env(-n_houses, task_name='roomnav',
                         success_measure='see',
-                        cacheAllTarget=multi_target,
-                        render_device=render_device,
-                        use_discrete_action=('dpg' not in algo),
+                        cacheAllTarget=True,
+                        use_discrete_action=True,
                         include_object_target=True,
                         include_outdoor_target=True,
                         discrete_angle=True)
