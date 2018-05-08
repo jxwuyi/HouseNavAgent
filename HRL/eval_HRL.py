@@ -83,6 +83,7 @@ def evaluate(args):
         motion = RNNMotion(task, trainer, term_measure=args['terminate_measure'])
     elif args['motion'] == 'random':
         motion = RandomMotion(task, None, term_measure=args['terminate_measure'])
+        motion.set_skilled_rate(6)
     else:
         motion = FakeMotion(task, None, term_measure=args['terminate_measure'])
 

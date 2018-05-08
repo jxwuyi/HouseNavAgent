@@ -14,18 +14,25 @@ class RandomMotion(BaseMotion):
         assert trainer is None
         assert term_measure != 'stay'
         super(RandomMotion, self).__init__(task, trainer, pass_target, term_measure)
+        self.skilled_rate = None
+
+    def set_skilled_rate(self, rate):
+        self.skilled_rate = rate
 
     """
     return a list of [aux_mask, action, reward, done, info]
     """
     def run(self, target, max_steps):
+        skilled_steps = (self.skilled_rate or 1) * max_steps
+        flag_term = False
         task = self.task
         target_id = common.target_instruction_dict[target]
         final_target = task.get_current_target()
         final_target_id = common.target_instruction_dict[final_target]
         env = self.env
         ret = []
-        for _ in range(max_steps):
+        restore_state = None
+        for _s in range(skilled_steps):
             act = allowed_action_index[np.random.randint(n_allowed_actions)]
             det_fwd, det_hor, det_rot = discrete_actions[act]
             move_fwd = det_fwd * task.move_sensitivity
@@ -35,9 +42,17 @@ class RandomMotion(BaseMotion):
             if self.env.move_forward(move_fwd, move_hor):
                 if task.discrete_angle is not None:
                     task._yaw_ind = (task._yaw_ind + discrete_angle_delta_value[act] + task.discrete_angle) % task.discrete_angle
+            if (_s == max_steps - 1) and (max_steps < skilled_steps):
+                restore_state = task.info
             mask = task.get_feature_mask()
             done = self._is_success(final_target_id, mask, term_measure='see')
             ret.append((mask, act, (10 if done else 0), done, task.info))
-            if done or self._is_success(target_id, mask, term_measure=self.term_measure):
+            if (done and (_s < max_steps)) or self._is_success(target_id, mask, term_measure=self.term_measure):
+                flag_term = True
                 break
-        return ret
+        if flag_term:
+            if max_steps < skilled_steps:
+                task.set_state(restore_state)
+            return ret[-max_steps:]
+        else:
+            return ret[:max_steps]
