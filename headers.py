@@ -145,7 +145,7 @@ class BaseMotion(object):
         self.term_measure = term_measure
 
     def _is_success(self, target_id, mask=None, term_measure=None, is_stay=False, obs_seg=None):
-        if mask is None: mask = self.env.get_feature_mask()
+        if mask is None: mask = self.task.get_feature_mask()
         if mask[target_id] == 0: return False
         if term_measure is None: term_measure = self.term_measure
         if term_measure == 'mask':
@@ -154,7 +154,7 @@ class BaseMotion(object):
             return is_stay
         if term_measure == 'see':
             obs_seg = obs_seg or self.env.render(mode='semantic')
-            object_color_list = self.env.room_target_object[self.env.house.targetRoomTp]
+            object_color_list = self.task.room_target_object[self.env.house.targetRoomTp]
             _object_cnt = 0
             for c in object_color_list:
                 cur_n = np.sum(np.all(obs_seg == c, axis=2))
