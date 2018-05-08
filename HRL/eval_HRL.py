@@ -80,11 +80,11 @@ def evaluate(args):
         if model_file is not None:
             trainer.load(model_file)
         trainer.eval()
-        motion = RNNMotion(task, trainer)
+        motion = RNNMotion(task, trainer, term_measure=args['terminate_measure'])
     elif args['motion'] == 'random':
-        motion = RandomMotion(task, None)
+        motion = RandomMotion(task, None, term_measure=args['terminate_measure'])
     else:
-        motion = FakeMotion(task, None)
+        motion = FakeMotion(task, None, term_measure=args['terminate_measure'])
 
     # create planner
     graph = None
@@ -235,6 +235,8 @@ def parse_args():
     parser.set_defaults(target_mask_input=False)
     parser.add_argument("--success-measure", choices=['stop', 'stay', 'see'], default='see',
                         help="criteria for a successful episode")
+    parser.add_argument("--terminate-measure", choices=['mask', 'stay', 'see'], default='mask',
+                        help="criteria for terminating a motion execution")
     parser.add_argument("--multi-target", dest='multi_target', action='store_true',
                         help="when this flag is set, a new target room will be selected per episode")
     parser.set_defaults(multi_target=False)
@@ -271,7 +273,7 @@ def parse_args():
     parser.add_argument("--rnn-cell", choices=['lstm', 'gru'],
                         help="[RNN-Only] RNN cell type")
     # Planner Parameters
-    parser.add_argument("--planner", choices=['rnn', 'graph'], default='graph', help='type of the planner')
+    parser.add_argument("--planner", choices=['rnn', 'graph', 'random'], default='graph', help='type of the planner')
     parser.add_argument("--planner-filename", type=str, help='parameters for the planners')
     parser.add_argument("--n-exp-steps", type=int, default=40, help='maximum number of steps for exploring a sub-policy')
     # Auxiliary Task Options
