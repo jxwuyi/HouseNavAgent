@@ -51,8 +51,8 @@ class RandomMotion(BaseMotion):
                 flag_term = True
                 break
         if flag_term:
-            if max_steps < skilled_steps:
-                task.set_state(restore_state)
             return ret[-max_steps:]
         else:
+            if max_steps < skilled_steps:
+                task.set_state(restore_state)
             return ret[:max_steps]
