@@ -330,6 +330,15 @@ if __name__ == '__main__':
 
     common.ensure_object_targets(cmd_args.object_target)
 
+    if cmd_args.fixed_target is not None:
+        allowed_targets = list(common.target_instruction_dict.keys()) + ['any-room']
+        if cmd_args.object_target:
+            allowed_targets.append('any-object')
+        assert cmd_args.fixed_target in allowed_targets, '--fixed-target specified an invalid target <{}>!'.format(cmd_args.fixed_target)
+        if not ('any' in cmd_args.fixed_target):
+            common.filter_house_IDs_by_target(cmd_args.fixed_target)
+            print('[ZMQ_Train.py] Filter Houses By Fixed-Target to N=<{}> Houses...'.format(len(common.all_houseIDs)))
+
     if cmd_args.n_house > len(common.all_houseIDs):
         print('[ZMQ_Train.py] No enough houses! Reduce <n_house> to [{}].'.format(len(common.all_houseIDs)))
         cmd_args.n_house = len(common.all_houseIDs)
@@ -350,12 +359,6 @@ if __name__ == '__main__':
     if cmd_args.grad_batch < 1:
         print('--grad-batch option must be a positive integer! reset to default value <1>!')
         cmd_args.grad_batch = 1
-
-    if cmd_args.fixed_target is not None:
-        allowed_targets = list(common.target_instruction_dict.keys()) + ['any-room']
-        if cmd_args.object_target:
-            allowed_targets.append('any-object')
-        assert cmd_args.fixed_target in allowed_targets, '--fixed-target specified an invalid target <{}>!'.format(cmd_args.fixed_target)
 
     args = cmd_args.__dict__
 

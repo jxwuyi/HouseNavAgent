@@ -33,7 +33,25 @@ def get_house_ids(fname=None):
         fname = os.path.join(os.path.dirname(__file__), FNAME)
         if os.path.isfile(fname):
             return fname
-        raise RuntimeError("Cannot find all_house_idsjson file!")
+        raise RuntimeError("Cannot find all_house_ids.json file!")
+
+    if fname is None:
+        fname = get_fname()
+
+    with open(fname) as f:
+        obj = json.load(f)
+        return obj
+
+@lru_cache()
+def get_house_targets(fname=None):
+    FNAME = 'all_house_targets.json'
+    def get_fname():
+        if os.path.isfile(FNAME):
+            return FNAME
+        fname = os.path.join(os.path.dirname(__file__), FNAME)
+        if os.path.isfile(fname):
+            return fname
+        raise RuntimeError("Cannot find all_house_targets.json file!")
 
     if fname is None:
         fname = get_fname()

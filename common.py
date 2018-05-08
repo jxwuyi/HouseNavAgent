@@ -39,21 +39,34 @@ from trainer.a2c import A2CTrainer
 from trainer.qac import QACTrainer
 from trainer.dqn import DQNTrainer
 
-from config import get_config, get_house_ids
+from config import get_config, get_house_ids, get_house_targets
 
 house_ID_dict = get_house_ids()
+house_Targets_dict = get_house_targets()
 all_houseIDs = house_ID_dict['small']
+all_houseTargets = house_Targets_dict['small']
 
 # only works for python 3.5
 flag_parallel_init = False # (sys.version_info[1] == 5)#("Ubuntu" in platform.platform())
 
 
 def set_house_IDs(partition='small', ensure_kitchen=False):
-    global all_houseIDs, house_ID_dict
+    global all_houseIDs, house_ID_dict, house_Targets_dict, all_houseTargets
     assert partition in house_ID_dict, 'Partition <{}> not found!'.format(partition)
     all_houseIDs = house_ID_dict[partition]
+    all_houseTargets = house_Targets_dict[partition]
     if ensure_kitchen and (partition in ['small', 'color']):  # TODO: Currently a hack to remove house#10 in small set when not multi-target!!
         all_houseIDs = all_houseIDs[:10] + all_houseIDs[11:]
+        all_houseTargets = all_houseTargets[:10] + all_houseTargets[11:]
+
+def filter_house_IDs_by_target(fixed_target):
+    global all_houseIDs, all_houseTargets
+    valid_ids = [i for i, T in enumerate(all_houseTargets) if fixed_target in T]
+    assert len(valid_ids) > 0, 'Invalid <fixed-target = [{}] >! No available houses!'.format(fixed_target)
+    _new_all_houseIDs = [all_houseIDs[i] for i in valid_ids]
+    _new_all_houseTargets = [all_houseTargets[i] for i in valid_ids]
+    all_houseIDs = _new_all_houseIDs
+    all_houseTargets = _new_all_houseTargets
 
 
 CFG = load_config('config.json')
