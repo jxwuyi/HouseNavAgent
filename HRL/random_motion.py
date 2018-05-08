@@ -38,6 +38,6 @@ class RandomMotion(BaseMotion):
             mask = task.get_feature_mask()
             done = self._is_success(final_target_id, mask, term_measure='see')
             ret.append((mask, act, (10 if done else 0), done, task.info))
-            if self._is_success(target_id, mask, term_measure=self.term_measure):
+            if done or self._is_success(target_id, mask, term_measure=self.term_measure):
                 break
         return ret
