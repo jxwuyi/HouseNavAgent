@@ -175,7 +175,7 @@ def train(args=None, warmstart=None):
         print('Done!')
         trainer.save(args['save_dir'], version='final')
     except KeyboardInterrupt:
-        master.save_all(version='last')
+        trainer.save_all(args['save_dir'], version='interrupt')
         raise
 
 
@@ -365,5 +365,12 @@ if __name__ == '__main__':
     args['model_name'] = 'rnn'
     args['scheduler'] = create_scheduler(cmd_args.scheduler)
     args['curriculum_schedule'] = create_curriculum_schedule(cmd_args.curriculum_schedule)
+
+    # store training args
+    config_file = args['save_dir']
+    if config_file[-1] != '/': config_file = config_file + '/'
+    config_file = config_file + 'train_args.json'
+    with open(config_file, 'w') as f:
+        json.dump(args, f)
 
     train(args, warmstart=cmd_args.warmstart)
