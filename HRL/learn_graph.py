@@ -7,8 +7,7 @@ import sys, os, platform, pickle, json, argparse, time
 import numpy as np
 import random
 
-from HRL.fake_motion import FakeMotion
-from HRL.rnn_motion import RNNMotion
+from HRL.eval_motion import create_motion
 from HRL.BayesGraph import GraphPlanner
 
 
@@ -40,18 +39,12 @@ def learn_graph(args):
                              discrete_angle=True)
 
     # create motion
-    if args['motion'] == 'rnn':
-        import zmq_train
-        trainer = zmq_train.create_zmq_trainer('a3c', 'rnn', args)
-        model_file = args['motion_warmstart']
-        if model_file is not None:
-            trainer.load(model_file)
-        trainer.eval()
-        motion = RNNMotion(task, trainer)
-    else:
-        motion = FakeMotion(task, None)
+    __graph_warmstart = args['warmstart']
+    args['warmstart'] = args['motion_warmstart']
+    motion = create_motion(args, task)
 
     # create graph
+    args['warmstart'] = __graph_warmstart
     graph = GraphPlanner(motion)
 
     # logger
@@ -116,8 +109,13 @@ def parse_args():
     parser.add_argument("--n-trials", type=int, default=25, help="number of trials for evaluating connectivity")
     parser.add_argument("--max-exp-steps", type=int, default=30, help="maximum number of allowed exploration steps")
     # Core policy parameters
-    parser.add_argument("--motion", choices=['rnn', 'fake'], default="fake", help="type of the locomotion")
+    parser.add_argument("--motion", choices=['rnn', 'fake', 'random', 'mixture'], default="fake", help="type of the locomotion")
+    parser.add_argument("--mixture-motion-dict", type=str, help="dict for mixture-motion, only effective when --motion mixture")
     parser.add_argument("--motion-warmstart", type=str, help="file to load the policy parameters")
+    parser.add_argument("--motion-warmstart-dict", type=str, dest='warmstart_dict',
+                        help="arg dict the policy model, only effective when --motion rnn")
+    parser.add_argument("--terminate-measure", choices=['mask', 'stay', 'see'], default='mask',
+                        help="criteria for terminating a motion execution")
     parser.add_argument("--batch-norm", action='store_true', dest='use_batch_norm',
                         help="Whether to use batch normalization in the policy network. default=False.")
     parser.set_defaults(use_batch_norm=False)
@@ -151,7 +149,7 @@ if __name__ == '__main__':
         print('Directory <{}> does not exist! Creating directory ...'.format(args.save_dir))
         os.makedirs(args.save_dir)
 
-    if args.motion != 'fake':
+    if args.motion not in ['fake', 'random']:
         assert args.motion_warmstart is not None
 
     if args.seed is None:
