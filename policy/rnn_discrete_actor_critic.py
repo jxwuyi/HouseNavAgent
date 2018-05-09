@@ -231,7 +231,7 @@ class DiscreteRNNPolicy(torch.nn.Module):
                 compute_aux_pred=False, return_aux_logprob=True, sample_aux_pred=False):
         """
         compute the forward pass of the model.
-        @:param x: [seq_len, batch, n_channel, n_row, n_col]
+        @:param x: [batch, seq_len, n_channel, n_row, n_col]
         @:param h: [layer, batch, units] or a list of <batch_size> individual hiddens
         @:param return_value: when False, only return action
         @:param sample_action: when True, action will be the sampled LongTensor, [batch, seq_len, 1]
