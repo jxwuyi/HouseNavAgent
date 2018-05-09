@@ -10,6 +10,42 @@ import random
 from HRL.fake_motion import FakeMotion
 from HRL.rnn_motion import RNNMotion
 from HRL.random_motion import RandomMotion
+from HRL.mixture_motion import MixMotion, create_mixture_motion_trainer_dict
+
+
+def create_motion(args, task):
+    if args['motion'] == 'rnn':
+        if (args['warmstart_dict'] is not None) and os.path.isfile(args['warmstart_dict']):
+            with open(args['warmstart_dict'], 'r') as f:
+                trainer_args = json.load(f)
+        else:
+            trainer_args = args
+        import zmq_train
+        trainer = zmq_train.create_zmq_trainer('a3c', 'rnn', trainer_args)
+        model_file = args['warmstart']
+        if model_file is not None:
+            trainer.load(model_file)
+        trainer.eval()
+        motion = RNNMotion(task, trainer,
+                           pass_target=args['multi_target'],
+                           term_measure=args['terminate_measure'])
+    elif args['motion'] == 'random':
+        motion = RandomMotion(task, None, term_measure=args['terminate_measure'])
+    elif args['motion'] == 'fake':
+        motion = FakeMotion(task, None, term_measure=args['terminate_measure'])
+    else: # mixture motion
+        mixture_dict_file = args['mixture_motion_dict']
+        try:
+            with open(mixture_dict_file, 'r') as f:
+                arg_dict = json.load(f)
+        except Exception as e:
+            print('Invalid Mixture Motion Dict!! file = <{}>'.format(mixture_dict_file))
+            raise e
+        trainer_dict, pass_tar_dict, obs_mode_dict = create_mixture_motion_trainer_dict(arg_dict)
+        motion = MixMotion(task, trainer_dict, pass_tar_dict,
+                           term_measure=args['terminate_measure'],
+                           obs_mode=obs_mode_dict)
+    return motion
 
 
 def set_seed(seed):
@@ -64,18 +100,7 @@ def evaluate(args):
         common.ensure_object_targets(True)
 
     # create motion
-    if args['motion'] == 'rnn':
-        import zmq_train
-        trainer = zmq_train.create_zmq_trainer('a3c', 'rnn', args)
-        model_file = args['warmstart']
-        if model_file is not None:
-            trainer.load(model_file)
-        trainer.eval()
-        motion = RNNMotion(task, trainer, term_measure=args['terminate_measure'])
-    elif args['motion'] == 'random':
-        motion = RandomMotion(task, None, term_measure=args['terminate_measure'])
-    else:
-        motion = FakeMotion(task, None, term_measure=args['terminate_measure'])
+    motion = create_motion(args, task)
 
     logger = utils.MyLogger(args['log_dir'], True)
     logger.print('Start Evaluating ...')
@@ -211,7 +236,8 @@ def parse_args():
     parser.add_argument("--fixed-target", choices=common.ALLOWED_TARGET_ROOM_TYPES + common.ALLOWED_OBJECT_TARGET_TYPES + ['any-room', 'any-object'],
                         help="once set, all the episode will be fixed to a specific target.")
     # Core parameters
-    parser.add_argument("--motion", choices=['rnn', 'fake', 'random'], default="fake", help="type of the locomotion")
+    parser.add_argument("--motion", choices=['rnn', 'fake', 'random', 'mixture'], default="fake", help="type of the locomotion")
+    parser.add_argument("--mixture-motion-dict", type=str, help="dict for mixture-motion, only effective when --motion mixture")
     parser.add_argument("--max-episode-len", type=int, default=2000, help="maximum episode length")
     parser.add_argument("--max-iters", type=int, default=1000, help="maximum number of eval episodes")
     parser.add_argument("--store-history", action='store_true', default=False, help="whether to store all the episode frames")
@@ -235,6 +261,7 @@ def parse_args():
     # Checkpointing
     parser.add_argument("--log-dir", type=str, default="./log/eval", help="directory in which logs eval stats")
     parser.add_argument("--warmstart", type=str, help="file to load the policy model")
+    parser.add_argument("--warmstart-dict", type=str, help="arg dict the policy model, only effective when --motion rnn")
     return parser.parse_args()
 
 
