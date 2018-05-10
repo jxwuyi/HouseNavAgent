@@ -7,11 +7,11 @@ import sys, os, platform
 import numpy as np
 import random
 
-from House3D.house import ALLOWED_PREDICTION_ROOM_TYPES, ALLOWED_OBJECT_TARGET_TYPES
+from House3D.house import ALLOWED_TARGET_ROOM_TYPES, ALLOWED_OBJECT_TARGET_TYPES
 
 from HRL.rnn_motion import RNNMotion
 
-all_allowed_targets = ALLOWED_PREDICTION_ROOM_TYPES + ALLOWED_OBJECT_TARGET_TYPES
+all_allowed_targets = ALLOWED_TARGET_ROOM_TYPES + ALLOWED_OBJECT_TARGET_TYPES
 
 
 """
