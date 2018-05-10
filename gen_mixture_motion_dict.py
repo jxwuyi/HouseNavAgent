@@ -17,14 +17,14 @@ object_model_dir = './_model_/nips_HRL/seg_mask_large_birth15/'
 
 flag_joint_object_model = True
 
-save_dir = './_graph_/mix_motion/'
+save_dir = './_graph_/mix_motion/seg_mask/'
 
 motion_dict = dict()
 
 # Generate Dicts for Rooms
 print('Generate Dicts for Room Targets ...')
 for room in all_rooms:
-    prefix_dir = room_model_dir + 'only-' + room + '/'
+    prefix_dir = room_model_dir + room + '/'
     args_file = prefix_dir + 'train_args.json'
     with open(args_file, 'r') as f:
         args = json.load(f)
@@ -37,7 +37,7 @@ print('Generate Dicts for Object Targets ...')
 for obj in all_objects:
     prefix_dir = object_model_dir
     if not flag_joint_object_model:  # separate object-policy
-        prefix_dir = prefix_dir + 'only-' + obj + '/'
+        prefix_dir = prefix_dir + obj + '/'
     else:
         prefix_dir = prefix_dir + 'any-object/'
     args_file = prefix_dir + 'train_args.json'
@@ -53,4 +53,4 @@ with open(dict_file, 'w') as f:
     json.dump(motion_dict, f)
 
 dur = time.time() - ts
-print(' >> Done!  Time Elapsed for %d houses = %.5fs' % (n_houses, dur))
+print(' >> Done!  Time Elapsed = %.5fs' % dur)
