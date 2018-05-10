@@ -34,7 +34,7 @@ def create_mixture_motion_trainer_dict(arg_dict):
             pass_tar_dict[target] = pass_tar_dict[loaded_model[model_file]]
             obs_mode_dict[target] = obs_mode_dict[loaded_model[model_file]]
             continue
-        common.process_observation_shape(rnn, args['resolution_level'],
+        common.process_observation_shape('rnn', args['resolution_level'],
                                          segmentation_input=args['segment_input'],
                                          depth_input=args['depth_input'],
                                          history_frame_len=1,

@@ -20,7 +20,7 @@ def create_motion(args, task):
                 trainer_args = json.load(f)
         else:
             trainer_args = args
-        common.process_observation_shape(rnn, trainer_args['resolution_level'],
+        common.process_observation_shape('rnn', trainer_args['resolution_level'],
                                          segmentation_input=trainer_args['segment_input'],
                                          depth_input=trainer_args['depth_input'],
                                          history_frame_len=1,
