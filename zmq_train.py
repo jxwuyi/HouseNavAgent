@@ -340,7 +340,7 @@ if __name__ == '__main__':
         assert cmd_args.fixed_target in allowed_targets, '--fixed-target specified an invalid target <{}>!'.format(cmd_args.fixed_target)
         if not ('any' in cmd_args.fixed_target):
             common.filter_house_IDs_by_target(cmd_args.fixed_target)
-            print('[ZMQ_Train.py] Filter Houses By Fixed-Target to N=<{}> Houses...'.format(len(common.all_houseIDs)))
+            print('[ZMQ_Train.py] Filter Houses By Fixed-Target <{}> to N=<{}> Houses...'.format(cmd_args.fixed_target, len(common.all_houseIDs)))
 
     if cmd_args.n_house > len(common.all_houseIDs):
         print('[ZMQ_Train.py] No enough houses! Reduce <n_house> to [{}].'.format(len(common.all_houseIDs)))
