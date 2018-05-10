@@ -72,6 +72,8 @@ def evaluate(args):
 
     # create motion
     motion = create_motion(args, task)
+    if args['motion'] == 'random':
+        motion.set_skilled_rate(args['random_motion_skill'])
 
     # create planner
     graph = None
@@ -243,6 +245,7 @@ def parse_args():
                         help="once set, all the episode will be fixed to a specific target.")
     # Core parameters
     parser.add_argument("--motion", choices=['rnn', 'fake', 'random', 'mixture'], default="fake", help="type of the locomotion")
+    parser.add_argument("--random-motion-skill", type=int, default=6, help="skill rate for random motion, only effective when --motion random")
     parser.add_argument("--mixture-motion-dict", type=str, help="dict for mixture-motion, only effective when --motion mixture")
     parser.add_argument("--max-episode-len", type=int, default=2000, help="maximum episode length")
     parser.add_argument("--max-iters", type=int, default=1000, help="maximum number of eval episodes")
