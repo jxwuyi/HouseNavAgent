@@ -107,12 +107,18 @@ def ensure_object_targets(flag_include_object_targets=True):
         for i, tp in enumerate(all_target_instructions):
             target_instruction_dict[tp] = i
     else:
+        # only room objects
         if objectTargetFile is not None:
             del CFG['objectTargetFile']
             objectTargetFile = None
         if modelObjectMapFile is not None:
             del CFG['modelObjectMap']
             modelObjectMapFile = None
+        n_target_instructions = len(ALLOWED_TARGET_ROOM_TYPES)
+        all_target_instructions = ALLOWED_TARGET_ROOM_TYPES
+        target_instruction_dict = dict()
+        for i, tp in enumerate(ALLOWED_TARGET_ROOM_TYPES):
+            target_instruction_dict[tp] = i
 
 all_aux_predictions = ALLOWED_PREDICTION_ROOM_TYPES
 n_aux_predictions = len(all_aux_predictions)
@@ -186,6 +192,9 @@ def process_observation_shape(model, resolution_level, segmentation_input, depth
             n_chn = 6
             assert (segmentation_input == 'joint')
         single_observation_shape = (n_chn, resolution[0], resolution[1])
+    else:
+        # RGB input
+        single_observation_shape = (3, resolution[0], resolution[1])
     if depth_input or target_mask_input:
         single_observation_shape = (single_observation_shape[0] + int(depth_input) + int(target_mask_input),
                                     single_observation_shape[1],

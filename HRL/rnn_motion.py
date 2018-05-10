@@ -54,6 +54,6 @@ class RNNMotion(BaseMotion):
             feature_mask = task.get_feature_mask()
             episode_stats.append((feature_mask, action, rew, done, info))
             # check terminate
-            if done or (not consistent_target and self.check_terminate(target_id, mask, action)):
+            if done or (not consistent_target and self.check_terminate(target_id, feature_mask, action)):
                 break
         return episode_stats

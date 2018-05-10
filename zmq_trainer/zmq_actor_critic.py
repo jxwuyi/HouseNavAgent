@@ -69,7 +69,7 @@ class ZMQA3CTrainer(AgentTrainer):
     def _create_target_tensor(self, targets, return_variable=True, volatile=False):
         batch = len(targets)
         seq_len = len(targets[0])
-        target_n = torch.zeros(batch, seq_len, common.n_target_instructions).type(FloatTensor)
+        target_n = torch.zeros(batch, seq_len, self.policy.n_target_instructions).type(FloatTensor)
         ids = torch.from_numpy(np.array(targets)).type(LongTensor).view(batch, seq_len, 1)
         target_n.scatter_(2, ids, 1.0)
         if return_variable:
