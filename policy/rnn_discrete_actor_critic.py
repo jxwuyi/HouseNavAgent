@@ -102,8 +102,9 @@ class DiscreteRNNPolicy(torch.nn.Module):
         self.rnn_input_size = feat_size
 
         # multi target instructions
+        self.n_target_instructions = common.n_target_instructions
         if self.multi_target:
-            self.target_embed = nn.Linear(common.n_target_instructions, target_embedding_dim, bias=False)
+            self.target_embed = nn.Linear(self.n_target_instructions, target_embedding_dim, bias=False)
             utils.initialize_weights(self.target_embed)
             self.target_trans = []
             if use_target_gating:
@@ -247,7 +248,7 @@ class DiscreteRNNPolicy(torch.nn.Module):
         self.feat = feat = self._forward_feature(packed_x, compute_linear=True)   # both conv layers and linear layer
         if self.multi_target:
             assert target is not None
-            target = self.target_embed(target.view(-1, common.n_target_instructions))
+            target = self.target_embed(target.view(-1, self.n_target_instructions))
             if self.use_target_gating:
                 alpha = target
                 for i, l in enumerate(self.target_trans):

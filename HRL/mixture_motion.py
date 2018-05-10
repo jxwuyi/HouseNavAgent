@@ -27,8 +27,8 @@ def create_mixture_motion_trainer_dict(arg_dict):
         assert target in arg_dict, '[MixtureMotion] Invalid <arg_dict>! Key=<{}> does not exist!'.format(target)
         args = arg_dict[target]
         model_file = args['warmstart']
-        assert (model_file is not None) and os.path.exists(warmstart), \
-            '[MixtureMotion] warmstart file <{}> for target <{}> does not exist!!'.format(args['warmstart'], target)
+        assert (model_file is not None) and os.path.exists(model_file), \
+            '[MixtureMotion] model file <{}> for target <{}> does not exist!!'.format(args[model_file], target)
         if model_file in loaded_model:
             trainer_dict[target] = trainer_dict[loaded_model[model_file]]
             pass_tar_dict[target] = pass_tar_dict[loaded_model[model_file]]
@@ -39,7 +39,12 @@ def create_mixture_motion_trainer_dict(arg_dict):
                                          depth_input=args['depth_input'],
                                          history_frame_len=1,
                                          target_mask_input=args['target_mask_input'])
+        # ensure object target
+        __backup_CFG = common.CFG.copy()
+        common.ensure_object_targets(args['object_target'])
         trainer = zmq_train.create_zmq_trainer('a3c', 'rnn', args)
+        common.CFG = __backup_CFG  # backup
+        # load model
         trainer.load(model_file)
         trainer.eval()
         loaded_model[model_file] = target
@@ -48,7 +53,7 @@ def create_mixture_motion_trainer_dict(arg_dict):
         obs_mode_dict[target] = dict(segment_input=(args['segment_input'] != 'none'),
                                      depth_signal=args['depth_input'],
                                      target_mask_signal=args['target_mask_input'],
-                                     joint_visual_signal=(args['segment_input'] != 'joint'))
+                                     joint_visual_signal=(args['segment_input'] == 'joint'))
     return trainer_dict, pass_tar_dict, obs_mode_dict
 
 
@@ -92,6 +97,8 @@ class MixMotion(RNNMotion):
         self.pass_target = self.pass_target_dict[target]
         if self.obs_mode_dict is not None:
             obs_mode = self.obs_mode_dict[target]
+            #print('target = {}, obs_mode = {}'.format(target, obs_mode))
+            #print('  -> task obs_mode = {}'.format(self.task.get_obs_mode()))
             if obs_mode != self.task.get_obs_mode():
                 self.task.reset_obs_mode(**obs_mode)
         return super(MixMotion, self).run(target, max_steps)

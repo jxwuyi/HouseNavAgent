@@ -260,6 +260,9 @@ class GraphPlanner(object):
             t, x, y = entry
             n_total = self.stats_exp[t][x, y]
             n_pos = self.stats_obs[t][x, y]
+            if t == 0:
+                n_total += self.stats_exp[t][y, x]
+                n_pos += self.stats_obs[t][y, x]
             n_neg = n_total - n_pos
             p = self.params[t][x, y]
             # compute Pr[X=0, Y]
@@ -272,6 +275,8 @@ class GraphPlanner(object):
             W_0 = np.exp(lg_W_0)
             W_1 = np.exp(lg_W_1)
             self.graph[t][x, y] = W_1 / (W_1 + W_0)
+            if t == 0:
+                self.graph[t][y, x] = self.graph[t][x, y]
 
     def observe(self, exp_data, target):
         # execute sub-policy <target>, observe experiences <data>
@@ -337,6 +342,8 @@ class GraphPlanner(object):
             for i in range(n_rooms):
                 if i not in visit:
                     if (sl_r < 0) or (opt_rooms[i] > opt_rooms[sl_r]): sl_r = i
+            if sl_r < 0:
+                break
             visit.add(sl_r)
             for i in range(n_rooms):
                 if i in visit: continue

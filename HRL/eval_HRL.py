@@ -75,6 +75,11 @@ def evaluate(args):
     if args['motion'] == 'random':
         motion.set_skilled_rate(args['random_motion_skill'])
 
+    # logger
+    logger = utils.MyLogger(args['log_dir'], True)
+    logger.print('Start Evaluating ...')
+
+
     # create planner
     graph = None
     max_motion_steps = args['n_exp_steps']
@@ -84,11 +89,14 @@ def evaluate(args):
         graph = GraphPlanner(motion)
         if not args['outdoor_target']:
             graph.add_excluded_target('outdoor')
+        filename = args['planner_filename']
+        if filename is not None:
+            logger.print(' > Loading Graph from file = <{}>'.format(filename))
+            with open(filename,'rb') as f:
+                _params = pickle.load(f)
+            graph.set_parameters(_params)
         # hack
         #graph.set_param(-1, 0.85)
-
-    logger = utils.MyLogger(args['log_dir'], True)
-    logger.print('Start Evaluating ...')
 
     episode_success = []
     episode_good = []
@@ -294,8 +302,10 @@ if __name__ == '__main__':
         print('Directory <{}> does not exist! Creating directory ...'.format(args.log_dir))
         os.makedirs(args.log_dir)
 
-    if args.motion in ['rnn', 'mixture']:
+    if args.motion == 'rnn':
         assert args.warmstart is not None
+    if args.motion == 'mixture':
+        assert args.mixture_motion_dict is not None
 
     if args.fixed_target is None:
         if args.only_eval_room:

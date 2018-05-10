@@ -50,6 +50,8 @@ def create_motion(args, task):
         motion = MixMotion(task, trainer_dict, pass_tar_dict,
                            term_measure=args['terminate_measure'],
                            obs_mode=obs_mode_dict)
+        common.ensure_object_targets(args['object_target'])
+
     return motion
 
 
@@ -286,8 +288,10 @@ if __name__ == '__main__':
         print('Directory <{}> does not exist! Creating directory ...'.format(args.log_dir))
         os.makedirs(args.log_dir)
 
-    if args.motion in ['rnn', 'mixture']:
+    if args.motion == 'rnn':
         assert args.warmstart is not None
+    if args.motion == 'mixture':
+        assert args.mixture_motion_dict is not None
 
     if args.fixed_target is None:
         if args.only_eval_room:
