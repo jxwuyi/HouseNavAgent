@@ -92,7 +92,7 @@ class MixMotion(RNNMotion):
     """
     return a list of [aux_mask, action, reward, done, info]
     """
-    def run(self, target, max_steps):
+    def run(self, target, max_steps, temperature=None):
         self.trainer = self.trainer_dict[target]
         self.pass_target = self.pass_target_dict[target]
         if self.obs_mode_dict is not None:
@@ -101,4 +101,4 @@ class MixMotion(RNNMotion):
             #print('  -> task obs_mode = {}'.format(self.task.get_obs_mode()))
             if obs_mode != self.task.get_obs_mode():
                 self.task.reset_obs_mode(**obs_mode)
-        return super(MixMotion, self).run(target, max_steps)
+        return super(MixMotion, self).run(target, max_steps, temperature)

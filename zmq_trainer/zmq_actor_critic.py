@@ -130,7 +130,7 @@ class ZMQA3CTrainer(AgentTrainer):
     def reset_agent(self):
         self._hidden = self.get_init_hidden()
 
-    def action(self, obs, hidden=None, return_numpy=False, target=None):
+    def action(self, obs, hidden=None, return_numpy=False, target=None, temperature=None):
         if hidden is None:
             hidden = self._hidden
             self._hidden = None
@@ -140,7 +140,8 @@ class ZMQA3CTrainer(AgentTrainer):
         if target is not None:
             target = self._create_target_tensor(target, return_variable=True, volatile=True)
         act, nxt_hidden = self.policy(obs, hidden, return_value=False, sample_action=self._normal_execution,
-                                      unpack_hidden=True, return_tensor=True, target=target)
+                                      unpack_hidden=True, return_tensor=True, target=target,
+                                      temperature=temperature)
         if self._hidden is None:
             self._hidden = nxt_hidden
         if return_numpy: # currently only for action

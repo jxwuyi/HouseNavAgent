@@ -137,7 +137,11 @@ def evaluate(args):
         if store_history:
             cur_infos.append(proc_info(task.info))
 
-        ep_data = motion.run(task.get_current_target(), max_episode_len)
+        if args['temperatue'] is not None:
+            ep_data = motion.run(task.get_current_target(), max_episode_len,
+                                 temperatue=args['temperatue'])
+        else:
+            ep_data = motion.run(task.get_current_target(), max_episode_len)
 
         for dat in ep_data:
             info = dat[4]
@@ -269,6 +273,8 @@ def parse_args():
     parser.add_argument("--log-dir", type=str, default="./log/eval", help="directory in which logs eval stats")
     parser.add_argument("--warmstart", type=str, help="file to load the policy model")
     parser.add_argument("--warmstart-dict", type=str, help="arg dict the policy model, only effective when --motion rnn")
+    # Other
+    parser.add_argument("--temperature", type=float, help="temperatue for executing motion; only effective when --motion rnn/mixture")
     return parser.parse_args()
 
 
@@ -301,6 +307,9 @@ if __name__ == '__main__':
 
     if args.seed is None:
         args.seed = 0
+
+    if args.temperatue is not None:
+        assert args.motion in ['rnn', 'mixture']
 
     dict_args = args.__dict__
 

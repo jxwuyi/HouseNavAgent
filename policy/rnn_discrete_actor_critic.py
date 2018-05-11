@@ -229,7 +229,8 @@ class DiscreteRNNPolicy(torch.nn.Module):
 
     def forward(self, x, h, only_value = False, return_value=True, sample_action=False,
                 unpack_hidden=False, return_tensor=False, target=None,
-                compute_aux_pred=False, return_aux_logprob=True, sample_aux_pred=False):
+                compute_aux_pred=False, return_aux_logprob=True, sample_aux_pred=False,
+                temperature=None):
         """
         compute the forward pass of the model.
         @:param x: [batch, seq_len, n_channel, n_row, n_col]
@@ -304,6 +305,8 @@ class DiscreteRNNPolicy(torch.nn.Module):
                 feat = l(feat)
                 if i < len(self.policy_layers) - 1: feat = self.func(feat)
             self.logits = feat.view(batch, seq_len, self.out_dim)
+            if temperature is not None:
+                self.logits /= temperature
             self.prob = F.softmax(feat).view(batch, seq_len, self.out_dim)
             self.logp = F.log_softmax(feat).view(batch, seq_len, self.out_dim)
 
