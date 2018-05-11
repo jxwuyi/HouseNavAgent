@@ -7,5 +7,5 @@ python3 HRL/learn_graph.py --task-name roomnav --env-set train --house -200 --se
     --training-mode mle \
     --graph-eps 0.0001 --n-trials 25 \
     --motion random \
-    --terminate-measure mask --max-exp-steps 1000 \
-    --save-dir ./_graph_/random_1000
+    --terminate-measure mask --max-exp-steps 300 \
+    --save-dir ./_graph_/random_300

@@ -6,10 +6,10 @@ python3 HRL/eval_motion.py --task-name roomnav --env-set test \
     --segmentation-input none --depth-input \
     --success-measure see --multi-target --include-object-target \
     --motion random \
-    --max-episode-len 100 --max-iters 5000 \
+    --max-episode-len 50 --max-iters 5000 \
     --only-eval-object-target \
     --store-history \
-    --log-dir ./log/graph/eval/pure_random
+    --log-dir ./log/graph/eval/pure_random_object_50
 
 # --max-birthplace-steps 15
 # --only-eval-object-target
