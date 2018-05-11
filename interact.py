@@ -67,7 +67,7 @@ def evaluate(house, seed = 0, render_device=None,
     args['no_skip_connect'] = no_skip_connect
     args['feed_forward'] = feed_forward
     if (fixed_target is not None) and (fixed_target != 'any-room') and (fixed_target != 'any-object'):
-        assert fixed_target in common.n_target_instructions, 'invalid fixed target <{}>'.format(fixed_target)
+        assert fixed_target in common.all_target_instructions, 'invalid fixed target <{}>'.format(fixed_target)
 
     if 'any' in fixed_target:
         common.ensure_object_targets(True)
@@ -193,7 +193,8 @@ def evaluate(house, seed = 0, render_device=None,
 
         while True:
             print('Step#%d, Instruction = <go to %s>' % (step, target))
-            print('  ->>>> supervision = {}'.format(get_supervision_name(env.info['supervision'])))
+            if cache_supervision:
+                print('  ->>>> supervision = {}'.format(get_supervision_name(env.info['supervision'])))
             mat = env.debug_show()
             mat = cv2.resize(mat, (800, 600), interpolation=cv2.INTER_NEAREST)
             cv2.imshow("aaa", mat)
@@ -338,7 +339,7 @@ def parse_args():
     parser.add_argument("--no-outdoor-target", dest='outdoor_target', action='store_false',
                         help="when this flag is set, we will exclude <outdoor> target")
     parser.set_defaults(outdoor_target=True)
-    parser.add_argument("--eval-target-type", choices=['all', 'only-room', 'only-object'], default='only-object',
+    parser.add_argument("--eval-target-type", choices=['all', 'only-room', 'only-object', 'kitchen'], default='only-object',
                         help="the type of targets to evaluate on")
     parser.add_argument("--fixed-target", choices=common.ALLOWED_TARGET_ROOM_TYPES + common.ALLOWED_OBJECT_TARGET_TYPES,
                         help="once set, all the episode will be fixed to a specific target.")
@@ -425,13 +426,15 @@ if __name__ == '__main__':
     else:
         model_name = 'cnn'
 
-    assert args.object_target
+    #assert args.object_target
 
     fixed_target = None
     if args.eval_target_type == 'only-room':
         fixed_target = 'any-room'
     elif args.eval_target_type == 'only-object':
         fixed_target = 'any-object'
+    elif args.eval_target_type == 'kitchen':
+        fixed_target = 'kitchen'
 
     evaluate(args.house, args.seed or 0, 0, 10000, 10000,
              task_name=args.task_name, false_rate=args.false_rate,
