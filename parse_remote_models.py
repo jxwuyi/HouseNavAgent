@@ -1,6 +1,7 @@
 import os, sys, json, time
 
 prefix = '/mnt/vol/gfsai-bistro-east/ai-group/bistro/gpu/yiw/'
+#dates = ["20180511"]
 dates = ['20180510', '20180511']
 
 all_repos = []
