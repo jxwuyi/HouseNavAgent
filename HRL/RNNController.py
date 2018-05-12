@@ -310,8 +310,8 @@ class RNNPlanner(object):
     motion_steps: maximum steps of motion execution
     planner_step: maximum of planner steps
     """
-    def learn(self, n_iters=10000, episode_len=300,
-              motion_steps=50, planner_step=10, batch_size=64,
+    def learn(self, n_iters=10000, episode_len=300, target=None,
+              motion_steps=50, planner_steps=10, batch_size=64,
               lrate=0.001, weight_decay=0.00001, entropy_penalty=0.01,
               gamma=0.99, time_penalty=0.1, success_reward=2,
               grad_clip=1,
@@ -345,7 +345,7 @@ class RNNPlanner(object):
             for _ep in range(batch_size):
                 cur_obs = []
                 cur_info = []
-                self.task.reset()
+                self.task.reset(target=target)
                 final_target_name = task.get_current_target()
                 final_target_id = combined_target_index[final_target_name]
                 final_target = _target_to_one_hot(final_target_id)
@@ -360,7 +360,7 @@ class RNNPlanner(object):
                 ep_steps = 0
                 ep_reward = 0
                 # episode
-                for _step in range(planner_step):
+                for _step in range(planner_steps):
                     planner_input_np = np.concatenate([last_feature,
                                                        accu_mask,
                                                        _target_to_one_hot(last_option),
@@ -423,6 +423,7 @@ class RNNPlanner(object):
                 self.save(save_dir)
             _log_it(logger, '> Total Time Elasped = %.4fs' % (time.time() - ts))
 
+        self.save(save_dir, version='final')
         dur = time.time() - ts
         _log_it(logger, ("Training Done! Total Computation Time = %.4fs" % dur))
         return train_stats, eval_stats
