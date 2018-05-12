@@ -97,7 +97,8 @@ def evaluate(args):
                             use_discrete_action=True,
                             include_object_target=args['object_target'] and (fixed_target != 'any-room'),
                             include_outdoor_target=args['outdoor_target'],
-                            discrete_angle=True)
+                            discrete_angle=True,
+                            min_birthplace_grids=args['min_birthplace_grids'])
 
     if (fixed_target is not None) and (fixed_target != 'any-room') and (fixed_target != 'any-object'):
         task.reset_target(fixed_target)
@@ -215,6 +216,8 @@ def parse_args():
     parser.add_argument("--seed", type=int, default=0, help="random seed")
     parser.add_argument("--hardness", type=float, help="real number from 0 to 1, indicating the hardness of the environment")
     parser.add_argument("--max-birthplace-steps", type=int, help="int, the maximum steps required from birthplace to target")
+    parser.add_argument("--min-birthplace-grids", type=int, default=0,
+                        help="int, the minimum grid distance of the birthplace towards target. Default 0, namely possible to born with gird_dist=0.")
     parser.add_argument("--segmentation-input", choices=['none', 'index', 'color', 'joint'], default='none',
                         help="whether to use segmentation mask as input; default=none; <joint>: use both pixel input and color segment input")
     parser.add_argument("--resolution", choices=['normal', 'low', 'tiny', 'high', 'square', 'square_low'], default='normal',
