@@ -12,12 +12,17 @@ all_objects = common.ALLOWED_OBJECT_TARGET_TYPES
 
 # model stored in <./_model_/nips_HRL/seg_large_birth15/only-XXXX/>
 #  or .../any-object or .../any-room
-room_model_dir = './_model_/nips_HRL/visual_large_birth15/'
-object_model_dir = './_model_/nips_HRL/seg_mask_large_birth15/'
+#room_model_dir = './_model_/nips_HRL/visual_large_birth15/'
+#object_model_dir = './_model_/nips_HRL/seg_mask_large_birth15/'
+
+room_model_dir = './_model_/nips_tune_old/seg_large_c5_3_1w/'   # visual_large_c5_3_1w
+object_model_dir = './_model_/nips_tune_old/seg_mask_large_c3-3-1w/'
+
+save_dir = './_graph_/mix_motion/nips_tune_old/seg_mask/'
+if not os.path.exists(save_dir):
+    os.makedirs(save_dir)
 
 flag_joint_object_model = True
-
-save_dir = './_graph_/mix_motion/visual_seg_mask/'
 
 motion_dict = dict()
 
