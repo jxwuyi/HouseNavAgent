@@ -23,7 +23,7 @@ def learn_controller(args):
     # Do not need to log detailed computation stats
     common.debugger = utils.FakeLogger()
 
-    if args.object_target:
+    if args['object_target']:
         common.ensure_object_targets()
 
     set_seed(args['seed'])
@@ -191,7 +191,7 @@ if __name__ == '__main__':
     filename = args.save_dir
     if filename[-1] != '/':
         filename = filename + '/'
-    filenme = filename + 'learning_args.json'
+    filename = filename + 'learning_args.json'
     with open(filename, 'w') as f:
         json.dump(dict_args, f)
 

@@ -42,6 +42,8 @@ for i, t in enumerate(combined_target_list):
 
 n_mask_feature = len(ALLOWED_OBJECT_TARGET_TYPES) + len(ALLOWED_TARGET_ROOM_TYPES)   # 23
 
+n_planner_input_feature = n_mask_feature * 4
+
 n_rooms = len(ALLOWED_TARGET_ROOM_TYPES)
 n_objects = len(ALLOWED_OBJECT_TARGET_TYPES)
 
@@ -64,25 +66,25 @@ def process_batch_data(batched_data, time_penalty, success_reward):
     batch_size = len(batched_data)
     seq_len = max([len(info) for obs, info in batched_data])
     # X: [batch, seq_len, feature_dim]
-    X = torch.zeros((batch_size, seq_len + 1, n_mask_feature)).type(FloatTensor)
+    X = torch.zeros((batch_size, seq_len + 1, n_planner_input_feature)).type(FloatTensor)
     Act = torch.zeros((batch_size, seq_len)).type(LongTensor)
     R = torch.zeros((batch_size, seq_len)).type(FloatTensor)
     Done = torch.zeros((batch_size, seq_len)).type(FloatTensor)
     Mask = torch.zeros((batch_size, seq_len)).type(FloatTensor)
     it = 0
-    for obs, info in data:
+    for obs, info in batched_data:
         n = len(info)
         X[it, :n+1, :] = torch.stack(obs, dim=0)
         for i, info_t in enumerate(info):
             opt, _, d = info_t
-            Act[it, i] = opt
+            Act[it, i] = int(opt)
         if info[-1][2]:
             Done[it, n - 1] = 1
             if n > 1:
-                R[it, :n-2] = -time_penalty
+                R[it, :n-1] = -time_penalty
             R[it, n-1] = success_reward
         else:
-            R[it, :n-1] = -time_penalty
+            R[it, :n] = -time_penalty
         Mask[it, :n] = 1
         it += 1
     return X, Act, R, Done, Mask
@@ -168,7 +170,7 @@ class SimpleRNNPolicy(torch.nn.Module):
             nxt_h = (nxt_h[0].data, nxt_h[1].data)
 
         # compute action
-        feat = output.view(-1, self.hidden_units)
+        feat = output.contiguous().view(-1, self.hidden_units)
         flat_logits = self.policy_layer(feat)
         self.logits = ret_logits = flat_logits.view(batch_size, seq_len, self.output_dim)
         if sample_action:
@@ -214,7 +216,7 @@ class RNNPlanner(object):
         self.task = motion.task
         self.env = self.task.env
         self.motion = motion
-        self.n_obs_dim = n_mask_feature * 4  # feature, accu_feature, target, last_option
+        self.n_obs_dim = n_planner_input_feature  # feature, accu_feature, target, last_option
         self.n_act_dim = n_mask_feature
         self.rnn_units = rnn_units
         self.policy = SimpleRNNPolicy(self.n_obs_dim, self.n_act_dim, self.rnn_units)
@@ -223,6 +225,7 @@ class RNNPlanner(object):
         if warmstart is not None:
             print('[RNNPlanner] Loading Planner Policy ...')
             load_policy(self.policy, warmstart)
+        self.save_dir=None
         # execution parameters
         self.last_option = -1
         self.accu_mask = np.zeros(n_mask_feature, dtype=np.uint8)
@@ -274,7 +277,7 @@ class RNNPlanner(object):
         # backprop
         loss = pg_loss + critic_loss
         loss.backward()
-        L_norm = torch.sum((L * Mask) ** 2) / n_samples
+        L_norm = torch.sum(torch.sum(L**2, dim=-1) * Mask) / n_samples
         ret_dict = dict(pg_loss=pg_loss.data.cpu().numpy()[0],
                         policy_entropy=P_Ent.data.cpu().numpy()[0],
                         critic_loss=critic_loss.data.cpu().numpy()[0],
@@ -288,9 +291,9 @@ class RNNPlanner(object):
     def _show_stats(self, episode_stats, eval_range=500):
         cur_stats = episode_stats[-eval_range:]
         succ_rate = _my_mean([stat['good'] for stat in cur_stats])
-        avg_opt = _my_mean([stat['options'] for stat in cur_stats])
+        avg_opt = _my_mean([len(stat['options']) for stat in cur_stats])
         avg_rew = _my_mean([stat['reward'] for stat in cur_stats])
-        succ_avg_opt = _my_mean([stats['options'] for stats in cur_stats if stats['good'] > 0])
+        succ_avg_opt = _my_mean([len(stats['options']) for stats in cur_stats if stats['good'] > 0])
         succ_avg_steps = _my_mean([stats['steps'] for stats in cur_stats if stats['good'] > 0])
         succ_avg_meters = _my_mean([stats['meters'] for stats in cur_stats if stats['good'] > 0])
         _log_it(self.logger, '++++++++++++ Training Stats +++++++++++')
@@ -301,6 +304,14 @@ class RNNPlanner(object):
         _log_it(self.logger, "  > Avg. Succ Options = %.4f" % succ_avg_opt)
         _log_it(self.logger, "  > Avg. Succ Meters = %.4f" % succ_avg_meters)
         _log_it(self.logger, '+++++++++++++++++++++++++++++++++++++++')
+        if succ_rate > self.best_succ_rate:
+            _log_it(self.logger, " ----> Best Succ Model Stored!")
+            self.save(self.save_dir, version='succ')
+            self.best_succ_rate = succ_rate
+        if avg_rew > self.best_reward:
+            _log_it(self.logger, " ----> Best Reward Model Stored!")
+            self.save(self.save_dir, version='reward')
+            self.best_reward = avg_rew
         return dict(succ_rate=succ_rate, avg_rew=avg_rew, avg_opt=avg_opt,
                     succ_avg_opt=succ_avg_opt,succ_avg_steps=succ_avg_steps,succ_avg_meters=succ_avg_meters)
 
@@ -319,6 +330,9 @@ class RNNPlanner(object):
               report_rate=5, eval_rate=20, save_rate=100,
               save_dir=None):
         ts = time.time()
+        self.best_succ_rate = 0
+        self.best_reward = -10000
+        self.save_dir=save_dir
         if seed is not None:
             np.random.seed(seed)
         self.logger = logger
@@ -330,7 +344,7 @@ class RNNPlanner(object):
         self.init_h = self.policy.get_zero_state(batch_size, return_variable=True)
         # run iterations
         total_episodes = 0
-        episode_stats = dict(good=[], meters=[], target=[], steps=[])
+        episode_stats = [] # dict(good=[], meters=[], target=[], steps=[], options=[], reward=[])
         train_stats = []
         eval_stats = []
         best_eval_rate = 0
@@ -346,7 +360,7 @@ class RNNPlanner(object):
                 cur_obs = []
                 cur_info = []
                 self.task.reset(target=target)
-                final_target_name = task.get_current_target()
+                final_target_name = self.task.get_current_target()
                 final_target_id = combined_target_index[final_target_name]
                 final_target = _target_to_one_hot(final_target_id)
                 accu_mask = _target_to_one_hot(-1)
@@ -355,8 +369,11 @@ class RNNPlanner(object):
                 last_h = self.policy.get_zero_state()
                 flag_done = False
                 # store episode stats
-                episode_stats['meters'].append(self.task.info['meters'])
-                episode_stats['target'].append(final_target_name)
+                cur_stats = dict(meters=self.task.info['meters'],
+                                 target=final_target_name,
+                                 options=[])
+                #episode_stats['meters'].append()
+                #episode_stats['target'].append(final_target_name)
                 ep_steps = 0
                 ep_reward = 0
                 # episode
@@ -368,9 +385,11 @@ class RNNPlanner(object):
                     planner_input = torch.from_numpy(planner_input_np).type(FloatTensor)
                     cur_obs.append(planner_input)  # store data
                     # get current option
-                    act_ts = self.policy(Variable(planner_input.view(1, 1, -1)), last_h, sample_action=True, return_tensor=True)  # [batch, seq]
-                    last_option = act_ts.cpu().numpy().flatten()[0]
+                    act_ts, nxt_h = self.policy(Variable(planner_input.view(1, 1, -1)), last_h, sample_action=True)  # [batch, seq]
+                    last_option = act_ts.data.cpu().numpy().flatten()[0]
+                    last_h = nxt_h
                     total_samples += 1
+                    cur_stats['options'].append(last_option)
                     # run locomotion
                     motion_data = self.motion.run(combined_target_list[last_option], motion_steps)
                     # process data
@@ -379,10 +398,11 @@ class RNNPlanner(object):
                         accu_mask |= dat[0]
                         ep_steps += 1
                         if dat[0][final_target_id] > 0:
+                            # TODO: Currently using mask to check whether done! should use "--success-measure"
                             flag_done = True
                             last_feature = dat[0]
                             break
-                    cur_info.append((last_option, flag_done, flag_done or (motion_data[-1][last_option] > 0)))
+                    cur_info.append((last_option, flag_done, flag_done or (motion_data[-1][0][last_option] > 0)))
                     if flag_done:
                         ep_reward += success_reward
                         break
@@ -390,16 +410,16 @@ class RNNPlanner(object):
                     ep_reward -= time_penalty
                     last_feature = motion_data[-1][0]
                 # update epsiode stats
-                episode_stats['steps'].append(ep_steps)
-                episode_stats['good'].append(1 if flag_done else 0)
-                episode_stats['options'].append(len(cur_info))
-                episode_stats['reward'].append(ep_reward)
+                cur_stats['steps'] = ep_steps
+                cur_stats['good'] = (1 if flag_done else 0)
+                cur_stats['reward'] = ep_reward
+                episode_stats.append(cur_stats)
                 # extra frame for actor-critic
                 planner_input_np = np.concatenate([last_feature, accu_mask, _target_to_one_hot(last_option), final_target])
                 cur_obs.append(torch.from_numpy(planner_input_np).type(FloatTensor))
                 data.append((cur_obs, cur_info))
             # show stats
-            _log_it(logger, '  --> Done! Total <{}> Samples Collected! Batch Time Elapsed = %.4fs' % (time.time() - tt))
+            _log_it(logger, '  --> Done! Total <%d> Planner Samples Collected! Batch Time Elapsed = %.4fs' % (total_samples, time.time() - tt))
             if (_iter + 1) % eval_rate == 0:
                 stats = self._show_stats(episode_stats)
                 if (save_dir is not None) and (stats['succ_rate'] > best_eval_rate):
@@ -418,7 +438,7 @@ class RNNPlanner(object):
             if (_iter + 1) % report_rate == 0:
                 key_lis = sorted(list(stats.keys()))
                 for k in key_lis:
-                    _log_it(logger, '    >>> {} = {}'.format(k, stats[k]))
+                    _log_it(logger, '    >>> %s = %.4f' % (k, stats[k]))
             if (save_dir is not None) and ((_iter + 1) % save_rate == 0):
                 self.save(save_dir)
             _log_it(logger, '> Total Time Elasped = %.4fs' % (time.time() - ts))
