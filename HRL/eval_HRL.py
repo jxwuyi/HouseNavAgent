@@ -9,6 +9,7 @@ import random
 
 from HRL.eval_motion import create_motion
 from HRL.BayesGraph import GraphPlanner
+from HRL.RNNController import RNNPlanner
 
 
 def set_seed(seed):
@@ -85,7 +86,8 @@ def evaluate(args):
     graph = None
     max_motion_steps = args['n_exp_steps']
     if args['planner'] == 'rnn':
-        assert False, 'Currently only support Graph-planner'
+        #assert False, 'Currently only support Graph-planner'
+        graph = RNNPlanner(motion, args['planner_units'], args['planner_filename'])
     else:
         graph = GraphPlanner(motion)
         if not args['outdoor_target']:
@@ -277,6 +279,7 @@ def parse_args():
     # Planner Parameters
     parser.add_argument("--planner", choices=['rnn', 'graph', 'random'], default='graph', help='type of the planner')
     parser.add_argument("--planner-filename", type=str, help='parameters for the planners')
+    parser.add_argument("--planner-units", type=str, help='hidden units for planner, only effective when --planner rnn')
     parser.add_argument("--n-exp-steps", type=int, default=40, help='maximum number of steps for exploring a sub-policy')
     # Auxiliary Task Options
     parser.add_argument("--auxiliary-task", dest='aux_task', action='store_true',

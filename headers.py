@@ -174,3 +174,22 @@ class BaseMotion(object):
     """
     def reset(self):
         pass
+
+
+class BasePlanner(object):
+    def __init__(self, motion):
+        self.motion = motion
+        self.task = self.motion.task
+        self.env = self.task.env
+
+    def learn(self, **args):
+        raise NotImplementedError()
+
+    def observe(self, exp_data, target):
+        raise NotImplementedError()
+
+    def plan(self, mask, target):
+        raise NotImplementedError()
+
+    def reset(self):
+        raise NotImplementedError()

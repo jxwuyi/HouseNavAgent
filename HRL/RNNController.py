@@ -211,11 +211,12 @@ class SimpleRNNPolicy(torch.nn.Module):
 
 
 
-class RNNPlanner(object):
+class RNNPlanner(BasePlanner):
     def __init__(self, motion, rnn_units=50, warmstart=None):
-        self.task = motion.task
-        self.env = self.task.env
-        self.motion = motion
+        super(RNNPlanner, self).__init__(motion)
+        #self.task = motion.task
+        #self.env = self.task.env
+        #self.motion = motion
         self.n_obs_dim = n_planner_input_feature  # feature, accu_feature, target, last_option
         self.n_act_dim = n_mask_feature
         self.rnn_units = rnn_units

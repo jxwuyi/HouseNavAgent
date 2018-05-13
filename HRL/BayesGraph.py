@@ -76,11 +76,12 @@ def _log_it(logger, msg):
         logger.print(msg)
 
 
-class GraphPlanner(object):
-    def __init__(self, motion, task=None):
-        self.task = motion.task if motion is not None else task
-        self.env = self.task.env
-        self.motion = motion
+class GraphPlanner(BasePlanner):
+    def __init__(self, motion):
+        super(GraphPlanner, self).__init__(motion)
+        #self.task = motion.task
+        #self.env = self.task.env
+        #self.motion = motion
         self.n_param = n_rooms * (n_rooms - 1) // 2 + n_rooms * n_objects + 2
         self.conn_rooms = np.ones((n_rooms, n_rooms), dtype=np.float32)
         self.conn_objs = np.ones((n_rooms, n_objects), dtype=np.float32) * 0.1
@@ -283,7 +284,7 @@ class GraphPlanner(object):
         orig_mask = prev_mask = exp_data[0][0]
         full_mask = orig_mask.copy()
         visit = set()
-        for i, dat in enumerate(exp_data):
+        for dat in exp_data:
             msk = dat[0]  # dat = (mask, act, reward, done)
             full_mask |= msk
             if any(msk != prev_mask):
@@ -320,7 +321,7 @@ class GraphPlanner(object):
         # compute posterior
         self._update_graph(visit)
 
-    def plan(self, mask, target, return_list = False):
+    def plan(self, mask, target, return_list=False):
         # find shortest path towards target in self.graph
         target_id = combined_target_index[target]
         if mask[target_id] > 0:
