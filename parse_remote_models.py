@@ -30,20 +30,26 @@ def parse_key(repo):
         pos_only = [i for i, t in enumerate(term) if t == 'only'][-1]
         target = '_'.join(term[pos_only+1:])
     #birth = [t for t in term if t[:4] == 'step'][0]
-    if target != 'any-object':
-        return signal+','+target
-    else:
-        # flag of curriculum
+    # flag of curriculum
+    c_pos = [i for i, t in enumerate(term) if t == 'curr'][-1]
+    if target == 'any-object':
         curr = "c" + term[-1].replace(',', '-')
-        return signal+','+target+','+curr
+    else:
+        curr = "c" + '_'.join(term[c_pos+1:c_pos+4])
+    return signal+','+target+','+curr
 
-save_dir = 'remote_job_dirs.json'
+save_dir = 'remote_job_dirs'
 D = dict()
 for name, repo in all_repos:
     key = parse_key(name)
+    if key == "visual_mask,any-object,c3-3-15k":
+        with open(save_dir+'_old.json','w') as f:
+            json.dump(D,f)
+        D=dict()
+        print('++++++++++++++++++++ NEW +++++++++++++++++++')
     D[key] = repo
     print('{} --> <{}>'.format(key, repo))
 
-with open(save_dir,'w') as f:
+with open(save_dir + '.json','w') as f:
     json.dump(D,f)
 

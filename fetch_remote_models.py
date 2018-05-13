@@ -1,9 +1,12 @@
 import os, sys, json, time
 
-save_dir = "./_model_/nips_tune/"  # "./_model_/nips_HRL/"
+#save_dir = "./_model_/nips_tune/"  # "./_model_/nips_HRL/"
+#config_file = 'remote_job_dirs.json'
+
+save_dir = "./_model_/nips_tune_old/"  # "./_model_/nips_HRL/"
+config_file = 'remote_job_dirs_old.json'
 
 print('Loading Config ...')
-config_file = 'remote_job_dirs.json'
 with open(config_file, 'r') as f:
     D = json.load(f)
 print(' >> Done!')
