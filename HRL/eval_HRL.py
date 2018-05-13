@@ -136,7 +136,7 @@ def evaluate(args):
 
         while episode_step < max_episode_len:
             graph_target = graph.plan(task.get_feature_mask(), task_target)
-            graph_target_id = graph.get_target_index(graph_target)
+            graph_target_id = common.target_instruction_dict[graph_target]
             allowed_steps = min(max_episode_len - episode_step, max_motion_steps)
 
             motion_data = motion.run(graph_target, allowed_steps)
@@ -279,7 +279,7 @@ def parse_args():
     # Planner Parameters
     parser.add_argument("--planner", choices=['rnn', 'graph', 'random'], default='graph', help='type of the planner')
     parser.add_argument("--planner-filename", type=str, help='parameters for the planners')
-    parser.add_argument("--planner-units", type=str, help='hidden units for planner, only effective when --planner rnn')
+    parser.add_argument("--planner-units", type=int, help='hidden units for planner, only effective when --planner rnn')
     parser.add_argument("--n-exp-steps", type=int, default=40, help='maximum number of steps for exploring a sub-policy')
     # Auxiliary Task Options
     parser.add_argument("--auxiliary-task", dest='aux_task', action='store_true',

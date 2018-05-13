@@ -461,11 +461,12 @@ class RNNPlanner(BasePlanner):
                                        self.accu_mask,
                                        _target_to_one_hot(self.last_option),
                                        _target_to_one_hot(final_target_id)])
+        curr_feature = torch.from_numpy(curr_feature).type(FloatTensor)
         act_ts, self.last_hidden = self.policy(Variable(curr_feature.view(1, 1, -1)), self.last_hidden, sample_action=True)  # [batch, seq]
         act = act_ts.data.cpu().numpy().flatten()[0]  # option
         self.last_option = act
         self.accu_mask[:] = mask[:]
-        return act  # the option
+        return combined_target_list[act]  # the option
 
     def reset(self):
         self.last_option = -1
