@@ -36,7 +36,7 @@ class RNNMotion(BaseMotion):
     """
     return a list of [aux_mask, action, reward, done, info]
     """
-    def run(self, target, max_steps):
+    def run(self, target, max_steps, temperature=None):
         task = self.task
         trainer = self.trainer
         target_id = common.target_instruction_dict[target]
@@ -47,7 +47,9 @@ class RNNMotion(BaseMotion):
         obs = task._cached_obs
         for _st in range(max_steps):
             # get action
-            action, _ = trainer.action(obs, return_numpy=True, target=[[target_id]] if self.pass_target else None)
+            action, _ = trainer.action(obs, return_numpy=True,
+                                       target=[[target_id]] if self.pass_target else None,
+                                       temperature=temperature)
             action = int(action.squeeze())
             # environment step
             _, rew, done, info = task.step(action)
