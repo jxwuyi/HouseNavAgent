@@ -131,7 +131,26 @@ debugger = None
 def genCacheFile(houseID):
     return prefix + houseID + '/cachedmap1k.pkl'
 
-#######################
+##########################
+# Reward Shaping Related
+##########################
+def set_reward_shaping_params(args):
+    import House3D.roomnav as RN
+    assert args['reward_type'] == 'new', 'Only support reward shaping in <new> reward!'
+    if args['rew_shape_stay'] is not None:
+        RN.new_stay_room_reward=args['rew_shape_stay']
+    if args['rew_shape_leave'] is not None:
+        RN.new_leave_penalty=args['rew_shape_leave']
+    if args['rew_shape_collision'] is not None:
+        RN.collision_penalty_reward=args['rew_shape_collision']
+    if args['rew_shape_wrong_stop'] is not None:
+        r = args['rew_shape_wrong_stop']
+        if r > 0: r = -r
+        RN.wrong_stop_penalty = r
+    if args['rew_shape_time'] is not None:
+        RN.new_time_penalty_reward=args['rew_shape_time']
+
+##########################
 
 
 def create_args(model='random', gamma = 0.9, lrate = 0.001, critic_lrate = 0.001,

@@ -230,6 +230,12 @@ def parse_args():
     parser.add_argument("--no-outdoor-target", dest='outdoor_target', action='store_false',
                         help="when this flag is set, we will exclude <outdoor> target")
     parser.set_defaults(outdoor_target=True)
+    # Reward Shaping Parameters
+    parser.add_argument("--rew-shape-stay", type=float, help="stay_room_reward")
+    parser.add_argument("--rew-shape-leave", type=float, help="leave_penalty")
+    parser.add_argument("--rew-shape-collision", type=float, help="collision_penalty")
+    parser.add_argument("--rew-shape-wrong-stop", type=float, help="wrong_stop_penalty")
+    parser.add_argument("--rew-shape-time", type=float, help="time_penalty")
     ########################################################
     # ZMQ training parameters
     parser.add_argument("--train-gpu", type=int,
@@ -364,6 +370,9 @@ if __name__ == '__main__':
         cmd_args.grad_batch = 1
 
     args = cmd_args.__dict__
+
+    if any([args[k] is not None for k in args.keys() if 'rew_shape' in k]):
+        common.set_reward_shaping_params(args)
 
     args['model_name'] = 'rnn'
     args['scheduler'] = create_scheduler(cmd_args.scheduler)
