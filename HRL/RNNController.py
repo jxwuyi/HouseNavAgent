@@ -35,12 +35,17 @@ Observation-Shape: Dim = 23 * 4 = 92
   > last_action: 23
 """
 
+"""
 combined_target_list = ALLOWED_TARGET_ROOM_TYPES + ALLOWED_OBJECT_TARGET_TYPES
 combined_target_index = dict()
 for i, t in enumerate(combined_target_list):
     combined_target_index[t] = i
+"""
 
-n_mask_feature = len(ALLOWED_OBJECT_TARGET_TYPES) + len(ALLOWED_TARGET_ROOM_TYPES)   # 23
+combined_target_list = common.all_target_instructions
+combined_target_index = common.target_instruction_dict
+
+n_mask_feature = len(combined_target_list) #len(ALLOWED_OBJECT_TARGET_TYPES) + len(ALLOWED_TARGET_ROOM_TYPES)   # 23
 
 n_planner_input_feature = n_mask_feature * 4
 
@@ -317,6 +322,13 @@ class RNNPlanner(BasePlanner):
                     succ_avg_opt=succ_avg_opt,succ_avg_steps=succ_avg_steps,succ_avg_meters=succ_avg_meters)
 
 
+    def _get_feature_mask(self, feat=None):
+        if feat is None:
+            feat = self.task.get_feature_mask()
+        if feat.shape[0] == n_mask_feature:
+            return feat
+        return feat[:n_mask_feature]
+
     """
     n_iters: training iterations
     motion_steps: maximum steps of motion execution
@@ -365,7 +377,7 @@ class RNNPlanner(BasePlanner):
                 final_target_id = combined_target_index[final_target_name]
                 final_target = _target_to_one_hot(final_target_id)
                 accu_mask = _target_to_one_hot(-1)
-                last_feature = self.task.get_feature_mask()
+                last_feature = self._get_feature_mask() #self.task.get_feature_mask()
                 last_option = -1
                 last_h = self.policy.get_zero_state()
                 flag_done = False
@@ -396,12 +408,12 @@ class RNNPlanner(BasePlanner):
                     # process data
                     accu_mask = last_feature
                     for dat in motion_data[:-1]:
-                        accu_mask |= dat[0]
+                        accu_mask |= self._get_feature_mask(dat[0])
                         ep_steps += 1
                         if dat[0][final_target_id] > 0:
                             # TODO: Currently using mask to check whether done! should use "--success-measure"
                             flag_done = True
-                            last_feature = dat[0]
+                            last_feature = self._get_feature_mask(dat[0])
                             break
                     cur_info.append((last_option, flag_done, flag_done or (motion_data[-1][0][last_option] > 0)))
                     if flag_done:
@@ -409,7 +421,7 @@ class RNNPlanner(BasePlanner):
                         break
                     ep_steps += 1
                     ep_reward -= time_penalty
-                    last_feature = motion_data[-1][0]
+                    last_feature = self._get_feature_mask(motion_data[-1][0])
                 # update epsiode stats
                 cur_stats['steps'] = ep_steps
                 cur_stats['good'] = (1 if flag_done else 0)
@@ -452,12 +464,12 @@ class RNNPlanner(BasePlanner):
     def observe(self, exp_data, target):
         for dat in exp_data[:-1]:
             # dat = (mask, act, reward, done)
-            self.accu_mask |= dat[0]
+            self.accu_mask |= self._get_feature_mask(dat[0])
 
     def plan(self, mask, target):
-        self.last_mask = mask
+        self.last_mask = self._get_feature_mask(mask)
         final_target_id = combined_target_index[target]
-        curr_feature = np.concatenate([mask,
+        curr_feature = np.concatenate([self.last_mask,
                                        self.accu_mask,
                                        _target_to_one_hot(self.last_option),
                                        _target_to_one_hot(final_target_id)])
@@ -465,7 +477,7 @@ class RNNPlanner(BasePlanner):
         act_ts, self.last_hidden = self.policy(Variable(curr_feature.view(1, 1, -1)), self.last_hidden, sample_action=True)  # [batch, seq]
         act = act_ts.data.cpu().numpy().flatten()[0]  # option
         self.last_option = act
-        self.accu_mask[:] = mask[:]
+        self.accu_mask[:] = self.last_mask[:]
         return combined_target_list[act]  # the option
 
     def reset(self):
