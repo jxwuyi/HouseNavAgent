@@ -176,7 +176,7 @@ if __name__ == '__main__':
         print('Directory <{}> does not exist! Creating directory ...'.format(args.save_dir))
         os.makedirs(args.save_dir)
 
-    if args.motion not in ['fake', 'random']:
+    if args.motion in ['rnn']:
         assert args.motion_warmstart is not None
 
     if args.motion == 'mixture':

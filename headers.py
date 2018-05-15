@@ -153,7 +153,8 @@ class BaseMotion(object):
         if term_measure == 'stay':
             return is_stay
         if term_measure == 'see':
-            obs_seg = obs_seg or self.env.render(mode='semantic')
+            if obs_seg is None:
+                obs_seg = self.env.render(mode='semantic')
             object_color_list = self.task.room_target_object[self.env.house.targetRoomTp]
             _object_cnt = 0
             for c in object_color_list:

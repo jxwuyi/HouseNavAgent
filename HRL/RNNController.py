@@ -372,6 +372,7 @@ class RNNPlanner(BasePlanner):
             for _ep in range(batch_size):
                 cur_obs = []
                 cur_info = []
+                self.motion.reset()
                 self.task.reset(target=target)
                 final_target_name = self.task.get_current_target()
                 final_target_id = combined_target_index[final_target_name]
