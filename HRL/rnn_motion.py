@@ -21,24 +21,27 @@ n_rooms = len(ALLOWED_TARGET_ROOM_TYPES)
 class RNNMotion(BaseMotion):
     def __init__(self, task, trainer=None, pass_target=True, term_measure='mask'):
         super(RNNMotion, self).__init__(task, trainer, pass_target, term_measure)
-        self._interrupt = False
+        self._interrupt = None
 
     def reset(self):
         self.trainer.reset_agent()
-        self._interrupt = False
+        self._interrupt = None
 
     def is_interrupt(self):
+        if self._interrupt is None:
+            final_target = self.task.get_current_target()
+            final_target_id = common.target_instruction_dict[final_target]
+            if (final_target_id > n_rooms) and (final_target_id != target_id):
+                self._interrupt = self._is_insight(obs_seg=self.task._fetch_cached_segmentation(),
+                                                   n_pixel=100)  # see 100 pixels
+            else:
+                self._interrupt = False
         return self._interrupt
 
     def check_terminate(self, target_id, mask, act):
         if self.term_measure == 'interrupt':
-            final_target = self.task.get_current_target()
-            final_target_id = common.target_instruction_dict[final_target]
-            if (final_target_id > n_rooms) and (final_target_id != target_id):
-                self._interrupt = self._is_insight(obs_seg=self.task._fetch_cached_segmentation())
-            else:
-                self._interrupt = False
-            if self._interrupt:
+            self._interrupt = None
+            if self.is_interrupt():
                 return True
         if self.term_measure == 'see':
             return self._is_success(target_id, mask, self.term_measure,

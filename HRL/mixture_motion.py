@@ -88,7 +88,7 @@ class MixMotion(RNNMotion):
     def reset(self):
         for trainer in self.trainer_dict.values():
             trainer.reset_agent()
-        self._interrupt=False
+        self._interrupt=None
 
     """
     return a list of [aux_mask, action, reward, done, info]
