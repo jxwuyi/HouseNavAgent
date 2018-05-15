@@ -144,7 +144,22 @@ class BaseMotion(object):
         assert term_measure in ['mask', 'stay', 'see']
         self.term_measure = term_measure
 
-    def _is_success(self, target_id, mask=None, term_measure=None, is_stay=False, obs_seg=None):
+    def _is_insight(self, target_name=None, obs_seg=None, n_pixel=50):
+        if target_name is None:
+            target_name = self.task.get_current_target()
+        if obs_seg is None:
+            obs_seg = self.env.render(mode='semantic')
+        object_color_list = self.task.room_target_object[target_name]
+        _object_cnt = 0
+        for c in object_color_list:
+            cur_n = np.sum(np.all(obs_seg == c, axis=2))
+            _object_cnt += cur_n
+            if _object_cnt >= n_pixel:
+                return True
+        return False
+
+
+    def _is_success(self, target_id, mask=None, term_measure=None, is_stay=False, obs_seg=None, target_name=None):
         if mask is None: mask = self.task.get_feature_mask()
         if mask[target_id] == 0: return False
         if term_measure is None: term_measure = self.term_measure
@@ -153,15 +168,7 @@ class BaseMotion(object):
         if term_measure == 'stay':
             return is_stay
         if term_measure == 'see':
-            if obs_seg is None:
-                obs_seg = self.env.render(mode='semantic')
-            object_color_list = self.task.room_target_object[self.env.house.targetRoomTp]
-            _object_cnt = 0
-            for c in object_color_list:
-                cur_n = np.sum(np.all(obs_seg == c, axis=2))
-                _object_cnt += cur_n
-                if _object_cnt >= 50:
-                    return True
+            return self._is_insight(target_name, obs_seg)
         return False
 
     """

@@ -76,6 +76,7 @@ def evaluate(args):
     motion = create_motion(args, task)
     if args['motion'] == 'random':
         motion.set_skilled_rate(args['random_motion_skill'])
+    flag_interrupt = args['interruptive_motion']
 
     # logger
     logger = utils.MyLogger(args['log_dir'], True)
@@ -135,7 +136,10 @@ def evaluate(args):
             graph.reset()
 
         while episode_step < max_episode_len:
-            graph_target = graph.plan(task.get_feature_mask(), task_target)
+            if flag_interrupt and motion.is_interrupt():
+                graph_target = task.get_current_target()
+            else:
+                graph_target = graph.plan(task.get_feature_mask(), task_target)
             graph_target_id = common.target_instruction_dict[graph_target]
             allowed_steps = min(max_episode_len - episode_step, max_motion_steps)
 
@@ -239,6 +243,9 @@ def parse_args():
                         help="criteria for a successful episode")
     parser.add_argument("--terminate-measure", choices=['mask', 'stay', 'see'], default='mask',
                         help="criteria for terminating a motion execution")
+    parser.add_argument("--interruptive-motion", dest='interruptive_motion', action='store_true',
+                        help="[only affect for Obj-Nav with RNN/Mix Motion]")
+    parser.set_defaults(interruptive_motion=False)
     parser.add_argument("--multi-target", dest='multi_target', action='store_true',
                         help="when this flag is set, a new target room will be selected per episode")
     parser.set_defaults(multi_target=False)
@@ -321,6 +328,11 @@ if __name__ == '__main__':
 
     if args.seed is None:
         args.seed = 0
+
+    if args.interruptive_motion:
+        assert args.object_target
+        assert args.motion in ['rnn', 'mixture']
+        print('--> Using Interruptive Terminate Measure!')
 
     dict_args = args.__dict__
 
