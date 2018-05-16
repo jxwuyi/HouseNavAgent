@@ -69,7 +69,7 @@ class ZMQA3CTrainer(AgentTrainer):
 
     def _create_feature_tensor(self, feature, return_variable=True, volatile=False):
         # feature: a list of list of numpy.array
-        ret = torch.from_array(np.array(feature, dtype=np.uint8)).type(ByteTensor).type(FloatTensor)
+        ret = torch.from_numpy(np.array(feature, dtype=np.uint8)).type(ByteTensor).type(FloatTensor)
         if return_variable:
             ret = Variable(ret, volatile=volatile)
         return ret
@@ -318,11 +318,10 @@ class ZMQA3CTrainer(AgentTrainer):
             for t in range(t_max):
                 # cur_obs = obs[:, t:t+1, ...].contiguous()
                 cur_obs = obs_slices[t]
-                if self.multi_target:
-                    cur_target = target_slices[t]
-                else:
-                    cur_target = None
-                cur_logp, nxt_h = self.policy(cur_obs, cur_h, return_value=False, target=cur_target)
+                t_target = target_slices[t] if self.multi_target else None
+                t_mask = None if mask_input is None else mask_input_slices[t]
+                cur_logp, nxt_h = self.policy(cur_obs, cur_h, return_value=False,
+                                              target=t_target, extra_input_feature=t_mask)
                 cur_h = self.policy.mark_hidden_states(nxt_h, mask_var[:, t:t + 1])
                 new_logprobs.append(cur_logp)
             new_P = torch.cat(new_logprobs, dim=1)
