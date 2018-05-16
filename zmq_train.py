@@ -65,7 +65,9 @@ def create_policy(model_name, args, observation_shape, n_action):
                               use_target_gating=args['target_gating'],
                               aux_prediction=(common.n_aux_predictions if args['aux_task'] else None),
                               no_skip_connect=(args['no_skip_connect'] if 'no_skip_connect' in args else False),
-                              pure_feed_forward=(args['feed_forward'] if 'feed_forward' in args else False))
+                              pure_feed_forward=(args['feed_forward'] if 'feed_forward' in args else False),
+                              extra_feature_dim=(len(common.all_target_instructions) if args['mask_feature'] else None)
+                              )
     if common.use_cuda:
         if 'train_gpu' in args:
             model.cuda(device_id=args['train_gpu'])  # TODO: Actually we only support training on gpu_id=0
@@ -128,6 +130,7 @@ def create_zmq_config(args):
     config['object_target'] = args['object_target']
     config['fixed_target'] = args['fixed_target']
     config['aux_task'] = args['aux_task']
+    config['mask_feature_dim'] = len(common.all_target_instructions) if args['mask_feature'] else None
     config['cache_supervision'] = args['cache_supervision']
     config['outdoor_target'] = args['outdoor_target']
     return config
@@ -224,8 +227,11 @@ def parse_args():
                         help="when this flag is set, a new target room will be selected per episode")
     parser.set_defaults(multi_target=False)
     parser.add_argument("--include-object-target", dest='object_target', action='store_true',
-                        help="when this flag is set, target can be also a target. Only effective when --multi-target")
+                        help="when this flag is set, target can be also an object. Only effective when --multi-target")
     parser.set_defaults(object_target=False)
+    parser.add_argument("--include-mask-feature", dest='mask_feature', action='store_true',
+                        help="when this flag is set, mast_feature will be fed to the neural network.")
+    parser.set_defaults(mask_feature=False)
     parser.add_argument("--fixed-target", type=str, help="fixed training targets: candidate values room, object or any-room/object")
     parser.add_argument("--no-outdoor-target", dest='outdoor_target', action='store_false',
                         help="when this flag is set, we will exclude <outdoor> target")

@@ -20,6 +20,8 @@ class DiscreteRNNPolicy(torch.nn.Module):
                  target_embedding_dim=25,  # embedding dimension of target instruction
                  use_target_gating=False,
                  aux_prediction=None,
+                 ######## extra input feature ########
+                 extra_feature_dim=None,
                  ##### ablation test options ######
                  no_skip_connect=False,   # only take the output of rnn to produce policy
                  pure_feed_forward=False,   # when True, convert to feedforward policy
@@ -46,6 +48,7 @@ class DiscreteRNNPolicy(torch.nn.Module):
         self.target_embed_dim = target_embedding_dim
         self.aux_prediction = aux_prediction
         self.feed_forward = pure_feed_forward
+        self.extra_feature_dim = extra_feature_dim
         if pure_feed_forward:
             print('[RNN-Policy] <--pure-feed-forward> flag is TRUE!!! NO RNN module any more! Turning CNN Policy!!!!')
             no_skip_connect = True
@@ -112,6 +115,10 @@ class DiscreteRNNPolicy(torch.nn.Module):
                 setattr(self, 'target_transform_layer0', self.target_trans[-1])
                 utils.initialize_weights(self.target_trans[-1])
             self.rnn_input_size += target_embedding_dim  # feat instruction to rnn!
+
+        # any extra input feature
+        if self.extra_feature_dim is not None:
+            self.rnn_input_size += self.extra_feature_dim
 
         # build rnn
         self.cell_type = rnn_cell
@@ -230,7 +237,8 @@ class DiscreteRNNPolicy(torch.nn.Module):
     def forward(self, x, h, only_value = False, return_value=True, sample_action=False,
                 unpack_hidden=False, return_tensor=False, target=None,
                 compute_aux_pred=False, return_aux_logprob=True, sample_aux_pred=False,
-                temperature=None):
+                temperature=None,
+                extra_input_feature=None):
         """
         compute the forward pass of the model.
         @:param x: [batch, seq_len, n_channel, n_row, n_col]
@@ -241,6 +249,7 @@ class DiscreteRNNPolicy(torch.nn.Module):
         @:param compute_aux_pred: when True, also output aux-task prediction [batch, seq_len, n_aux_prediction]
         @:param return_aux_logprob: ONLY effect when <compute_aux_pred> is True. When False, return softmax-probability
         @:param sample_aux_pred: ONLY effect when <compute_aux_pred> is True. When True, return an aux-pred sample
+        @:param extra_input_feature: [batch, seq_len, extra_feature_dim]
         @:return (action, value, hiddens) or (action, hiddens) + [optional, aux-pred]
         """
         seq_len = x.size(1)
@@ -261,6 +270,8 @@ class DiscreteRNNPolicy(torch.nn.Module):
         if self.multi_target:
             target = target.view(batch, seq_len, self.target_embed_dim)
             rnn_input = torch.cat([rnn_input, target], dim=-1)
+        if self.extra_feature_dim is not None:
+            rnn_input = torch.cat([rnn_input, extra_input_feature], dim=-1)
 
         if isinstance(h, list): h = self._pack_hidden_states(h)
 

@@ -22,6 +22,7 @@ class RNNMotion(BaseMotion):
     def __init__(self, task, trainer=None, pass_target=True, term_measure='mask'):
         super(RNNMotion, self).__init__(task, trainer, pass_target, term_measure)
         self._interrupt = None
+        self._use_mask_feat_dim = hasattr(trainer.policy, 'extra_feature_dim') and trainer.policy.extra_feature_dim
 
     def reset(self):
         self.trainer.reset_agent()
@@ -52,6 +53,10 @@ class RNNMotion(BaseMotion):
                                     is_stay=(act==n_discrete_actions-1))
         return mask[target_id] > 0   # term_measure == 'mask'
 
+    def _get_feature_mask(self):
+        feat = self.task.get_feature_mask()
+        return feat[: self._use_mask_feat_dim]
+
     """
     return a list of [aux_mask, action, reward, done, info]
     """
@@ -65,10 +70,13 @@ class RNNMotion(BaseMotion):
         episode_stats = []
         obs = task._cached_obs
         for _st in range(max_steps):
+            # mask feature if necessary
+            mask = None if self._use_mask_feat_dim is None else self._get_feature_mask()
             # get action
             action, _ = trainer.action(obs, return_numpy=True,
                                        target=[[target_id]] if self.pass_target else None,
-                                       temperature=temperature)
+                                       temperature=temperature,
+                                       mask_input= None if mask is None else [[mask]])
             action = int(action.squeeze())
             # environment step
             _, rew, done, info = task.step(action)

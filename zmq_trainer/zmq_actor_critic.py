@@ -33,6 +33,7 @@ class ZMQA3CTrainer(AgentTrainer):
         # training args
         self.args = args
         self.multi_target = args['multi_target']
+        self.mask_feature = args['mask_feature']
         self.gamma = args['gamma'] if 'gamma' in args else 0.99
         self.lrate = args['lrate'] if 'lrate' in args else 0.001
         self.batch_size = args['batch_size'] if 'batch_size' in args else 64
@@ -65,6 +66,13 @@ class ZMQA3CTrainer(AgentTrainer):
 
     def set_greedy_execution(self):
         self._normal_execution = False
+
+    def _create_feature_tensor(self, feature, return_variable=True, volatile=False):
+        # feature: a list of list of numpy.array
+        ret = torch.from_array(np.array(feature, dtype=np.uint8)).type(ByteTensor).type(FloatTensor)
+        if return_variable:
+            ret = Variable(ret, volatile=volatile)
+        return ret
 
     def _create_target_tensor(self, targets, return_variable=True, volatile=False):
         batch = len(targets)
@@ -130,7 +138,7 @@ class ZMQA3CTrainer(AgentTrainer):
     def reset_agent(self):
         self._hidden = self.get_init_hidden()
 
-    def action(self, obs, hidden=None, return_numpy=False, target=None, temperature=None):
+    def action(self, obs, hidden=None, return_numpy=False, target=None, temperature=None, mask_input=None):
         if hidden is None:
             hidden = self._hidden
             self._hidden = None
@@ -139,9 +147,11 @@ class ZMQA3CTrainer(AgentTrainer):
         hidden = self._create_gpu_hidden(hidden, return_variable=True, volatile=True)  # a list of hidden tensors
         if target is not None:
             target = self._create_target_tensor(target, return_variable=True, volatile=True)
+        if mask_input is not None:
+            mask_input = self._create_feature_tensor(mask_input, return_variable=True, volatile=True)
         act, nxt_hidden = self.policy(obs, hidden, return_value=False, sample_action=self._normal_execution,
                                       unpack_hidden=True, return_tensor=True, target=target,
-                                      temperature=temperature)
+                                      temperature=temperature, extra_input_feature=mask_input)
         if self._hidden is None:
             self._hidden = nxt_hidden
         if return_numpy: # currently only for action
@@ -158,7 +168,8 @@ class ZMQA3CTrainer(AgentTrainer):
         pass
 
     def update(self, obs, init_hidden, act, rew, done,
-                target=None, supervision_mask=None, return_kl_divergence=True):
+                target=None, supervision_mask=None, mask_input=None,
+                return_kl_divergence=True):
         """
         :param obs:  list of list of [dims]...
         :param init_hidden: list of [layer, 1, units]
@@ -178,6 +189,8 @@ class ZMQA3CTrainer(AgentTrainer):
         init_hidden = self._create_gpu_hidden(init_hidden, return_variable=True)  # [layers, batch, units]
         if target is not None:
             target = self._create_target_tensor(target, return_variable=True)
+        if mask_input is not None:
+            mask_input = self._create_feature_tensor(mask_input, return_variable=True)
         act = Variable(torch.from_numpy(act).type(LongTensor))  # [batch, t_max]
         mask = 1.0 - torch.from_numpy(done).type(FloatTensor) # [batch, t_max]
         mask_var = Variable(mask)
@@ -198,30 +211,34 @@ class ZMQA3CTrainer(AgentTrainer):
         logits = []
         logprobs = []
         values = []
-        obs = obs
         t_obs_slices = torch.chunk(obs, t_max + 1, dim=1)
         obs_slices = [t.contiguous() for t in t_obs_slices]
         if target is not None:
             t_target_slices = torch.chunk(target, t_max + 1, dim=1)
             target_slices = [t.contiguous() for t in t_target_slices]
+        if mask_input is not None:
+            t_mask_input_slices = torch.chunk(mask_input, t_max + 1, dim=1)
+            mask_input_slices = [m.contiguous() for m in t_mask_input_slices]
         cur_h = init_hidden
         for t in range(t_max):
             #cur_obs = obs[:, t:t+1, ...].contiguous()
             cur_obs = obs_slices[t]
-            if target is not None:
-                cur_logp, cur_val, nxt_h = self.policy(cur_obs, cur_h, target=target_slices[t])
-            else:
-                cur_logp, cur_val, nxt_h = self.policy(cur_obs, cur_h)
+            t_target = None if target is None else target_slices[t]
+            t_mask = None if mask_input is None else mask_input_slices[t]
+            cur_logp, cur_val, nxt_h = self.policy(cur_obs, cur_h,
+                                                   target=t_target,
+                                                   extra_input_feature=t_mask)
             cur_h = self.policy.mark_hidden_states(nxt_h, mask_var[:, t:t+1])
             values.append(cur_val)
             logprobs.append(cur_logp)
             logits.append(self.policy.logits)
         #cur_obs = obs[:, t_max:t_max + 1, ...].contiguous()
         cur_obs = obs_slices[-1]
-        if target is not None:
-            nxt_val = self.policy(cur_obs, cur_h, only_value=True, return_tensor=True, target=target_slices[-1])
-        else:
-            nxt_val = self.policy(cur_obs, cur_h, only_value=True, return_tensor=True)
+        t_target = None if target is None else target_slices[-1]
+        t_mask = None if mask_input is None else mask_input_slices[-1]
+        nxt_val = self.policy(cur_obs, cur_h,
+                              only_value=True, return_tensor=True,
+                              target=t_target, extra_input_feature=t_mask)
         V = torch.cat(values, dim=1)  # [batch, t_max]
         P = torch.cat(logprobs, dim=1)  # [batch, t_max, n_act]
         L = torch.cat(logits, dim=1)
