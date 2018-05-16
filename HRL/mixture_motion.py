@@ -95,6 +95,8 @@ class MixMotion(RNNMotion):
     """
     def run(self, target, max_steps, temperature=None):
         self.trainer = self.trainer_dict[target]
+        if hasattr(self.trainer.policy, 'extra_feature_dim'):
+            self._use_mask_feat_dim = self.trainer.policy.extra_feature_dim
         self.pass_target = self.pass_target_dict[target]
         if self.obs_mode_dict is not None:
             obs_mode = self.obs_mode_dict[target]

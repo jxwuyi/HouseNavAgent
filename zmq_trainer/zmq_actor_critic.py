@@ -33,7 +33,7 @@ class ZMQA3CTrainer(AgentTrainer):
         # training args
         self.args = args
         self.multi_target = args['multi_target']
-        self.mask_feature = args['mask_feature']
+        self.mask_feature = args['mask_feature'] if 'mask_feature' in args else False
         self.gamma = args['gamma'] if 'gamma' in args else 0.99
         self.lrate = args['lrate'] if 'lrate' in args else 0.001
         self.batch_size = args['batch_size'] if 'batch_size' in args else 64

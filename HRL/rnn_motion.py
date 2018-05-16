@@ -22,7 +22,9 @@ class RNNMotion(BaseMotion):
     def __init__(self, task, trainer=None, pass_target=True, term_measure='mask'):
         super(RNNMotion, self).__init__(task, trainer, pass_target, term_measure)
         self._interrupt = None
-        self._use_mask_feat_dim = hasattr(trainer.policy, 'extra_feature_dim') and trainer.policy.extra_feature_dim
+        self._use_mask_feat_dim = (trainer is not None) and \
+                hasattr(trainer.policy, 'extra_feature_dim') and trainer.policy.extra_feature_dim
+        self._cached_target_id = None
 
     def reset(self):
         self.trainer.reset_agent()
@@ -32,7 +34,7 @@ class RNNMotion(BaseMotion):
         if self._interrupt is None:
             final_target = self.task.get_current_target()
             final_target_id = common.target_instruction_dict[final_target]
-            if (final_target_id > n_rooms) and (final_target_id != target_id):
+            if (final_target_id > n_rooms) and (final_target_id != self._cached_target_id):
                 self._interrupt = self._is_insight(obs_seg=self.task._fetch_cached_segmentation(),
                                                    n_pixel=100)  # see 100 pixels
             else:
@@ -42,6 +44,7 @@ class RNNMotion(BaseMotion):
     def check_terminate(self, target_id, mask, act):
         if self.term_measure == 'interrupt':
             self._interrupt = None
+            self._cached_target_id = target_id
             if self.is_interrupt():
                 return True
         if self.term_measure == 'see':
@@ -64,6 +67,7 @@ class RNNMotion(BaseMotion):
         task = self.task
         trainer = self.trainer
         target_id = common.target_instruction_dict[target]
+        #self._cached_target_id = target_id
         #trainer.set_target(target)
         consistent_target = (target == self.task.get_current_target())
 

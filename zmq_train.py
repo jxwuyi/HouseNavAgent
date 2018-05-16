@@ -66,7 +66,7 @@ def create_policy(model_name, args, observation_shape, n_action):
                               aux_prediction=(common.n_aux_predictions if args['aux_task'] else None),
                               no_skip_connect=(args['no_skip_connect'] if 'no_skip_connect' in args else False),
                               pure_feed_forward=(args['feed_forward'] if 'feed_forward' in args else False),
-                              extra_feature_dim=(len(common.all_target_instructions) if args['mask_feature'] else None)
+                              extra_feature_dim=(len(common.all_target_instructions) if ('mask_feature' in args) and args['mask_feature'] else None)
                               )
     if common.use_cuda:
         if 'train_gpu' in args:
@@ -130,7 +130,7 @@ def create_zmq_config(args):
     config['object_target'] = args['object_target']
     config['fixed_target'] = args['fixed_target']
     config['aux_task'] = args['aux_task']
-    config['mask_feature_dim'] = len(common.all_target_instructions) if args['mask_feature'] else None
+    config['mask_feature_dim'] = len(common.all_target_instructions) if ('mask_feature' in args) and args['mask_feature'] else None
     config['cache_supervision'] = args['cache_supervision']
     config['outdoor_target'] = args['outdoor_target']
     return config
