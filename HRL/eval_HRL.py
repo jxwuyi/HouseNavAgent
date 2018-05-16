@@ -100,7 +100,8 @@ def evaluate(args):
                 _params = pickle.load(f)
             graph.set_parameters(_params)
         # hack
-        #graph.set_param(-1, 0.85)
+        if args['planner_obs_noise'] is not None:
+            graph.set_param(-1, args['planner_obs_noise'])  # default 0.95
 
     episode_success = []
     episode_good = []
@@ -288,6 +289,7 @@ def parse_args():
     parser.add_argument("--planner-filename", type=str, help='parameters for the planners')
     parser.add_argument("--planner-units", type=int, help='hidden units for planner, only effective when --planner rnn')
     parser.add_argument("--n-exp-steps", type=int, default=40, help='maximum number of steps for exploring a sub-policy')
+    parser.add_argument("--planner-obs-noise", type=float, help="setting the parameters of observation noise")
     # Auxiliary Task Options
     parser.add_argument("--auxiliary-task", dest='aux_task', action='store_true',
                         help="Whether to perform auxiliary task of predicting room types")
