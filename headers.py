@@ -141,7 +141,7 @@ class BaseMotion(object):
         self.env = self.task.env
         self.trainer = trainer
         self.pass_target = pass_target
-        assert term_measure in ['mask', 'stay', 'see']
+        #assert term_measure in ['mask', 'stay', 'see']
         self.term_measure = term_measure
 
     def _is_insight(self, target_name=None, obs_seg=None, n_pixel=50):

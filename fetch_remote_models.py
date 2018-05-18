@@ -1,7 +1,10 @@
 import os, sys, json, time
 
-save_dir = "./_model_/nips_tune_obj/" #"./_model_/nips_tune/"  # "./_model_/nips_HRL/"
-config_file = 'remote_job_dirs_obj.json'
+save_dir = "./_model_/nips_mask_baseline/"
+config_file = "remote_job_dirs_mask.json"
+
+#save_dir = "./_model_/nips_tune_obj/" #"./_model_/nips_tune/"  # "./_model_/nips_HRL/"
+#config_file = 'remote_job_dirs_obj.json'
 
 #save_dir = "./_model_/nips_tune_old/"  # "./_model_/nips_HRL/"
 #config_file = 'remote_job_dirs_old.json'

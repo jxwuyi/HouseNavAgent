@@ -10,8 +10,8 @@ ts = time.time()
 all_rooms = common.ALLOWED_TARGET_ROOM_TYPES
 all_objects = common.ALLOWED_OBJECT_TARGET_TYPES
 
-#flag_joint_object_model = True
-flag_joint_object_model = False
+flag_joint_object_model = True
+#flag_joint_object_model = False
 
 # model stored in <./_model_/nips_HRL/seg_large_birth15/only-XXXX/>
 #  or .../any-object or .../any-room
@@ -34,9 +34,14 @@ flag_joint_object_model = False
 #object_model_dir.append('./_model_/nips_tune/visual_mask_large_c3-3-15k/')
 #save_dir.append('./_graph_/mix_motion/nips_tune/visual_mask/')
 
-room_model_dir = ['./_model_/nips_tune_old/seg_large_c5_3_1w/']
-object_model_dir = ['./_model_/nips_tune_obj/seg_large_c3_3_1w/']
-save_dir = ['./_graph_/mix_motion/nips_obj/seg/']
+#room_model_dir = ['./_model_/nips_tune_old/seg_large_c5_3_1w/']
+#object_model_dir = ['./_model_/nips_tune_obj/seg_large_c3_3_1w/']
+#save_dir = ['./_graph_/mix_motion/nips_obj/seg/']
+
+room_model_dir = ['./_model_/nips_mask_baseline/seg_large_c3_3_1w/']
+object_model_dir = ['./_model_/nips_tune_old/seg_mask_large_c3-3-1w/']
+save_dir = ['./_graph_/mix_motion/nips_mask_baseline/seg/']
+
 
 def create_dict(room_model_dir, object_model_dir, save_dir):
     if not os.path.exists(save_dir):

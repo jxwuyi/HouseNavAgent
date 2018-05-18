@@ -334,6 +334,7 @@ if __name__ == '__main__':
     if args.interruptive_motion:
         assert args.object_target
         assert args.motion in ['rnn', 'mixture']
+        args.terminate_measure = "interrupt"
         print('--> Using Interruptive Terminate Measure!')
 
     dict_args = args.__dict__

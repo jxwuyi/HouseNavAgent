@@ -1,7 +1,7 @@
 import os, sys, json, time
 
 prefix = '/mnt/vol/gfsai-bistro-east/ai-group/bistro/gpu/yiw/'
-dates = ["20180513"]
+dates = ["20180515"] #["20180513"]
 #dates = ['20180510', '20180511']
 
 all_repos = []
@@ -38,7 +38,7 @@ def parse_key(repo):
         curr = "c" + '_'.join(term[c_pos+1:c_pos+4])
     return signal+','+target+','+curr
 
-save_dir = 'remote_job_dirs_obj'
+save_dir = 'remote_job_dirs_mask'
 D = dict()
 for name, repo in all_repos:
     key = parse_key(name)
