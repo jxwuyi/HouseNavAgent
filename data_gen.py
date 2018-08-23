@@ -26,9 +26,6 @@ def create_data_gen_config(args):
     if args['render_gpu'] is not None:
         gpu_ids = args['render_gpu'].split(',')
         render_gpus = [all_gpus[int(k)] for k in gpu_ids]
-    elif args['train_gpu'] is not None:
-        k = args['train_gpu']
-        render_gpus = all_gpus[:k] + all_gpus[k+1:]
     else:
         render_gpus = all_gpus
     config['render_devices'] = tuple(render_gpus)
@@ -43,10 +40,13 @@ def create_data_gen_config(args):
     config['outdoor_target'] = args['outdoor_target']
 
     config['t_max'] = args['t_max']
+    config['seed'] = args['seed']
     return config
 
 
 def gen_data(args):
+    np.random.seed(args['seed'])
+    random.seed(args['seed'])
     part_id = args['part_id']
     print('>> Data Gen Part#{} Start (house range = {})...'.format(part_id, args['house_range']))
     log_rate = 5
@@ -74,6 +74,8 @@ def gen_data(args):
 
     # logging related
     report_index = set([int(n_samples // log_rate * i) for i in range(1, log_rate)])
+
+    print(' --> Part#%d: data collecting ....' % part_id)
 
     for i in range(n_samples):
         task.reset(target=target)
@@ -129,7 +131,7 @@ def run(args=None):
         cur_config['part_id'] = i
         cur_config['device_id'] = config['render_devices'][i % n_device]
         cur_config['storage_file'] = os.path.join(args['save_dir'], '/partition%d.pkl' % i)
-        proc_args.append(cur_config)
+        proc_args.append((cur_config,))
         prev_house_id += house_size
 
     from multiprocessing import Pool
