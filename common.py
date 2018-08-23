@@ -597,7 +597,7 @@ def create_house_from_index(k, genRoomTypeMap=False, cacheAllTarget=False, inclu
 
 def create_env(k=0,
                hardness=None, max_birthplace_steps=None,
-               reward_type='linear', success_measure='see',
+               reward_type='delta', success_measure='see',
                segment_input='none', depth_input=False,
                max_steps=-1,
                render_device=None,
@@ -613,7 +613,8 @@ def create_env(k=0,
                discrete_angle=True,
                cache_supervision=False,
                include_outdoor_target=True,
-               min_birthplace_grids=0):
+               min_birthplace_grids=0,
+               cache_discrete_angles=False):
     if render_device is None:
         render_device = get_gpus_for_rendering()[0]   # by default use the first gpu
     if segment_input is None:
@@ -622,10 +623,13 @@ def create_env(k=0,
     if cache_supervision:
         assert discrete_angle and use_discrete_action
         cacheAllTarget = True
-    if k >= 0:
+    if isinstance(k, tuple):  # a range of houses
+        assert (len(k) == 2) and (k[0] < k[1]) and (k[0] >= 0)
+        all_houses = [create_house_from_index(i, genRoomTypeMap, cacheAllTarget, include_object_target) for i in range(k[0], k[1])]
+        env = MultiHouseEnv(api, all_houses, config=CFG)
+    elif k >= 0:
         house = create_house_from_index(k, genRoomTypeMap, cacheAllTarget, include_outdoor_target)
         env = HouseEnv(api, house, config=CFG)
-
     else:  # multi-house environment
         all_houses = create_house_from_index(k, genRoomTypeMap, cacheAllTarget, include_outdoor_target)
         env = MultiHouseEnv(api, all_houses, config=CFG)
@@ -644,7 +648,8 @@ def create_env(k=0,
                 false_rate=false_rate,
                 discrete_angle=discrete_angle,
                 supervision_signal=cache_supervision,
-                min_birth_grid_dist=min_birthplace_grids)
+                min_birth_grid_dist=min_birthplace_grids,
+                cache_discrete_angles=cache_discrete_angles)
     return task
 
 
