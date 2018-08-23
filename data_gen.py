@@ -8,6 +8,8 @@ import os, sys, time, pickle, json, argparse
 import numpy as np
 import random
 
+FLAG_SANITY_CHECK = True
+
 def create_data_gen_config(args):
     config = dict()
 
@@ -28,15 +30,11 @@ def create_data_gen_config(args):
         k = args['train_gpu']
         render_gpus = all_gpus[:k] + all_gpus[k+1:]
     else:
-        if len(all_gpus) == 1:
-            render_gpus = all_gpus
-        else:
-            render_gpus = all_gpus[1:]
+        render_gpus = all_gpus
     config['render_devices'] = tuple(render_gpus)
     config['segment_input'] = args['segment_input']
     config['depth_input'] = args['depth_input']
     config['target_mask_input'] = args['target_mask_input']
-    config['max_episode_len'] = args['max_episode_len']
     config['success_measure'] = args['success_measure']
     config['multi_target'] = args['multi_target']
     config['object_target'] = args['object_target']
@@ -72,15 +70,21 @@ def gen_data(args):
     t_max = args['t_max']
     if t_max <= 0: t_max = None
     data = []
+    birth_infos = []
 
     # logging related
     report_index = set([int(n_samples // log_rate * i) for i in range(1, log_rate)])
 
     for i in range(n_samples):
         task.reset(target=target)
+        birth_infos.append(task.info)
         data.append(task.gen_supervised_plan(return_numpy_frames=True,
                                              max_allowed_steps=t_max,
                                              mask_feature_dim=args['mask_feature_dim']))  # np_frames, np_act, (optional) np_mask_feat
+
+        if FLAG_SANITY_CHECK:
+            assert task._sanity_check_supervised_plan(birth_infos[-1], data[-1][1])
+
         # logging
         if i in report_index:
             print(" ---> Part#%d: Finished %d / %d, Percent = %.3f, Time Elapsed = %.3f" % (part_id, i + 1, n_samples, (i + 1) / n_samples, time.time() - dur))
@@ -89,7 +93,7 @@ def gen_data(args):
     file_name = args['storage_file']
     print(" ---> Part#{}: Dumping to {} ...".format(part_id, file_name))
     with open(file_name, 'wb') as f:
-        pickle.dump([args, data], f)
+        pickle.dump([args, birth_infos, data], f)
     print(" ---> Part#%d: Done!" % part_id)
     return time.time() - dur
 
@@ -164,7 +168,7 @@ def parse_args():
                         help="resolution of visual input, default normal=[120 * 90]")
     #parser.add_argument("--history-frame-len", type=int, default=4,
     #                    help="length of the stacked frames, default=4")
-    parser.add_argument("--max-episode-len", type=int, default=50, help="maximum episode length")
+    #parser.add_argument("--max-episode-len", type=int, default=50, help="maximum episode length")
     parser.add_argument("--success-measure", choices=['see-stop', 'stop', 'stay', 'see'], default='see-stop',
                         help="criteria for a successful episode")
     parser.add_argument("--multi-target", dest='multi_target', action='store_true',
@@ -219,11 +223,14 @@ if __name__ == '__main__':
         assert cmd_args.fixed_target in allowed_targets, '--fixed-target specified an invalid target <{}>!'.format(cmd_args.fixed_target)
         if not ('any' in cmd_args.fixed_target):
             common.filter_house_IDs_by_target(cmd_args.fixed_target)
-            print('[ZMQ_Train.py] Filter Houses By Fixed-Target <{}> to N=<{}> Houses...'.format(cmd_args.fixed_target, len(common.all_houseIDs)))
+            print('[data_gen.py] Filter Houses By Fixed-Target <{}> to N=<{}> Houses...'.format(cmd_args.fixed_target, len(common.all_houseIDs)))
 
     if cmd_args.n_house > len(common.all_houseIDs):
-        print('[ZMQ_Train.py] No enough houses! Reduce <n_house> to [{}].'.format(len(common.all_houseIDs)))
+        print('[data_gen.py] No enough houses! Reduce <n_house> to [{}].'.format(len(common.all_houseIDs)))
         cmd_args.n_house = len(common.all_houseIDs)
+
+    assert cmd_args.n_proc <= cmd_args.n_partition
+    assert cmd_args.n_partition <= cmd_args.n_house
 
     if cmd_args.seed is not None:
         np.random.seed(cmd_args.seed)
