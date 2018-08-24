@@ -41,6 +41,8 @@ def create_data_gen_config(args):
 
     config['t_max'] = args['t_max']
     config['seed'] = args['seed']
+    config['log_rate'] = args['log_rate']
+    config['save_dir'] = args['save_dir']
     return config
 
 
@@ -49,8 +51,10 @@ def gen_data(args):
     random.seed(args['seed'])
     part_id = args['part_id']
     print('>> Data Gen Part#{} Start (house range = {})...'.format(part_id, args['house_range']))
-    log_rate = 5
+    log_rate = args['log_rate']
     dur = time.time()
+
+    logger = utils.MyLogger(args['save_dir'], clear_file=True, filename=args['log_file'], keep_file_handler=True)
 
     task = common.create_env(k=args['house_range'],hardness=args['hardness'],
                              max_birthplace_steps=args['max_birthplace_steps'],
@@ -75,7 +79,7 @@ def gen_data(args):
     # logging related
     report_index = set([int(n_samples // log_rate * i) for i in range(1, log_rate)])
 
-    print(' --> Part#%d: data collecting ....' % part_id)
+    logger.print(' --> Part#%d: data collecting ....' % part_id)
 
     for i in range(n_samples):
         task.reset(target=target)
@@ -85,20 +89,21 @@ def gen_data(args):
                                              mask_feature_dim=args['mask_feature_dim']))  # np_frames, np_act, (optional) np_mask_feat
 
         if FLAG_SANITY_CHECK:
-            assert task._sanity_check_supervised_plan(birth_infos[-1], data[-1][1])
+            assert task._sanity_check_supervised_plan(birth_infos[-1], data[-1][1], logger=logger)
             #okay_flag= task._sanity_check_supervised_plan(birth_infos[-1], data[-1][1])
             #print('SANITY = {}'.format(okay_flag))
 
         # logging
         if i in report_index:
-            print(" ---> Part#%d: Finished %d / %d, Percent = %.3f, Time Elapsed = %.3f" % (part_id, i + 1, n_samples, (i + 1) / n_samples, time.time() - dur))
+            elap = time.time() - dur
+            logger.print(" ---> Part#%d: Finished %d / %d, Percent = %.3f, Time Elapsed = %.3fs, Avg Elap = %.4fs" % (part_id, i + 1, n_samples, (i + 1) / n_samples, elap, elap / (i+1)))
 
-    print(" ---> Part#%d: Finished, Time Elapsed = %.3f" % (part_id, time.time() - dur))
+    logger.print(" ---> Part#%d: Finished, Time Elapsed = %.3f" % (part_id, time.time() - dur))
     file_name = args['storage_file']
-    print(" ---> Part#{}: Dumping to {} ...".format(part_id, file_name))
+    logger.print(" ---> Part#{}: Dumping to {} ...".format(part_id, file_name))
     with open(file_name, 'wb') as f:
         pickle.dump([args, birth_infos, data], f)
-    print(" ---> Part#%d: Done!" % part_id)
+    logger.print(" ---> Part#%d: Done!" % part_id)
     return time.time() - dur
 
 
@@ -134,6 +139,7 @@ def run(args=None):
         cur_config['device_id'] = config['render_devices'][i % n_device]
 
         cur_config['storage_file'] = os.path.join(args['save_dir'], 'partition%d.pkl' % i)
+        cur_config['log_file'] = 'partition%d_log.txt' % i
         proc_args.append((cur_config,))
         prev_house_id += house_size
 
@@ -204,7 +210,8 @@ def parse_args():
                         help="[Data] maximum number of horizon. <=0 if no constraint")
     parser.add_argument("--sample-size", type=int, default=10000,
                         help="[Data] number of data samples to generate. This will be uniformly distributed over houses")
-
+    parser.add_argument("--log-rate", type=int, default=5,
+                        help="[Data] number of times for recording progress in each partition")
     parser.add_argument("--sanity-check", dest='sanity_check', action="store_true",
                        help="[Data] Whether run sanity check")
     parser.set_defaults(sanity_check=False)
