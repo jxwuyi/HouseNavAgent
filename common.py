@@ -625,7 +625,7 @@ def create_env(k=0,
         cacheAllTarget = True
     if isinstance(k, tuple):  # a range of houses
         assert (len(k) == 2) and (k[0] < k[1]) and (k[0] >= 0)
-        all_houses = [create_house_from_index(i, genRoomTypeMap, cacheAllTarget, include_object_target) for i in range(k[0], k[1])]
+        all_houses = [create_house_from_index(i, genRoomTypeMap, cacheAllTarget, include_outdoor_target) for i in range(k[0], k[1])]
         env = MultiHouseEnv(api, all_houses, config=CFG)
     elif k >= 0:
         house = create_house_from_index(k, genRoomTypeMap, cacheAllTarget, include_outdoor_target)
