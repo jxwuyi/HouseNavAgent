@@ -43,6 +43,7 @@ def create_data_gen_config(args):
     config['seed'] = args['seed']
     config['log_rate'] = args['log_rate']
     config['save_dir'] = args['save_dir']
+    config['max_expansion'] = None if args['max_expansion'] <= 0 else args['max_expansion']
     return config
 
 
@@ -84,10 +85,15 @@ def gen_data(args):
     for i in range(n_samples):
         task.reset(target=target)
         birth_infos.append(task.info)
-        data.append(task.gen_supervised_plan(return_numpy_frames=True,
-                                             max_allowed_steps=t_max,
-                                             mask_feature_dim=args['mask_feature_dim'],
-                                             logger=logger))  # np_frames, np_act, (optional) np_mask_feat
+        while True:
+            cur_sample = task.gen_supervised_plan(return_numpy_frames=True,
+                                                  max_allowed_steps=t_max,
+                                                  mask_feature_dim=args['mask_feature_dim'],
+                                                  max_expansion=args['max_expansion'],
+                                                  logger=logger)  # np_frames, np_act, (optional) np_mask_feat
+            if cur_sample is not None:
+                break
+        data.append(cur_sample)
 
         if FLAG_SANITY_CHECK:
             logger.print('>> Data#{}...'.format(i))
@@ -216,7 +222,8 @@ def parse_args():
                         help="[Data] number of times for recording progress in each partition")
     parser.add_argument("--sanity-check", dest='sanity_check', action="store_true",
                        help="[Data] Whether run sanity check")
-    parser.set_defaults(sanity_check=False)
+    parser.add_argument("--max-expansion", type=int, default=0,
+                        help="[Data] Maximum States of A* expansion. Default 0, no constraint")
 
     ###################################################
     # Checkpointing
