@@ -8,7 +8,7 @@ CUDA_VISIBLE_DEVICES=0,1 python3 data_gen.py --seed 10 --env-set small \
     --success-measure see-stop \
     --multi-target --no-outdoor-target \
     --save-dir ./_sup_data_/test --log-rate 10 \
-    --max-expansion 200000 \
+    --max-expansion 100000 \
     --sanity-check
     # --render-gpu 0,1
     # --include-object-target

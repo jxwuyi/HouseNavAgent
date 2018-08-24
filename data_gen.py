@@ -83,9 +83,9 @@ def gen_data(args):
     logger.print(' --> Part#%d: data collecting ....' % part_id)
 
     for i in range(n_samples):
-        task.reset(target=target)
-        birth_infos.append(task.info)
         while True:
+            task.reset(target=target)
+            cur_info = task.info
             cur_sample = task.gen_supervised_plan(return_numpy_frames=True,
                                                   max_allowed_steps=t_max,
                                                   mask_feature_dim=args['mask_feature_dim'],
@@ -93,6 +93,7 @@ def gen_data(args):
                                                   logger=logger)  # np_frames, np_act, (optional) np_mask_feat
             if cur_sample is not None:
                 break
+        birth_infos.append(cur_info)
         data.append(cur_sample)
 
         if FLAG_SANITY_CHECK:
