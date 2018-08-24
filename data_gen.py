@@ -85,9 +85,9 @@ def gen_data(args):
                                              mask_feature_dim=args['mask_feature_dim']))  # np_frames, np_act, (optional) np_mask_feat
 
         if FLAG_SANITY_CHECK:
-            #assert task._sanity_check_supervised_plan(birth_infos[-1], data[-1][1])
-            okay_flag= task._sanity_check_supervised_plan(birth_infos[-1], data[-1][1])
-            print('SANITY = {}'.format(okay_flag))
+            assert task._sanity_check_supervised_plan(birth_infos[-1], data[-1][1])
+            #okay_flag= task._sanity_check_supervised_plan(birth_infos[-1], data[-1][1])
+            #print('SANITY = {}'.format(okay_flag))
 
         # logging
         if i in report_index:
@@ -205,6 +205,10 @@ def parse_args():
     parser.add_argument("--sample-size", type=int, default=10000,
                         help="[Data] number of data samples to generate. This will be uniformly distributed over houses")
 
+    parser.add_argument("--sanity-check", dest='sanity_check', action="store_true",
+                       help="[Data] Whether run sanity check")
+    parser.set_defaults(sanity_check=False)
+
     ###################################################
     # Checkpointing
     parser.add_argument("--save-dir", type=str, default="./_sup_data_", help="directory in which data samples are stored")
@@ -213,6 +217,8 @@ def parse_args():
 
 if __name__ == '__main__':
     cmd_args = parse_args()
+
+    FLAG_SANITY_CHECK = cmd_args.sanity_check
 
     assert cmd_args.success_measure == 'see-stop', 'currently only support success_measure <see-stop>'
 
