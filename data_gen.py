@@ -68,6 +68,7 @@ def gen_data(args):
                              include_object_target=args['object_target'],
                              target_mask_input=args['mask_feature_dim'],
                              include_outdoor_target=args['outdoor_target'],
+                             discrete_angle=True,
                              cache_supervision=False,
                              cache_discrete_angles=True)
     n_samples = args['sample_size']
@@ -152,9 +153,14 @@ def run(args=None):
         proc_args.append((cur_config,))
         prev_house_id += house_size
 
-    from multiprocessing import Pool
-    with Pool(n_proc) as pool:
-        time_elapsed = pool.starmap(gen_data, proc_args)  # parallel version for initialization
+    if n_proc > 1:
+        from multiprocessing import Pool
+        with Pool(n_proc) as pool:
+            time_elapsed = pool.starmap(gen_data, proc_args)  # parallel version for initialization
+    else:
+        time_elapsed = []
+        for config in proc_args:
+            time_elapsed.append(gen_data(*config))
     print('++++++++++ Done +++++++++++')
     print(' >> Accumulative Time Elapsed = %.3f' % sum(time_elapsed))
 
