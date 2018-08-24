@@ -2,6 +2,7 @@
 CUDA_VISIBLE_DEVICES=0,1 python3 data_gen.py --seed 0 --env-set small \
     --n-house 1 --n-partition 1 --n-proc 1 \
     --sample-size 10 --t-max -1 \
+    --include-object-target --fixed-target any-room \
     --hardness 0.6 --max-birthplace-steps 15 --min-birthplace-grids 1 \
     --segmentation-input color --depth-input --resolution normal \
     --success-measure see-stop \
