@@ -86,9 +86,11 @@ def gen_data(args):
         birth_infos.append(task.info)
         data.append(task.gen_supervised_plan(return_numpy_frames=True,
                                              max_allowed_steps=t_max,
-                                             mask_feature_dim=args['mask_feature_dim']))  # np_frames, np_act, (optional) np_mask_feat
+                                             mask_feature_dim=args['mask_feature_dim'],
+                                             logger=logger))  # np_frames, np_act, (optional) np_mask_feat
 
         if FLAG_SANITY_CHECK:
+            logger.print('>> Data#{}...'.format(i))
             assert task._sanity_check_supervised_plan(birth_infos[-1], data[-1][1], logger=logger)
             #okay_flag= task._sanity_check_supervised_plan(birth_infos[-1], data[-1][1])
             #print('SANITY = {}'.format(okay_flag))
