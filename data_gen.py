@@ -85,7 +85,9 @@ def gen_data(args):
                                              mask_feature_dim=args['mask_feature_dim']))  # np_frames, np_act, (optional) np_mask_feat
 
         if FLAG_SANITY_CHECK:
-            assert task._sanity_check_supervised_plan(birth_infos[-1], data[-1][1])
+            #assert task._sanity_check_supervised_plan(birth_infos[-1], data[-1][1])
+            okay_flag= task._sanity_check_supervised_plan(birth_infos[-1], data[-1][1])
+            print('SANITY = {}'.format(okay_flag))
 
         # logging
         if i in report_index:
@@ -130,7 +132,8 @@ def run(args=None):
         cur_config['house_range'] = (prev_house_id, prev_house_id + house_size)
         cur_config['part_id'] = i
         cur_config['device_id'] = config['render_devices'][i % n_device]
-        cur_config['storage_file'] = os.path.join(args['save_dir'], '/partition%d.pkl' % i)
+
+        cur_config['storage_file'] = os.path.join(args['save_dir'], 'partition%d.pkl' % i)
         proc_args.append((cur_config,))
         prev_house_id += house_size
 
