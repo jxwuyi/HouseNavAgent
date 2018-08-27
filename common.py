@@ -614,12 +614,16 @@ def create_env(k=0,
                cache_supervision=False,
                include_outdoor_target=True,
                min_birthplace_grids=0,
-               cache_discrete_angles=False):
+               cache_discrete_angles=False,
+               multithread_api=False):
     if render_device is None:
         render_device = get_gpus_for_rendering()[0]   # by default use the first gpu
     if segment_input is None:
         segment_input = 'none'
-    api = objrender.RenderAPI(w=resolution[0], h=resolution[1], device=render_device)
+    if multithread_api:
+        api = objrender.RenderAPIThread(w=resolution[0], h=resolution[1], device=render_device)
+    else:
+        api = objrender.RenderAPI(w=resolution[0], h=resolution[1], device=render_device)
     if cache_supervision:
         assert discrete_angle and use_discrete_action
         cacheAllTarget = True

@@ -70,7 +70,8 @@ def gen_data(args):
                              include_outdoor_target=args['outdoor_target'],
                              discrete_angle=True,
                              cache_supervision=False,
-                             cache_discrete_angles=True)
+                             cache_discrete_angles=True,
+                             multithread_api=True)
     n_samples = args['sample_size']
     target = args['fixed_target']
     t_max = args['t_max']
