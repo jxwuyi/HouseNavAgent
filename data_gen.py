@@ -125,6 +125,11 @@ def gen_data(args):
     logger.print(" ---> Part#{}: Dumping to {} ...".format(part_id, file_name))
     with open(file_name, 'wb') as f:
         pickle.dump([args, birth_infos, data], f)
+    if len(bad_cases) > 0:
+        file_name = args['badcase_file']
+        logger.print(" ---> Part#{}: Dumping Bad Cases to {} ...".format(part_id, file_name))
+        with open(file_name, 'wb') as f:
+            pickle.dump([args, bad_cases], f)
     logger.print(" ---> Part#%d: Done!" % part_id)
     return time.time() - dur
 
@@ -161,6 +166,7 @@ def run(args=None):
         cur_config['device_id'] = config['render_devices'][i % n_device]
 
         cur_config['storage_file'] = os.path.join(args['save_dir'], 'partition%d.pkl' % i)
+        cur_config['badcase_file'] = os.path.join(args['save_dir'], 'partition%d_badcase.pkl' % i)
         cur_config['log_file'] = 'partition%d_log.txt' % i
         proc_args.append((cur_config,))
         prev_house_id += house_size
