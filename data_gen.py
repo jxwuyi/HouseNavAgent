@@ -89,11 +89,17 @@ def gen_data(args):
         while True:
             task.reset(target=target)
             cur_info = task.info
-            cur_sample = task.gen_supervised_plan(return_numpy_frames=True,
-                                                  max_allowed_steps=t_max,
-                                                  mask_feature_dim=args['mask_feature_dim'],
-                                                  max_expansion=args['max_expansion'],
-                                                  logger=logger)  # np_frames, np_act, (optional) np_mask_feat
+            try:
+                cur_sample = task.gen_supervised_plan(return_numpy_frames=True,
+                                                      max_allowed_steps=t_max,
+                                                      mask_feature_dim=args['mask_feature_dim'],
+                                                      max_expansion=args['max_expansion'],
+                                                      logger=logger)  # np_frames, np_act, (optional) np_mask_feat
+            except Exception as e:
+                logger.print("############ Exception Caught ##############")
+                logger.print(str(e))
+                logger.print("############################################")
+                cur_sample = None
             if cur_sample is None:   # no path found
                 continue
 
