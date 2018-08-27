@@ -102,7 +102,7 @@ def gen_data(args):
             if FLAG_SANITY_CHECK:
                 logger.print('>> Part#%d: SANITY Check#%d...' % (part_id, i))
                 #assert task._sanity_check_supervised_plan(birth_infos[-1], data[-1][1], logger=logger)
-                okay_flag= task._sanity_check_supervised_plan(birth_infos[-1], data[-1][1])
+                okay_flag = task._sanity_check_supervised_plan(cur_info, cur_sample[1])
                 #print('SANITY = {}'.format(okay_flag))
                 if not okay_flag:
                     bad_cases.append((cur_info, cur_sample))
