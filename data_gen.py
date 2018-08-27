@@ -100,13 +100,13 @@ def gen_data(args):
             ################
             # a path found!
             if FLAG_SANITY_CHECK:
-                logger.print('>> Data#{}...'.format(i))
+                logger.print('>> Part#%d: SANITY Check#%d...' % (part_id, i))
                 #assert task._sanity_check_supervised_plan(birth_infos[-1], data[-1][1], logger=logger)
                 okay_flag= task._sanity_check_supervised_plan(birth_infos[-1], data[-1][1])
                 #print('SANITY = {}'.format(okay_flag))
                 if not okay_flag:
                     bad_cases.append((cur_info, cur_sample))
-                    logger.print('  -->>> SANITY Check FAIL!!! Total Bad cases = {}'.format(len(bad_cases)))
+                    logger.print('  -->>> Part#%d: SANITY Check FAIL!!! Total Bad cases = {}'.format(len(bad_cases)))
                     continue
 
             ###################
