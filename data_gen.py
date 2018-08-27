@@ -77,6 +77,7 @@ def gen_data(args):
     t_max = args['t_max']
     if t_max <= 0: t_max = None
     data = []
+    bad_cases = []
     birth_infos = []
 
     # logging related
@@ -93,16 +94,26 @@ def gen_data(args):
                                                   mask_feature_dim=args['mask_feature_dim'],
                                                   max_expansion=args['max_expansion'],
                                                   logger=logger)  # np_frames, np_act, (optional) np_mask_feat
-            if cur_sample is not None:
-                break
-        birth_infos.append(cur_info)
-        data.append(cur_sample)
+            if cur_sample is None:   # no path found
+                continue
 
-        if FLAG_SANITY_CHECK:
-            logger.print('>> Data#{}...'.format(i))
-            assert task._sanity_check_supervised_plan(birth_infos[-1], data[-1][1], logger=logger)
-            #okay_flag= task._sanity_check_supervised_plan(birth_infos[-1], data[-1][1])
-            #print('SANITY = {}'.format(okay_flag))
+            ################
+            # a path found!
+            if FLAG_SANITY_CHECK:
+                logger.print('>> Data#{}...'.format(i))
+                #assert task._sanity_check_supervised_plan(birth_infos[-1], data[-1][1], logger=logger)
+                okay_flag= task._sanity_check_supervised_plan(birth_infos[-1], data[-1][1])
+                #print('SANITY = {}'.format(okay_flag))
+                if not okay_flag:
+                    bad_cases.append((cur_info, cur_sample))
+                    logger.print('  -->>> SANITY Check FAIL!!! Total Bad cases = {}'.format(len(bad_cases)))
+                    continue
+
+            ###################
+            # good to check in
+            birth_infos.append(cur_info)
+            data.append(cur_sample)
+            break
 
         # logging
         if i in report_index:
