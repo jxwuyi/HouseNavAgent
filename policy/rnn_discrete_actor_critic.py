@@ -238,7 +238,8 @@ class DiscreteRNNPolicy(torch.nn.Module):
                 unpack_hidden=False, return_tensor=False, target=None,
                 compute_aux_pred=False, return_aux_logprob=True, sample_aux_pred=False,
                 temperature=None,
-                extra_input_feature=None):
+                extra_input_feature=None,
+                return_logits=False):
         """
         compute the forward pass of the model.
         @:param x: [batch, seq_len, n_channel, n_row, n_col]
@@ -250,6 +251,7 @@ class DiscreteRNNPolicy(torch.nn.Module):
         @:param return_aux_logprob: ONLY effect when <compute_aux_pred> is True. When False, return softmax-probability
         @:param sample_aux_pred: ONLY effect when <compute_aux_pred> is True. When True, return an aux-pred sample
         @:param extra_input_feature: [batch, seq_len, extra_feature_dim]
+        @:param return_logits: [Only Effect when <sample_action> is False] return logits as output
         @:return (action, value, hiddens) or (action, hiddens) + [optional, aux-pred]
         """
         seq_len = x.size(1)
@@ -324,7 +326,7 @@ class DiscreteRNNPolicy(torch.nn.Module):
             if sample_action:
                 ret_act = torch.multinomial(self.prob.view(-1, self.out_dim), 1).view(batch, seq_len, 1)
             else:
-                ret_act = self.logp
+                ret_act = self.logp if not return_logits else self.logits
 
             if return_tensor: ret_act = ret_act.data
             if not return_value:

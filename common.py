@@ -445,7 +445,7 @@ def create_joint_model(args, inp_shape, act_shape):
                               attention_hiddens=[128]
                              )
     else:
-        assert False, 'model name <> not supported'.format(name)
+        assert False, 'model name <{}> not supported'.format(name)
 
     print('create joint model <{}>!!!! cuda = {}'.format(name, use_cuda))
     if use_cuda:

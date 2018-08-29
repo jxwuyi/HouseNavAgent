@@ -35,19 +35,19 @@ class AgentTrainer(object):
         pass
 
     def action(self, obs):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def process_observation(self, obs):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def process_experience(self, idx, act, rew, done, terminal, info):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def preupdate(self):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def update(self):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def _process_frames(self, raw_frames, volatile=False, merge_dim=True, return_variable=True):
         """
