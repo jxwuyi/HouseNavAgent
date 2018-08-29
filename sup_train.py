@@ -12,8 +12,6 @@ import os, sys, time, pickle, json, argparse
 import numpy as np
 import random
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 
 
 mask_feat_dim = None
@@ -242,6 +240,9 @@ def train(args=None, warmstart=None):
 
     logger.print(' --> Loading Finished! Elapsed = %.4fs' % (time.time() - tstart))
 
+    if args['only_load_data']:
+        return 
+
     # create trainer
     trainer = create_trainer(args)
     if warmstart is not None:
@@ -319,6 +320,9 @@ def parse_args():
                         help="the directory containing data partitions")
     parser.add_argument("--n-part", type=int,
                         help="number of partitions")
+    parser.add_argument("--only-data-loading", dest="only_load_data", action="store_true",
+                        help="When true, only loading data. No training will be performed");
+    parser.set_defaults(only_load_data=False)
     parser.add_argument("--seed", type=int, help="random seed")
     ########################################################
     # Environment Setting
