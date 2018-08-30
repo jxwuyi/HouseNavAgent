@@ -176,9 +176,14 @@ class SUPTrainer(AgentTrainer):
         if self.args['logits_penalty'] is not None:
             loss += self.args['logits_penalty'] + L_norm
 
+        # compute accuracy
+        _, max_idx = torch.max(logp, dim=-1, keepdim=True)
+        L_accu = torch.sum((max_idx == ids) * length_mask) / total_samples
+
         ret_dict = dict(loss=loss.data.cpu().numpy()[0],
                         entropy=L_ent.data.cpu().numpy()[0],
-                        logits_norm=L_norm.data.cpu().numpy()[0])
+                        logits_norm=L_norm.data.cpu().numpy()[0],
+                        accuracy=L_accu.data.cpu().numpy()[0])
 
         # backprop
         if self.grad_batch > 1:
