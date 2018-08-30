@@ -174,16 +174,16 @@ class SUPTrainer(AgentTrainer):
         # L^2 penalty
         L_norm = torch.sum(torch.sum(logits * logits, dim=-1) * length_mask) / total_samples
         if self.args['logits_penalty'] is not None:
-            loss += self.args['logits_penalty'] + L_norm
+            loss += self.args['logits_penalty'] * L_norm
 
         # compute accuracy
-        _, max_idx = torch.max(logp.data, dim=-1, keepdim=True)
-        L_accu = torch.sum((max_idx == ids) * length_mask.data) / total_samples
+        _, max_idx = torch.max(logits.data, dim=-1, keepdim=True)
+        L_accu = torch.sum((max_idx == ids).type(FloatTensor) * length_mask.data.view(batch_size, seq_len, 1)) / total_samples
 
         ret_dict = dict(loss=loss.data.cpu().numpy()[0],
                         entropy=L_ent.data.cpu().numpy()[0],
                         logits_norm=L_norm.data.cpu().numpy()[0],
-                        accuracy=L_accu.cpu().numpy()[0])
+                        accuracy=L_accu)
 
         # backprop
         if self.grad_batch > 1:
