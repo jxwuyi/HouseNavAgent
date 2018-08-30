@@ -60,7 +60,8 @@ def create_trainer(args):
     return trainer
 
 
-def data_loader(data_dir, n_part, t_max=None, fixed_target=None, mask_feature=False, logger=None):
+def data_loader(data_dir, n_part, t_max=None, random_clip=False,
+                fixed_target=None, mask_feature=False, logger=None):
     # data_dir: directory of data partitions
     # n_part: the number of partitions
     # t_max: maximum allowed steps
@@ -139,9 +140,14 @@ def data_loader(data_dir, n_part, t_max=None, fixed_target=None, mask_feature=Fa
             np_length[ptr] = min(t_max, l)
             np_target[ptr] = common.target_instruction_dict[info['target_room']]
             if l > t_max: # shrink
-                lis_frames.append(dat[0][l - t_max:, ...])
-                lis_actions.append(dat[1][l - t_max :])
-                if mask_feature: lis_mask_feat.append(dat[2][l - t_max:, ...])
+                if random_clip:
+                    r_l = random.randint(0, l - t_max - 1)
+                    r_r = r_l + t_max
+                else:
+                    r_l, r_r = l - t_max, l
+                lis_frames.append(dat[0][r_l:r_r, ...])
+                lis_actions.append(dat[1][r_l:r_r])
+                if mask_feature: lis_mask_feat.append(dat[2][r_l:r_r, ...])
             else:
                 lis_frames.append(dat[0])
                 lis_actions.append(dat[1])
@@ -216,7 +222,7 @@ def train(args=None, warmstart=None):
 
     ############################
     # Training Data
-    train_data = data_loader(args['data_dir'], args['n_part'], args['t_max'], mask_feature=args['target_mask_input'], logger=logger)
+    train_data = data_loader(args['data_dir'], args['n_part'], args['t_max'], random_clip=args['random_clip'], mask_feature=args['target_mask_input'], logger=logger)
     train_size = len(train_data[0])
     # cache training batch memory
     global mask_feat_dim, batch_frames, batch_len_mask, batch_actions, batch_mask_feat
@@ -230,7 +236,7 @@ def train(args=None, warmstart=None):
     test_data = None
     test_size = 0
     if args['eval_dir'] and args['eval_n_part']:
-        test_data = data_loader(args['eval_dir'], args['eval_n_part'], args['t_max'], mask_feature=args['target_mask_input'], logger=logger)
+        test_data = data_loader(args['eval_dir'], args['eval_n_part'], args['t_max'], random_clip=args['random_clip'], mask_feature=args['target_mask_input'], logger=logger)
         test_size = len(test_data[0])
         global test_batch_frames, test_batch_len_mask, test_batch_actions, test_batch_mask_feat
         test_batch_frames = np.zeros((batch_size, test_data[-1], ) + train_data[0][0].shape[1:], dtype=np.uint8)
@@ -354,6 +360,9 @@ def parse_args():
                         help="[SUP] an integer or a ','-split list of integers, indicating the gpu-id for training")
     parser.add_argument("--t-max", type=int,
                         help="[SUP] number of time steps in each batch")
+    parser.add_argument("--random-data-clip", dest="random_clip", action="store_true",
+                        help="[SUP] When true, for trajectory longer than --t-max, we random select a sub-path of length --t-max. Default choose the trailing timesteps.")
+    parser.set_defaults(random_clip=False)
     parser.add_argument("--batch-size", type=int, default=32,
                         help="[SUP] batch size, should be no greather than --num-proc")
     parser.add_argument("--grad-batch", type=int, default=1,
