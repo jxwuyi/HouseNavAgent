@@ -56,7 +56,7 @@ def create_trainer(args):
     observation_shape = common.observation_shape
     n_action = common.n_discrete_actions
     model_gen = lambda: create_policy('rnn', args, observation_shape, n_action)
-    trainer = SUPTrainer(model_gen, observation_shape, n_action, args)
+    trainer = SUPTrainer(model_gen, observation_shape, [n_action], args)
     return trainer
 
 

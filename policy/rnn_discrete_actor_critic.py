@@ -283,6 +283,7 @@ class DiscreteRNNPolicy(torch.nn.Module):
         else:
             rnn_output, final_h = self.cell(rnn_input, h)  # [seq_len, batch, units], [layer, batch, units]
         self.last_h = final_h
+        rnn_output = rnn_output.contiguous()
         if return_tensor:
             if isinstance(final_h, tuple):
                 final_h = (final_h[0].data, final_h[1].data)

@@ -125,7 +125,7 @@ class SUPTrainer(AgentTrainer):
         # convert data to Variables
         batch_size = obs.shape[0]
         seq_len = obs.shape[1]
-        total_samples = np.sum(length_mask)
+        total_samples = float(np.sum(length_mask))
         obs = self._create_gpu_tensor(obs, return_variable=True)  # [batch, t_max, dims...]
         if hidden is None:
             hidden = self.policy.get_zero_state(batch=batch_size, return_variable=True)
@@ -152,7 +152,7 @@ class SUPTrainer(AgentTrainer):
         # forward pass
         # logits: [batch, seq_len, n_act]
         logits, _ = self.net(obs, hidden, return_value=False, sample_action=False,
-                             unpack_hidden=True, return_tensor=True, target=target,
+                             return_tensor=False, target=target,
                              extra_input_feature=mask_input, return_logits=True)
 
         # compute loss
@@ -160,7 +160,7 @@ class SUPTrainer(AgentTrainer):
         block_size = batch_size * seq_len
         act_size = logits.size(-1)
         flat_logits = logits.view(block_size, act_size)
-        logp = torch.sum(nn.log_softmax(flat_logits).view(batch_size, seq_len, act_size) * act_n, dim=-1) * length_mask
+        logp = torch.sum(F.log_softmax(flat_logits).view(batch_size, seq_len, act_size) * act_n, dim=-1) * length_mask
         loss = -torch.sum(logp) / total_samples
 
         # entropy penalty
