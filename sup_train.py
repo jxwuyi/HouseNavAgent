@@ -204,6 +204,7 @@ def eval_model(test_data, test_size, batch_size, trainer, logger):
     logger.print('>> DONE! Time Elapsed = %.3f' % (time.time() - dur))
     logger.print(' > Total Samples = %d, Correct = %d, Accuracy = %.4f' % (total_samples, total_correct, total_correct / total_samples))
     logger.print('++++++++++++++++++++++++++++++++++++++')
+    return total_correct / total_samples
 
 
 def train(args=None, warmstart=None):
@@ -270,7 +271,9 @@ def train(args=None, warmstart=None):
         logger.print('Start Iterations ....')
         indices = list(range(train_size))
         epoch_updates = (train_size + batch_size - 1) // batch_size
-        
+
+        train_stats = []
+        test_stats = []
         for ep in range(args['epochs']):
             dur = time.time()
             # set to train mode
@@ -308,17 +311,29 @@ def train(args=None, warmstart=None):
                         (ep + 1, args['epochs'], up + 1, epoch_updates, (up + 1) / epoch_updates, time.time()-tstart, ep_dur, ep_dur / (up + 1)))
                     for k in sorted(stats.keys()):
                         logger.print('   >> %s = %.4f' % (k, stats[k]))
+                    if args['keep_stats']:
+                        stats['epoch'] = ep
+                        stats['updates'] = up
+                        train_stats.append(stats)
             # Epoch Finished
             logger.print('>> Epoch#{} Done!'.format(ep + 1))
             if (test_data is not None) and (args['eval_rate'] is not None) and ((ep + 1) % args['eval_rate'] == 0):
-                eval_model(test_data, test_size, args['eval_batch_size'], trainer, logger)
+                accu = eval_model(test_data, test_size, args['eval_batch_size'], trainer, logger)
+                if args['keep_stats']:
+                    test_stats.append((ep, accu))
             if (ep + 1) % args['save_rate'] == 0:
                 trainer.save(args['save_dir'])
 
         logger.print('Done!')
         trainer.save(args['save_dir'], version='final')
+        if args['keep_stats']:
+            with open(os.path.join(args['log_dir'], 'train_stats.pkl'), 'wb') as f:
+                pickle.dump([train_stats, test_stats], f)
     except KeyboardInterrupt:
         trainer.save(args['save_dir'], version='interrupt')
+        if args['keep_stats']:
+            with open(os.path.join(args['log_dir'], 'train_stats.pkl'), 'wb') as f:
+                pickle.dump([train_stats, test_stats], f)
         raise
 
 
@@ -405,6 +420,8 @@ def parse_args():
     parser.add_argument("--report-rate", type=int, default=1,
                         help="report training stats once every time this many training steps are performed")
     parser.add_argument("--warmstart", type=str, help="model to recover from. can be either a directory or a file.")
+    parser.add_argument("--keep-stats", dest="keep_stats", action="store_true")
+    parser.set_defaults(keep_stats=False)
 
     ###################################################
     # Logging Option
