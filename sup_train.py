@@ -461,8 +461,8 @@ if __name__ == '__main__':
         print('Warning: training gpu not specified. Set to the default gpu <{}> (single-gpu)'.format(all_gpus[0]))
         args['train_gpu'] = all_gpus[0]
     else:
-        train_gpus = args['train_gpu'].split(',')
-        #train_gpus = [all_gpus[int(k)] for k in gpu_ids]
+        gpu_sids = args['train_gpu'].split(',')
+        train_gpus = [int(k) for k in gpu_sids]
         if len(train_gpus) > 1:
             print('>>> Multi-GPU training specified!')
             args['train_gpu'] = train_gpus
