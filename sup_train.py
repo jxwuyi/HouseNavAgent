@@ -84,6 +84,7 @@ def data_loader(data_dir, n_part, t_max=None, fixed_target=None, mask_feature=Fa
     accu_data = []
     total_samples = 0
     max_t_step = 0
+    accu_t_step = 0
     frame_shape = None
     mask_feat_dim = None
 
@@ -114,11 +115,13 @@ def data_loader(data_dir, n_part, t_max=None, fixed_target=None, mask_feature=Fa
         cur_len = [len(dat[1]) for info, dat in zip(birth_infos, data) if check_allowed_target(info['target_room'], fixed_target)]
         total_samples += len(cur_len)
         max_t_step = max(max_t_step, max(cur_len))
+        accu_t_step += sum(cur_len)
         if frame_shape is None:
             frame_shape = data[0][0].shape
+        myprint('    ----> partition%d: Done!' % p)
     assert frame_shape is not None
     assert total_samples > 0, '[ERROR] No data found!'
-    myprint('[Data_Loader] Max-T in data is {}'.format(max_t_step))
+    myprint('[Data_Loader] Max-T in data = %d, Total Sample = %d, Avg Length = %.3f'%(max_t_step, total_samples, accu_t_step / total_samples))
     if t_max is None:
         t_max = max_t_step
     myprint('  --> Selected T-Max = {}'.format(t_max))
@@ -148,7 +151,7 @@ def data_loader(data_dir, n_part, t_max=None, fixed_target=None, mask_feature=Fa
                 if mask_feature: lis_mask_feat.append(dat[3])
             ptr += 1
     dur = time.time() - dur
-    myprint(' >> Done! Total Samples = %d, Max-T = %d, Time Elapsed = %.5s (avg = %.4fs)' % (total_samples, t_max, dur, dur / total_samples))
+    myprint(' >> Done! Total Samples = %d, Max-T = %d, Time Elapsed = %.5fs (avg = %.4fs)' % (total_samples, t_max, dur, dur / total_samples))
     if not mask_feature:
         lis_mask_feat = None
     return lis_frames, np_length, lis_actions, np_target, lis_mask_feat, t_max
