@@ -185,8 +185,12 @@ class DiscreteRNNPolicy(torch.nn.Module):
         n_size = out_feat.data.view(bs, -1).size(1)
         return n_size
 
-    def get_zero_state(self, batch=1, return_variable=False, volatile=False):
-        z = torch.zeros(self.rnn_layers, batch, self.rnn_units).type(FloatTensor)
+    def get_zero_state(self, batch=1, return_variable=False, volatile=False, hidden_batch_first=False):
+        if hidden_batch_first:
+            z = torch.zeros(batch, self.rnn_layers, self.rnn_units)
+        else:
+            z = torch.zeros(self.rnn_layers, batch, self.rnn_units)
+        z = z.type(FloatTensor)
         if return_variable: z = Variable(z, volatile=volatile)
         if self.cell_type == 'lstm':
             return (z, z)
@@ -239,7 +243,8 @@ class DiscreteRNNPolicy(torch.nn.Module):
                 compute_aux_pred=False, return_aux_logprob=True, sample_aux_pred=False,
                 temperature=None,
                 extra_input_feature=None,
-                return_logits=False):
+                return_logits=False,
+                hidden_batch_first=False):
         """
         compute the forward pass of the model.
         @:param x: [batch, seq_len, n_channel, n_row, n_col]
@@ -252,8 +257,16 @@ class DiscreteRNNPolicy(torch.nn.Module):
         @:param sample_aux_pred: ONLY effect when <compute_aux_pred> is True. When True, return an aux-pred sample
         @:param extra_input_feature: [batch, seq_len, extra_feature_dim]
         @:param return_logits: [Only Effect when <sample_action> is False] return logits as output
+        @:param hidden_batch_first: When True, hidden will be [batch, layer, units]
         @:return (action, value, hiddens) or (action, hiddens) + [optional, aux-pred]
         """
+
+        if hidden_batch_first:
+            if self.cell_type == 'lstm':
+                h = (h[0].permute(1,0,2), h[1].permute(1,0,2))
+            else:
+                h = h.permute(1,0,2)
+
         seq_len = x.size(1)
         batch = x.size(0)
         packed_x = x.view(-1, self.in_shape[0], self.in_shape[1], self.in_shape[2])
@@ -318,16 +331,17 @@ class DiscreteRNNPolicy(torch.nn.Module):
             for i, l in enumerate(self.policy_layers):
                 feat = l(feat)
                 if i < len(self.policy_layers) - 1: feat = self.func(feat)
-            self.logits = feat.view(batch, seq_len, self.out_dim)
+            logits = feat.view(batch, seq_len, self.out_dim)
             if temperature is not None:
-                self.logits /= temperature
-            self.prob = F.softmax(feat).view(batch, seq_len, self.out_dim)
-            self.logp = F.log_softmax(feat).view(batch, seq_len, self.out_dim)
+                logits /= temperature
+            self.logits = logits
+            self.prob = prob = F.softmax(feat).view(batch, seq_len, self.out_dim)
+            self.logp = logp = F.log_softmax(feat).view(batch, seq_len, self.out_dim)
 
             if sample_action:
-                ret_act = torch.multinomial(self.prob.view(-1, self.out_dim), 1).view(batch, seq_len, 1)
+                ret_act = torch.multinomial(prob.view(-1, self.out_dim), 1).view(batch, seq_len, 1)
             else:
-                ret_act = self.logp if not return_logits else self.logits
+                ret_act = logp if not return_logits else logits
 
             if return_tensor: ret_act = ret_act.data
             if not return_value:
