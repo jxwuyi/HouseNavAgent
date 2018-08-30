@@ -241,11 +241,12 @@ def train(args=None, warmstart=None):
     if args['eval_dir'] and args['eval_n_part']:
         test_data = data_loader(args['eval_dir'], args['eval_n_part'], args['t_max'], random_clip=args['random_clip'], mask_feature=args['target_mask_input'], logger=logger)
         test_size = len(test_data[0])
+        test_batch_size = args['eval_batch_size']
         global test_batch_frames, test_batch_len_mask, test_batch_actions, test_batch_mask_feat
-        test_batch_frames = np.zeros((batch_size, test_data[-1], ) + train_data[0][0].shape[1:], dtype=np.uint8)
-        test_batch_len_mask = np.zeros((batch_size, test_data[-1]), dtype=np.uint8)
-        test_batch_actions = np.zeros((batch_size, test_data[-1]), dtype=np.int32)
-        test_batch_mask_feat = np.zeros((batch_size, test_data[-1], mask_feat_dim)) if mask_feat_dim is not None else None
+        test_batch_frames = np.zeros((test_batch_size, test_data[-1], ) + train_data[0][0].shape[1:], dtype=np.uint8)
+        test_batch_len_mask = np.zeros((test_batch_size, test_data[-1]), dtype=np.uint8)
+        test_batch_actions = np.zeros((test_batch_size, test_data[-1]), dtype=np.int32)
+        test_batch_mask_feat = np.zeros((test_batch_size, test_data[-1], mask_feat_dim)) if mask_feat_dim is not None else None
 
     logger.print(' --> Loading Finished! Elapsed = %.4fs' % (time.time() - tstart))
 
@@ -419,7 +420,7 @@ def parse_args():
                         help="[EVAL] the directory containing test data partitions")
     parser.add_argument("--eval-n-part", type=int,
                         help="[EVAL] number of test data partitions")
-    parser.add_argument("--eval-batch-size", type=int, default=64,
+    parser.add_argument("--eval-batch-size", type=int,
                         help="[EVAL] number of batch size for evaluation")
 
     return parser.parse_args()
@@ -453,6 +454,10 @@ if __name__ == '__main__':
     args['model_name'] = 'rnn'
 
     args['mask_feature_dim'] = len(common.all_target_instructions) if ('mask_feature' in args) and args['mask_feature'] else None
+
+    if args['eval_rate'] is not None:
+        if args['eval_batch_size'] is None:
+            args['eval_batch_size'] = args['batch_size']
 
     # gpu devices
     all_gpus = common.get_gpus_for_rendering()
