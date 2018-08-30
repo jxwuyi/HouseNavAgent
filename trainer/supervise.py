@@ -21,9 +21,11 @@ class SUPTrainer(AgentTrainer):
             'SUPTrainer.policy must be an instantiated instance of torch.nn.Module'
 
         self.net = self.policy
+        self._is_multigpu = False
         if isinstance(args['train_gpu'], list) and len(args['train_gpu']) > 1:
             # Multi-GPU
             self.net = torch.nn.DataParallel(self.policy, device_ids=args['train_gpu'])
+            self._is_multigpu = True
 
         self.obs_shape = obs_shape
         self.act_shape = act_shape
@@ -89,7 +91,8 @@ class SUPTrainer(AgentTrainer):
         batch_size = obs.shape[0]
         t_max = obs.shape[1]
         if hidden is None:
-            hidden = self.policy.get_zero_state(batch=batch_size, return_variable=True, volatile=True)
+            hidden = self.policy.get_zero_state(batch=batch_size, return_variable=True, volatile=True,
+                                                hidden_batch_first=self._is_multigpu)
         obs = self._create_gpu_tensor(obs, return_variable=True, volatile=True)  # [batch, t_max, n, m, channel]
         if target is not None:
             target = self._create_target_tensor(target, t_max, return_variable=True, volatile=True)
@@ -128,7 +131,7 @@ class SUPTrainer(AgentTrainer):
         total_samples = np.sum(length_mask)
         obs = self._create_gpu_tensor(obs, return_variable=True)  # [batch, t_max, dims...]
         if hidden is None:
-            hidden = self.policy.get_zero_state(batch=batch_size, return_variable=True)
+            hidden = self.policy.get_zero_state(batch=batch_size, return_variable=True, hidden_batch_first=self._is_multigpu)
         if target is not None:
             target = self._create_target_tensor(target, seq_len, return_variable=True)
         if mask_input is not None:
@@ -153,7 +156,7 @@ class SUPTrainer(AgentTrainer):
         # logits: [batch, seq_len, n_act]
         logits, _ = self.net(obs, hidden, return_value=False, sample_action=False,
                              unpack_hidden=True, return_tensor=True, target=target,
-                             extra_input_feature=mask_input, return_logits=True)
+                             extra_input_feature=mask_input, return_logits=True, hidden_batch_first=self._is_multigpu)
 
         # compute loss
         #critic_loss = F.smooth_l1_loss(V, R)
