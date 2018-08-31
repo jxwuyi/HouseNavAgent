@@ -226,7 +226,8 @@ def train(args=None, warmstart=None):
 
     ############################
     # Training Data
-    train_data = data_loader(args['data_dir'], args['n_part'], args['t_max'], random_clip=args['random_clip'], mask_feature=args['target_mask_input'], logger=logger)
+    train_data = data_loader(args['data_dir'], args['n_part'], args['t_max'], random_clip=args['random_clip'],
+                             fixed_target=args['fixed_target'], mask_feature=args['target_mask_input'], logger=logger)
     train_size = len(train_data[0])
     # cache training batch memory
     global mask_feat_dim, batch_frames, batch_len_mask, batch_actions, batch_mask_feat
@@ -240,7 +241,8 @@ def train(args=None, warmstart=None):
     test_data = None
     test_size = 0
     if args['eval_dir'] and args['eval_n_part']:
-        test_data = data_loader(args['eval_dir'], args['eval_n_part'], args['t_max'], random_clip=args['random_clip'], mask_feature=args['target_mask_input'], logger=logger)
+        test_data = data_loader(args['eval_dir'], args['eval_n_part'], args['t_max'], random_clip=args['random_clip'],
+                                fixed_target=args['fixed_target'], mask_feature=args['target_mask_input'], logger=logger)
         test_size = len(test_data[0])
         test_batch_size = args['eval_batch_size']
         global test_batch_frames, test_batch_len_mask, test_batch_actions, test_batch_mask_feat
