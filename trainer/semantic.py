@@ -64,7 +64,7 @@ class SemanticTrainer(AgentTrainer):
 
     def _create_gpu_tensor(self, frames, return_variable=True, volatile=False):
         # convert to tensor
-        gpu_tensor = torch.from_numpy(frames).type(ByteTensor).type(FloatTensor)
+        gpu_tensor = torch.from_numpy(frames).type(ByteTensor).permute(0,3,1,2).type(FloatTensor)
         if self.args['segment_input'] != 'index':
             if self.args['depth_input'] or ('attentive' in self.args['model_name']):
                 gpu_tensor /= 256.0  # special hack here for depth info
@@ -74,7 +74,7 @@ class SemanticTrainer(AgentTrainer):
             gpu_tensor = Variable(gpu_tensor, volatile=volatile)
         return gpu_tensor
 
-    def action(self, obs, return_numpy=False, greedy_act=False):
+    def action(self, obs, return_numpy=False, greedy_act=False, return_argmax=False):
         # Assume all input data are numpy arrays!
         # obs: [batch, n, m, channel], uint8
         # return: [batch, n_class], probability over classes
@@ -85,8 +85,11 @@ class SemanticTrainer(AgentTrainer):
             if self.multi_label:  # sigmoid
                 prob = (prob > 0.5).type(ByteTensor)
             else:  # softmax
-                max_val, _ = torch.max(prob, dim=-1, keepdim=False)
-                prob = (prob == max_val).type(ByteTensor)
+                if return_argmax:
+                    prob = torch.max(prob, dim=-1, keepdim=False)[1]
+                else:
+                    max_val, _ = torch.max(prob, dim=-1, keepdim=True).repeat(1, self.out_dim)
+                    prob = (prob == max_val).type(ByteTensor)
         if return_numpy:
             return prob.cpu().numpy()
         else:
@@ -107,7 +110,7 @@ class SemanticTrainer(AgentTrainer):
         tt = time.time()
         # convert data to Variables
         batch_size = obs.shape[0]
-        obs = self._create_gpu_tensor(obs, return_variable=True)  # [batch, n, m, channel]
+        obs = self._create_gpu_tensor(obs, return_variable=True)  # [batch, channel, n, m]
 
         # create label tensor
         if self.multi_label:
@@ -132,7 +135,7 @@ class SemanticTrainer(AgentTrainer):
             loss = torch.mean(F.binary_cross_entropy_with_logits(logits, label))
         else:
             loss = torch.mean(F.cross_entropy(logits, label))
-        
+
         # entropy penalty
         L_ent = torch.mean(self.policy.entropy(logits=logits))
         if self.args['entropy_penalty'] is not None:
@@ -150,7 +153,7 @@ class SemanticTrainer(AgentTrainer):
         else:
             _, max_idx = torch.max(logits.data, dim=-1, keepdim=False)
             total_sample = batch_size
-        L_accu = torch.sum((max_idx == t_label).type(FloatTensor)) / total_samples
+        L_accu = torch.sum((max_idx == t_label).type(FloatTensor)) / batch_size
 
         ret_dict = dict(loss=loss.data.cpu().numpy()[0],
                         entropy=L_ent.data.cpu().numpy()[0],

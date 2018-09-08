@@ -159,9 +159,9 @@ class DiscreteCNNPolicyCritic(torch.nn.Module):
         if logits is None: logits = self.logits
         l = logits
         d = self.out_dim
-        a0 = l - torch.max(l, dim=1)[0].repeat(1, d)
+        a0 = l - torch.max(l, dim=1, keepdim=True)[0].repeat(1, d)
         ea0 = torch.exp(a0)
-        z0 = ea0.sum(1).repeat(1, d)
+        z0 = ea0.sum(1, keepdim=True).repeat(1, d)
         p0 = ea0 / z0
         ret = torch.sum(p0 * (torch.log(z0 + 1e-8) - a0), dim=1)
         return ret

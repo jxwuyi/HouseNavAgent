@@ -78,7 +78,7 @@ def data_loader(data_dir, n_part, fixed_target=None, logger=None, neg_rate=1):
     label_names.append('NA')
     n_class = n_NA + 1
     label_stats = dict()
-    for n in label_names: 
+    for n in label_names:
         label_stats[n] = 0
 
     def myprint(s):
@@ -111,6 +111,7 @@ def data_loader(data_dir, n_part, fixed_target=None, logger=None, neg_rate=1):
 
     n_pos_samples = 0
     n_neg_samples = 0
+    neg_samples_need = 0
     for p in range(n_part):
         part_file = os.path.join(data_dir, 'partition%d.pkl' % p)
         if not os.path.exists(part_file):
@@ -119,21 +120,26 @@ def data_loader(data_dir, n_part, fixed_target=None, logger=None, neg_rate=1):
         with open(part_file, 'rb') as f:
             _, birth_infos, all_data = pickle.load(f)
         for info, data in zip(birth_infos, all_data):
-            if not check_allowed_target(info['room_target'], fixed_target):
+            if not check_allowed_target(info['target_room'], fixed_target):
                 continue
             frames, actions = data
             seq_len = len(actions)
             ####
             # TODO: to support general softmax detection
             ####
-            accu_label.append(label_index[info['room_target']])
+            accu_label.append(label_index[info['target_room']])
+            label_stats[info['target_room']] += 1
             accu_data.append(frames[0])
             n_pos_samples += 1
-            for i in range(neg_rate):
-                p = random.randint(0, seq_len - 2)
+            neg_samples_need += neg_rate
+            if seq_len < 3: continue
+            for i in range(neg_samples_need):
+                j = random.randint(0, seq_len - 2)
                 accu_label.append(label_index['NA'])
-                accu_data.append(frames[p])
+                accu_data.append(frames[j])
                 n_neg_samples += 1
+                label_stats['NA'] += 1
+            neg_samples_need = 0
         if frame_shape is None:
             frame_shape = data[0][0].shape
         myprint('    ----> partition%d: Done!' % p)
@@ -142,11 +148,11 @@ def data_loader(data_dir, n_part, fixed_target=None, logger=None, neg_rate=1):
     total_samples = len(accu_label)
     assert total_samples > 0, '[ERROR] No data found!'
 
-    np_data = np.stack(accu_data)
+    myprint('[Data_Loader] Positive Samples = %d, Negative Samples = %d, Total Sample = %d'%(n_pos_samples, n_neg_samples, total_samples))
+    np_data = np.array(accu_data)
     np_label = np.array(accu_label, dtype=np.int32)
-    myprint('[Data_Loader] Positive Samples = %d, Total Sample = %d'%(n_pos_samples, total_samples))
     for l in label_names:
-        n = label_stats[label_index[l]]
+        n = label_stats[l]
         myprint('  >>> Label <%s>: # = %d (%.4f)' % (l, n, n / total_samples))
     return np_data, np_label, {'labels': label_names, 'shape': frame_shape, 'n_class': n_class, 'n_samples': total_samples}
 
@@ -184,10 +190,10 @@ def eval_model(test_data, test_size, batch_size, trainer, logger, calc_label_sta
         test_batch_labels[...] = test_data[1][cur_indices]
         
         # run forward pass
-        predict = trainer.action(test_batch_frames, return_numpy=True, greedy_act=True)  # [batch]
+        predict = trainer.action(test_batch_frames, return_numpy=True, greedy_act=True, return_argmax=True)  # [batch]
 
         # accuracy
-        total_correct += np.sum(predict == test_batch_actions)
+        total_correct += np.sum(predict == test_batch_labels)
         if calc_label_stats:
             for i in range(batch_size):
                 l = test_batch_labels[i]
@@ -216,7 +222,6 @@ def train(args=None, warmstart=None):
                                      resolution_level=args['resolution_level'],
                                      segmentation_input=args['segment_input'],
                                      depth_input=args['depth_input'],
-                                     target_mask_input=args['target_mask_input'],
                                      history_frame_len=1)
 
     args['logger'] = logger = utils.MyLogger(args['log_dir'], True, keep_file_handler=not args['append_file'])
@@ -288,13 +293,13 @@ def train(args=None, warmstart=None):
                 # lis_frames, np_length, lis_actions, np_target, lis_mask_feat, t_max = data
                 batch_frames[...] = train_data[0][cur_indices]
                 batch_labels[...] = train_data[1][cur_indices]
-                
+
                 stats = \
                 trainer.update(batch_frames, batch_labels)
                 train_accuracy += stats['accuracy']
                 if (up + 1) % args['report_rate'] == 0:
                     ep_dur = time.time() - dur
-                    logger.print('--> Epoch#%d / %d, Update#%d / %d, Percent = %.4f, Total Elapsed = %.4fs, Epoch Elapsed = %.4fs (Avg: %.4fs)' % 
+                    logger.print('--> Epoch#%d / %d, Update#%d / %d, Percent = %.4f, Total Elapsed = %.4fs, Epoch Elapsed = %.4fs (Avg: %.4fs)' %
                         (ep + 1, args['epochs'], up + 1, epoch_updates, (up + 1) / epoch_updates, time.time()-tstart, ep_dur, ep_dur / (up + 1)))
                     for k in sorted(stats.keys()):
                         logger.print('   >> %s = %.4f' % (k, stats[k]))
@@ -304,7 +309,7 @@ def train(args=None, warmstart=None):
                         train_stats.append(stats)
             # Epoch Finished
             train_accuracy /= epoch_updates
-            logger.print('>> Epoch#{} Done!!!! Train Accuracy = %.4f'.format(ep + 1, train_accuracy))
+            logger.print('>> Epoch#%d Done!!!! Train Accuracy = %.4f'%(ep + 1, train_accuracy))
             if (test_data is not None) and (args['eval_rate'] is not None) and ((ep + 1) % args['eval_rate'] == 0):
                 accu = eval_model(test_data, test_size, args['eval_batch_size'], trainer, logger)
                 if args['keep_stats']:
@@ -370,7 +375,7 @@ def parse_args():
     parser.add_argument("--epochs", type=int, default=int(1e6), help="maximum number of training episodes")
     parser.add_argument("--batch-norm", action='store_true', dest='use_batch_norm',
                         help="Whether to use batch normalization in the policy network. default=False.")
-    parser.set_defaults(use_batch_norm=False)
+    parser.set_defaults(batch_norm=False)
     parser.add_argument("--entropy-penalty", type=float, help="policy entropy regularizer")
     parser.add_argument("--logits-penalty", type=float, help="policy logits regularizer")
     parser.add_argument("--optimizer", choices=['adam', 'rmsprop'], default='adam', help="optimizer")

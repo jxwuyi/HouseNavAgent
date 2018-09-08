@@ -56,8 +56,9 @@ class CNNClassifier(torch.nn.Module):
             prev_hidden = h
         self.feat_size = self._get_feature_dim(D_shape_in)
         cur_dim = self.feat_size
+        linear_hiddens.append(n_class)
         self.linear_layers = []
-        self.dropout_layers = []
+        #self.dropout_layers = []  TODO: add dropout layers
         for i,d in enumerate(linear_hiddens):
             self.linear_layers.append(nn.Linear(cur_dim, d))
             setattr(self, 'linear_layer%d'%i, self.linear_layers[-1])
@@ -116,9 +117,9 @@ class CNNClassifier(torch.nn.Module):
         if not self.multi_label:  # softmax
             d = self.out_dim
             l = logits
-            a0 = l - torch.max(l, dim=1)[0].repeat(1, d)
+            a0 = l - torch.max(l, dim=1, keepdim=True)[0].repeat(1, d)
             ea0 = torch.exp(a0)
-            z0 = ea0.sum(1).repeat(1, d)
+            z0 = ea0.sum(1, keepdim=True).repeat(1, d)
             p0 = ea0 / z0
             ret = torch.sum(p0 * (torch.log(z0 + 1e-8) - a0), dim=1)
         else:  # sigmoid

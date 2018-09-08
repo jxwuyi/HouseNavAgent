@@ -267,6 +267,8 @@ class DiscreteRNNPolicy(torch.nn.Module):
             else:
                 h = h.permute(1,0,2)
 
+        assert x.size(2) == self.in_shape[0], '[RNNPolicy] Expected shape <{}>, Received Batched Shape <{}>'.format(self.in_shape, x.size())
+
         seq_len = x.size(1)
         batch = x.size(0)
         packed_x = x.view(-1, self.in_shape[0], self.in_shape[1], self.in_shape[2])

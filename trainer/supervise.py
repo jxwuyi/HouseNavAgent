@@ -73,7 +73,7 @@ class SUPTrainer(AgentTrainer):
 
     def _create_gpu_tensor(self, frames, return_variable=True, volatile=False):
         # convert to tensor
-        gpu_tensor = torch.from_numpy(frames).type(ByteTensor).type(FloatTensor)
+        gpu_tensor = torch.from_numpy(frames).type(ByteTensor).permute(0,1,4,2,3).type(FloatTensor)
         if self.args['segment_input'] != 'index':
             if self.args['depth_input'] or ('attentive' in self.args['model_name']):
                 gpu_tensor /= 256.0  # special hack here for depth info
@@ -93,7 +93,7 @@ class SUPTrainer(AgentTrainer):
         if hidden is None:
             hidden = self.policy.get_zero_state(batch=batch_size, return_variable=True, volatile=True,
                                                 hidden_batch_first=self._is_multigpu)
-        obs = self._create_gpu_tensor(obs, return_variable=True, volatile=True)  # [batch, t_max, n, m, channel]
+        obs = self._create_gpu_tensor(obs, return_variable=True, volatile=True)  # [batch, t_max, channel, n, m]
         if target is not None:
             target = self._create_target_tensor(target, t_max, return_variable=True, volatile=True)
         if mask_input is not None:
