@@ -277,6 +277,7 @@ def train(args=None, warmstart=None):
         train_stats = []
         test_stats = []
         train_accuracy = 0
+        beg_time = time.time()
         for ep in range(args['epochs']):
             dur = time.time()
             # set to train mode
@@ -284,6 +285,7 @@ def train(args=None, warmstart=None):
             # start training current epoch
             logger.print('Training Epoch#{}/{} ....'.format(ep, args['epochs']))
             random.shuffle(indices)
+            prev_ep_dur = time.time() - beg_time
             for up in range(epoch_updates):
                 L, R = up * batch_size, (up + 1) * batch_size
                 if R <= train_size:
@@ -299,8 +301,11 @@ def train(args=None, warmstart=None):
                 train_accuracy += stats['accuracy']
                 if (up + 1) % args['report_rate'] == 0:
                     ep_dur = time.time() - dur
+                    total_dur = time.time() - tstart
+                    avg_up_dur = ep_dur / (up + 1)
+                    avg_ep_dur = (prev_ep_dur + avg_up_dur * epoch_updates) / (ep + 1)
                     logger.print('--> Epoch#%d / %d, Update#%d / %d, Percent = %.4f, Total Elapsed = %.4fs, Epoch Elapsed = %.4fs (Avg: %.4fs)' %
-                        (ep + 1, args['epochs'], up + 1, epoch_updates, (up + 1) / epoch_updates, time.time()-tstart, ep_dur, ep_dur / (up + 1)))
+                        (ep + 1, args['epochs'], up + 1, epoch_updates, (up + 1) / epoch_updates, total_dur, ep_dur, avg_ep_dur))
                     for k in sorted(stats.keys()):
                         logger.print('   >> %s = %.4f' % (k, stats[k]))
                     if args['keep_stats']:
