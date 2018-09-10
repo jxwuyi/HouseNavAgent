@@ -254,6 +254,11 @@ def train(args=None, warmstart=None):
     logger.print(' --> Loading Finished! Elapsed = %.4fs' % (time.time() - tstart))
 
     if args['only_load_data']:
+        if args['data_dump_dir'] is not None:
+            filename = os.path.join(args['data_dump_dir'], "dump_data.pkl")
+            print('>>>> Dumping data to <{}>...'.format(filename))
+            with open(filename, "wb") as f:
+                pickle.dump([train_data, test_data], f)
         return 
 
     # create trainer
@@ -348,6 +353,8 @@ def parse_args():
     parser.add_argument("--only-data-loading", dest="only_load_data", action="store_true",
                         help="When true, only loading data. No training will be performed");
     parser.set_defaults(only_load_data=False)
+    parser.add_argument("--data-dump-dir", type=str,
+                        help="Only Effect when --only-data-loading")
     parser.add_argument("--seed", type=int, help="random seed")
     ########################################################
     # Environment Setting
