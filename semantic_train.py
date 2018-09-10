@@ -129,7 +129,7 @@ def data_loader(data_dir, n_part, fixed_target=None, logger=None, neg_rate=1):
             ####
             accu_label.append(label_index[info['target_room']])
             label_stats[info['target_room']] += 1
-            accu_data.append(frames[0])
+            accu_data.append(frames[-1])
             n_pos_samples += 1
             neg_samples_need += neg_rate
             if seq_len < 3: continue
