@@ -13,7 +13,7 @@ from HRL.random_motion import RandomMotion
 from HRL.mixture_motion import MixMotion, create_mixture_motion_trainer_dict
 
 
-def create_motion(args, task):
+def create_motion(args, task, oracle_func=None):
     if args['motion'] == 'rnn':
         if (args['warmstart_dict'] is not None) and os.path.isfile(args['warmstart_dict']):
             with open(args['warmstart_dict'], 'r') as f:
@@ -33,11 +33,12 @@ def create_motion(args, task):
         trainer.eval()
         motion = RNNMotion(task, trainer,
                            pass_target=args['multi_target'],
-                           term_measure=args['terminate_measure'])
+                           term_measure=args['terminate_measure'],
+                           oracle_func=oracle_func)
     elif args['motion'] == 'random':
-        motion = RandomMotion(task, None, term_measure=args['terminate_measure'])
+        motion = RandomMotion(task, None, term_measure=args['terminate_measure'], oracle_func=oracle_func)
     elif args['motion'] == 'fake':
-        motion = FakeMotion(task, None, term_measure=args['terminate_measure'])
+        motion = FakeMotion(task, None, term_measure=args['terminate_measure'], oracle_func=oracle_func)
     else: # mixture motion
         mixture_dict_file = args['mixture_motion_dict']
         try:
@@ -49,7 +50,8 @@ def create_motion(args, task):
         trainer_dict, pass_tar_dict, obs_mode_dict = create_mixture_motion_trainer_dict(arg_dict)
         motion = MixMotion(task, trainer_dict, pass_tar_dict,
                            term_measure=args['terminate_measure'],
-                           obs_mode=obs_mode_dict)
+                           obs_mode=obs_mode_dict,
+                           oracle_func=oracle_func)
         common.ensure_object_targets(args['object_target'])
 
     return motion

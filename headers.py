@@ -136,13 +136,14 @@ class AgentTrainer(object):
 
 
 class BaseMotion(object):
-    def __init__(self, task, trainer, pass_target=True, term_measure='mask'):
+    def __init__(self, task, trainer, pass_target=True, term_measure='mask', oracle_func=None):
         self.task = task
         self.env = self.task.env
         self.trainer = trainer
         self.pass_target = pass_target
         #assert term_measure in ['mask', 'stay', 'see']
         self.term_measure = term_measure
+        self._oracle_func = oracle_func
 
     def _is_insight(self, target_name=None, obs_seg=None, n_pixel=50):
         if target_name is None:
@@ -160,7 +161,7 @@ class BaseMotion(object):
 
 
     def _is_success(self, target_id, mask=None, term_measure=None, is_stay=False, obs_seg=None, target_name=None):
-        if mask is None: mask = self.task.get_feature_mask()
+        if mask is None: mask = self.task.get_feature_mask() if self._oracle_func is None else self._oracle_func(self.task)
         if mask[target_id] == 0: return False
         if term_measure is None: term_measure = self.term_measure
         if term_measure == 'mask':

@@ -10,10 +10,10 @@ n_allowed_actions = len(allowed_action_index)
 
 
 class RandomMotion(BaseMotion):
-    def __init__(self, task, trainer=None, pass_target=True, term_measure='mask'):
+    def __init__(self, task, trainer=None, pass_target=True, term_measure='mask', oracle_func=None):
         assert trainer is None
         assert term_measure != 'stay'
-        super(RandomMotion, self).__init__(task, trainer, pass_target, term_measure)
+        super(RandomMotion, self).__init__(task, trainer, pass_target, term_measure, oracle_func)
         self.skilled_rate = None
 
     def set_skilled_rate(self, rate):
@@ -44,7 +44,7 @@ class RandomMotion(BaseMotion):
                     task._yaw_ind = (task._yaw_ind + discrete_angle_delta_value[act] + task.discrete_angle) % task.discrete_angle
             if (_s == max_steps - 1) and (max_steps < skilled_steps):
                 restore_state = task.info
-            mask = task.get_feature_mask()
+            mask = task.get_feature_mask()  # if self._oracle_func is None else self._oracle_func(task), NOTE: we do not need oracle actually.. this is random policy
             done = self._is_success(final_target_id, mask, term_measure='see')
             ret.append((mask, act, (10 if done else 0), done, task.info))
             if (done and (_s < max_steps)) or self._is_success(target_id, mask, term_measure=self.term_measure):

@@ -19,8 +19,8 @@ from House3D.objnav import ObjNavTask
 n_rooms = len(ALLOWED_TARGET_ROOM_TYPES)
 
 class RNNMotion(BaseMotion):
-    def __init__(self, task, trainer=None, pass_target=True, term_measure='mask'):
-        super(RNNMotion, self).__init__(task, trainer, pass_target, term_measure)
+    def __init__(self, task, trainer=None, pass_target=True, term_measure='mask', oracle_func=None):
+        super(RNNMotion, self).__init__(task, trainer, pass_target, term_measure, oracle_func)
         self._interrupt = None
         self._use_mask_feat_dim = (trainer is not None) and \
                 hasattr(trainer.policy, 'extra_feature_dim') and trainer.policy.extra_feature_dim
@@ -57,7 +57,7 @@ class RNNMotion(BaseMotion):
         return mask[target_id] > 0   # term_measure == 'mask'
 
     def _get_feature_mask(self):
-        feat = self.task.get_feature_mask()
+        feat = self.task.get_feature_mask() if self._oracle_func is None else self._oracle_func(self.task)
         return feat[: self._use_mask_feat_dim]
 
     """
@@ -84,7 +84,7 @@ class RNNMotion(BaseMotion):
             action = int(action.squeeze())
             # environment step
             _, rew, done, info = task.step(action)
-            feature_mask = task.get_feature_mask()
+            feature_mask = task.get_feature_mask() if self._oracle_func is None else self._oracle_func(task)
             episode_stats.append((feature_mask, action, rew, done, info))
             # check terminate
             if done or (not consistent_target and self.check_terminate(target_id, feature_mask, action)):

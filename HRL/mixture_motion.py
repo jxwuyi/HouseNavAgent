@@ -61,7 +61,7 @@ def create_mixture_motion_trainer_dict(arg_dict):
 trainer: a dictionary from <target> -> trainer
 """
 class MixMotion(RNNMotion):
-    def __init__(self, task, trainer=None, pass_target=None, term_measure='mask', obs_mode=None):
+    def __init__(self, task, trainer=None, pass_target=None, term_measure='mask', obs_mode=None, oracle_func=None):
         assert isinstance(trainer, dict), '[MixMotion] trainer must be a dict!'
         assert isinstance(pass_target, bool) or isinstance(pass_target, dict), '[MixMotion] pass_target must be a dict or a boolean!'
         assert sorted(trainer.keys()) == sorted(all_allowed_targets), '[MixMotion] keys of trainer must contain all the targets!'
@@ -83,7 +83,7 @@ class MixMotion(RNNMotion):
 
         self.pass_target_dict = pass_target
         self.trainer_dict = trainer
-        super(MixMotion, self).__init__(task, None, True, term_measure)
+        super(MixMotion, self).__init__(task, None, True, term_measure, oracle_func)
 
     def reset(self):
         for trainer in self.trainer_dict.values():
