@@ -28,6 +28,7 @@ from policy.joint_cnn_actor_critic import JointCNNPolicyCritic as JointModel
 from policy.attentive_cnn_actor_critic import AttentiveJointCNNPolicyCritic as AttJointModel
 from policy.discrete_cnn_actor_critic import DiscreteCNNPolicyCritic as A2CModel
 from policy.qac_cnn_actor_critic import DiscreteCNNPolicyQFunc as QACModel
+from policy.cnn_classifier import CNNClassifier
 from trainer.pg import PolicyGradientTrainer as PGTrainer
 from trainer.nop import NOPTrainer
 from trainer.ddpg import DDPGTrainer
@@ -38,6 +39,7 @@ from trainer.ddpg_joint_alter import JointAlterDDPGTrainer as AlterTrainer
 from trainer.a2c import A2CTrainer
 from trainer.qac import QACTrainer
 from trainer.dqn import DQNTrainer
+from trainer.semantic import SemanticTrainer
 
 from config import get_config, get_house_ids, get_house_targets
 
