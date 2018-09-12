@@ -7,8 +7,8 @@ CUDA_VISIBLE_DEVICES=0 python3 sup_train.py --seed 0 \
     --multi-target --fixed-target $target \
     --train-gpu 0 \
     --t-max 20 --batch-size 128 --grad-batch 1 --epochs 20 \
-    --lrate 0.0005 --weight-decay 0.00001 --grad-clip 1.0 --batch-norm \
-    --optimizer adam --entropy-penalty 0.4 --logits-penalty 0.1 \
+    --lrate 0.001 --weight-decay 0.00001 --grad-clip 1.0 --batch-norm \
+    --optimizer adam --entropy-penalty 0.5 --logits-penalty 0.1 \
     --use-target-gating \
     --rnn-units 256 --rnn-layers 1 --rnn-cell lstm \
     --save-dir ./_model_/supervise/$MODEL_NAME --log-dir ./log/supervise/$MODEL_NAME \
