@@ -92,7 +92,7 @@ class SemanticOracle(object):
             np_frame = np_frame[np.newaxis, ...]
         ret = np.zeros(self.n_target, dtype=(np.uint8 if threshold is not None else np.float))
         for i, trainer in enumerate(self.classifiers):
-            prob = trainer.action(np_frame, return_numpy=True)
+            prob = trainer.action(np_frame, return_numpy=True)[0]
             if threshold is not None:
                 ret[i] = (prob[0] > threshold)
             else:

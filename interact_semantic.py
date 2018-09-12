@@ -72,7 +72,7 @@ def evaluate(house, seed = 0, render_device=None, model_device=None,
                             use_discrete_action=True,
                             include_object_target=include_object_target,
                             include_outdoor_target=include_outdoor_target,
-                            target_mask_input=True,
+                            target_mask_input=False,
                             discrete_angle=True,
                             cache_supervision=False)
 
@@ -103,7 +103,7 @@ def evaluate(house, seed = 0, render_device=None, model_device=None,
     t = 0
 
     # set actions
-    action_dict = dict(i=0, u=1, o=2, a=3, f=4, k=5, s=6, d=7, p=8,r=-1,h=-2,q=-3)
+    action_dict = dict(i=0, u=2, o=1, a=4, f=3, k=5, s=7, d=6, p=8,r=-1,h=-2,q=-3)
     action_names = ['Forward', 'Left-Fwd', 'Right-Fwd', 'Left-Rotate', 'Right-Rotate',
                     'Small-Forward', 'Small-Left-Rot', 'Small-Right-Rot', 'Stay']
 
