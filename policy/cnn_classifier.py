@@ -11,8 +11,9 @@ from torch.autograd import Variable
 class CNNClassifier(torch.nn.Module):
     def __init__(self, D_shape_in, n_class, hiddens, kernel_sizes=5, strides=2,
                  linear_hiddens=[32],
-                 activation=F.elu, use_batch_norm=False,
-                 multi_label=False):
+                 activation=F.relu, use_batch_norm=False,
+                 multi_label=False,
+                 dropout_rate=None):
         """
         D_shape_in: tupe of two ints, the shape of input images
         n_class: a int for number of semantic classes
@@ -44,22 +45,44 @@ class CNNClassifier(torch.nn.Module):
         prev_hidden = D_shape_in[0]
         for i, dat in enumerate(zip(self.hiddens, self.kernel_sizes, self.strides)):
             h, k, s = dat
+            if h == 0:  # max pooling layer
+                self.conv_layers.append(None)
+                self.bc_layers.append((nn.MaxPool2d(k, stride=s, padding=(k//2))))
+                setattr(self, 'max_pool%d'%i, self.bc_layers[-1][0])
+                continue   # do not update prev_hidden
             self.conv_layers.append(nn.Conv2d(prev_hidden, h, kernel_size=k, stride=s))
             setattr(self, 'conv_layer%d'%i, self.conv_layers[-1])
             utils.initialize_weights(self.conv_layers[-1])
-            if use_batch_norm:
-                self.bc_layers.append(nn.BatchNorm2d(h))
-                setattr(self, 'bc_layer%d'%i, self.bc_layers[-1])
-                utils.initialize_weights(self.bc_layers[-1])
+            if use_batch_norm or dropout_rate:
+                cur_bc = []
+                if use_batch_norm:
+                    cur_bc.append(nn.BatchNorm2d(h))
+                    utils.initialize_weights(cur_bc[-1])
+                    setattr(self, 'bc_layer%d'%i, cur_bc[-1])
+                if dropout_rate is not None:
+                    cur_bc.append(nn.Dropout2d(dropout_rate))
+                    setattr(self, 'dropout2d%d'%i, cur_bc[-1])
+                self.bc_layers.append(cur_bc)
+                #self.bc_layers.append(nn.BatchNorm2d(h))
+                #setattr(self, 'bc_layer%d'%i, self.bc_layers[-1])
+                #utils.initialize_weights(self.bc_layers[-1])
             else:
                 self.bc_layers.append(None)
             prev_hidden = h
-        self.feat_size = self._get_feature_dim(D_shape_in)
+
+        #self.feat_size = self._get_feature_dim(D_shape_in)
+        n_size, n_col, n_row = self._get_feature_dim(D_shape_in)
+        self.avg_pool = nn.AvgPool2d((n_row, n_col))
+        self.feat_size = prev_hidden
+
         cur_dim = self.feat_size
         linear_hiddens.append(n_class)
         self.linear_layers = []
-        #self.dropout_layers = []  TODO: add dropout layers
+        self.dropout_layers = []  #TODO: add dropout layers
         for i,d in enumerate(linear_hiddens):
+            if (i > 0) and (dropout_rate is not None):
+                self.dropout_layers.append(nn.Dropout(dropout_rate))
+                setattr(self, 'dropout_layer%d' % (i - 1), self.dropout_layers[-1])
             self.linear_layers.append(nn.Linear(cur_dim, d))
             setattr(self, 'linear_layer%d'%i, self.linear_layers[-1])
             utils.initialize_weights(self.linear_layers[-1])
@@ -68,10 +91,13 @@ class CNNClassifier(torch.nn.Module):
     ######################
     def _forward_feature(self, x):
         for conv, bc in zip(self.conv_layers, self.bc_layers):
-            x = conv(x)
+            if conv is not None:
+                x = conv(x)
             if bc is not None:
-                x = bc(x)
-            x = self.func(x)
+                for l in bc:
+                    x = l(x)
+            if conv is not None:
+                x = self.func(x)
         return x
 
     def _get_feature_dim(self, D_shape_in):
@@ -81,7 +107,7 @@ class CNNClassifier(torch.nn.Module):
         print('>> Final CNN Shape = {}'.format(out_feat.size()))
         n_size = out_feat.data.view(bs, -1).size(1)
         print('Feature Size = %d' % n_size)
-        return n_size
+        return n_size, out_feat.size(-2), out_feat.size(-1)
     #######################
 
     def forward(self, x, return_logits=False, return_logprob=False):
@@ -89,10 +115,13 @@ class CNNClassifier(torch.nn.Module):
         compute the forward pass of the model.
         return logits and the softmax prob w./w.o. gumbel noise
         """
-        self.feat = feat = self._forward_feature(x)
+        self.feat = feat = self.avg_pool(self._forward_feature(x))
         feat = feat.view(-1, self.feat_size)
         for i, l in enumerate(self.linear_layers):
-            if i > 0: feat = self.func(feat)
+            if i > 0:
+                feat = self.func(feat)
+                if i - 1 < len(self.dropout_layers):
+                    feat = self.dropout_layers[i-1](feat)
             feat = l(feat)
         self.logits = feat
         if return_logits: return feat

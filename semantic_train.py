@@ -23,11 +23,16 @@ test_batch_frames = test_batch_labels = None
 
 def create_policy(args, observation_shape, n_class):
     model = CNNClassifier(observation_shape, n_class,
-                          hiddens=[64, 64, 128, 128],
-                          kernel_sizes=5, strides=2,
-                          linear_hiddens=[128, 64],
+                          #hiddens=[64, 64, 128, 128],
+                          #kernel_sizes=5, strides=2,
+                          #linear_hiddens=[128, 64],
+                          hiddens=[4, 8, 16, 16, 32, 32, 64, 64, 128, 256],
+                          kernel_sizes=[3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
+                          strides=[1, 1, 1,  2,  1, 2, 1, 2, 1, 2],
+                          linear_hiddens=[32],
                           use_batch_norm=args['batch_norm'],
-                          multi_label=False)
+                          multi_label=False,
+                          dropout_rate=0.05)
     if common.use_cuda:
         if 'train_gpu' in args:
             train_gpus = args['train_gpu']
@@ -282,13 +287,14 @@ def train(args=None, warmstart=None):
         train_stats = []
         test_stats = []
         train_accuracy = 0
+        best_eval_rate = 0
         beg_time = time.time()
         for ep in range(args['epochs']):
             dur = time.time()
             # set to train mode
             trainer.train()
             # start training current epoch
-            logger.print('Training Epoch#{}/{} ....'.format(ep, args['epochs']))
+            logger.print('Training Epoch#{}/{} ....'.format(ep+1, args['epochs']))
             random.shuffle(indices)
             prev_ep_dur = time.time() - beg_time
             for up in range(epoch_updates):
@@ -322,6 +328,10 @@ def train(args=None, warmstart=None):
             logger.print('>> Epoch#%d Done!!!! Train Accuracy = %.4f'%(ep + 1, train_accuracy))
             if (test_data is not None) and (args['eval_rate'] is not None) and ((ep + 1) % args['eval_rate'] == 0):
                 accu = eval_model(test_data, test_size, args['eval_batch_size'], trainer, logger)
+                if accu > best_eval_rate:
+                    best_eval_rate = accu
+                    trainer.save(args['save_dir'], 'best')
+                    logger.print(' ------> Best Model Saved! Best Accu = {}'.format(accu))
                 if args['keep_stats']:
                     test_stats.append((ep, accu))
             if (ep + 1) % args['save_rate'] == 0:

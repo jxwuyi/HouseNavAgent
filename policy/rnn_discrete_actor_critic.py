@@ -11,6 +11,7 @@ from torch.autograd import Variable
 class DiscreteRNNPolicy(torch.nn.Module):
     def __init__(self, D_shape_in, D_out,
                  conv_hiddens = [], kernel_sizes=5, strides=2,
+                 use_avg_pool = False,
                  linear_hiddens = [],
                  policy_hiddens = [],
                  critic_hiddens = [],
@@ -83,7 +84,12 @@ class DiscreteRNNPolicy(torch.nn.Module):
             else:
                 self.bc_layers.append(None)
             prev_hidden = h
-        self.conv_out_size = feat_size = self._get_feature_dim(D_shape_in)
+        self.avg_pool = None
+        n_size, n_row, n_col = self._get_feature_dim(D_shape_in)
+        if use_avg_pool:
+            self.avg_pool = nn.AvgPool2d((n_col, n_row))
+        feat_size = prev_hidden if use_avg_pool else n_size
+        self.conv_out_size = feat_size
         print('Output of Convlution Feature Size = %d' % self.conv_out_size)
 
         # extra linear layers
@@ -163,12 +169,14 @@ class DiscreteRNNPolicy(torch.nn.Module):
 
 
     ######################
-    def _forward_feature(self, x, compute_linear=False):
+    def _forward_feature(self, x, compute_linear=False, compute_bc=True):
         for conv, bc in zip(self.conv_layers, self.bc_layers):
             x = conv(x)
-            if bc is not None:
+            if (bc is not None) and compute_bc:
                 x = bc(x)
             x = self.func(x)
+        if self.avg_pool is not None:
+            x = self.avg_pool(x)
         if compute_linear:
             x = x.view(-1, self.conv_out_size)
             for l, bc in zip(self.linear_layers, self.ln_bc_layers):
@@ -181,9 +189,9 @@ class DiscreteRNNPolicy(torch.nn.Module):
     def _get_feature_dim(self, D_shape_in):
         bs = 1
         inp = Variable(torch.rand(bs, *D_shape_in))
-        out_feat = self._forward_feature(inp)
+        out_feat = self._forward_feature(inp, compute_bc=False)
         n_size = out_feat.data.view(bs, -1).size(1)
-        return n_size
+        return n_size, out_feat.size(-1), out_feat.size(-2)
 
     def get_zero_state(self, batch=1, return_variable=False, volatile=False, hidden_batch_first=False):
         if hidden_batch_first:

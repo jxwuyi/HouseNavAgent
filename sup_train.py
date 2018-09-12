@@ -24,8 +24,12 @@ test_batch_frames = test_batch_len_mask = test_batch_actions = test_batch_mask_f
 def create_policy(model_name, args, observation_shape, n_action):
     assert model_name == 'rnn', 'currently only support rnn policy!'
     model = DiscreteRNNPolicy(observation_shape, n_action,
+                              #conv_hiddens=[16, 32, 64, 128, 256, 512], # deeper nets
+                              #strides=[1, 2, 1, 2, 2, 2],
+                              #kernel_sizes=3, use_avg_pool=True,
                               conv_hiddens=[64, 64, 128, 128],
                               kernel_sizes=5, strides=2,
+                              use_avg_pool=False,
                               linear_hiddens=[256],
                               policy_hiddens=[128, 64],
                               critic_hiddens=[64, 32],
@@ -277,12 +281,13 @@ def train(args=None, warmstart=None):
         train_stats = []
         test_stats = []
         beg_time = time.time()
+        best_eval_rate = 0
         for ep in range(args['epochs']):
             dur = time.time()
             # set to train mode
             trainer.train()
             # start training current epoch
-            logger.print('Training Epoch#{}/{} ....'.format(ep, args['epochs']))
+            logger.print('Training Epoch#{}/{} ....'.format(ep+1, args['epochs']))
             random.shuffle(indices)
             prev_ep_dur = time.time() - beg_time
             for up in range(epoch_updates):
@@ -326,6 +331,10 @@ def train(args=None, warmstart=None):
             logger.print('>> Epoch#{} Done!'.format(ep + 1))
             if (test_data is not None) and (args['eval_rate'] is not None) and ((ep + 1) % args['eval_rate'] == 0):
                 accu = eval_model(test_data, test_size, args['eval_batch_size'], trainer, logger)
+                if accu > best_eval_rate:
+                    best_eval_rate = accu
+                    trainer.save(args['save_dir'], 'best')
+                    logger.print(' ------> Best Model Saved! Best Accu = {}'.format(accu))
                 if args['keep_stats']:
                     test_stats.append((ep, accu))
             if (ep + 1) % args['save_rate'] == 0:
