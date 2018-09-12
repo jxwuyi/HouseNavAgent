@@ -48,8 +48,8 @@ def _get_target_index(target):
         return ALLOWED_OBJECT_TARGET_INDEX[target]
 
 class FakeMotion(BaseMotion):
-    def __init__(self, task, trainer=None, pass_target=True, term_measure='mask'):
-        super(FakeMotion, self).__init__(task, trainer, pass_target, term_measure)
+    def __init__(self, task, trainer=None, pass_target=True, term_measure='mask', oracle_func=None):
+        super(FakeMotion, self).__init__(task, trainer, pass_target, term_measure, oracle_func)
         all_houses = self.env.all_houses if hasattr(self.env, 'all_houses') else [self.env.house]
         self.target_dist = []
         self.target_list = []

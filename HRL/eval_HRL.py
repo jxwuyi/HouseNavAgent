@@ -10,6 +10,7 @@ import random
 from HRL.eval_motion import create_motion
 from HRL.BayesGraph import GraphPlanner
 from HRL.RNNController import RNNPlanner
+from HRL.semantic_oracle import SemanticOracle
 
 
 def set_seed(seed):
@@ -71,17 +72,29 @@ def evaluate(args):
     if fixed_target == 'any-room':
         common.CFG = __backup_CFG
         common.ensure_object_targets(True)
-
-    # create motion
-    motion = create_motion(args, task)
-    if args['motion'] == 'random':
-        motion.set_skilled_rate(args['random_motion_skill'])
-    flag_interrupt = args['interruptive_motion']
-
+    
     # logger
     logger = utils.MyLogger(args['log_dir'], True)
     logger.print('Start Evaluating ...')
 
+
+    # create semantic oracle
+    oracle_func = lambda task: task.get_feature_mask()
+    flag_oracle = None
+    if args['semantic_model_dir'] and os.path.exists(args['semantic_model_dir']):
+        logger.print(' > Loading semantic oracle model from dir = <{}>'.format(args['semantic_model_dir']))
+        oracle = SemanticOracle(args['semantic_model_dir'],
+                                model_device=args['semantic_gpu'],
+                                include_object=(args['object_target'] and ((fixed_target is None) or (fixed_target == 'any-object') or (fixed_target in common.ALLOWED_OBJECT_TARGET_TYPES))))
+        oracle_threshold = args['semantic_threshold']
+        oracle_func = lambda task: oracle.get_mask_feature(task.last_obs, threshold=oracle_threshold)
+        flag_oracle = oracle_func
+
+    # create motion
+    motion = create_motion(args, task, oracle_func=flag_oracle)
+    if args['motion'] == 'random':
+        motion.set_skilled_rate(args['random_motion_skill'])
+    flag_interrupt = args['interruptive_motion']
 
     # create planner
     graph = None
@@ -140,7 +153,7 @@ def evaluate(args):
             if flag_interrupt and motion.is_interrupt():
                 graph_target = task.get_current_target()
             else:
-                graph_target = graph.plan(task.get_feature_mask(), task_target)
+                graph_target = graph.plan(oracle_func(task), task_target)
             graph_target_id = common.target_instruction_dict[graph_target]
             allowed_steps = min(max_episode_len - episode_step, max_motion_steps)
 
@@ -290,10 +303,12 @@ def parse_args():
     parser.add_argument("--planner-units", type=int, help='hidden units for planner, only effective when --planner rnn')
     parser.add_argument("--n-exp-steps", type=int, default=40, help='maximum number of steps for exploring a sub-policy')
     parser.add_argument("--planner-obs-noise", type=float, help="setting the parameters of observation noise")
-    # Auxiliary Task Options
-    parser.add_argument("--auxiliary-task", dest='aux_task', action='store_true',
-                        help="Whether to perform auxiliary task of predicting room types")
-    parser.set_defaults(aux_task=False)
+    # Semantic Classifier 
+    parser.add_argument("--semantic-model-dir", type=str,
+                        help="[Semantic] when set, load pre-trained semantic classifiers from that repo")
+    parser.add_argument("--semantic-threshold", type=float, default=0.4,
+                        help="[Semantic] only effect when --semantic-model-dir is not None. the threshold, default=0.4")
+    parser.add_argument("--semantic-gpu", type=int, help="[Semantic] gpu used for semantic model")
     # Checkpointing
     parser.add_argument("--log-dir", type=str, default="./log/eval", help="directory in which logs eval stats")
     parser.add_argument("--warmstart", type=str, help="file to load the policy model")
@@ -304,8 +319,6 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
     assert (args.warmstart is None) or (os.path.exists(args.warmstart)), 'Model File Not Exists!'
-
-    assert not args.aux_task, 'Currently do not support Aux-Task!'
 
     common.set_house_IDs(args.env_set, ensure_kitchen=(not args.multi_target))
     print('>> Environment Set = <%s>, Total %d Houses!' % (args.env_set, len(common.all_houseIDs)))
