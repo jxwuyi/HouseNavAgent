@@ -101,7 +101,7 @@ def evaluate(args):
     max_motion_steps = args['n_exp_steps']
     if args['planner'] == 'rnn':
         #assert False, 'Currently only support Graph-planner'
-        graph = RNNPlanner(motion, args['planner_units'], args['planner_filename'])
+        graph = RNNPlanner(motion, args['planner_units'], args['planner_filename'], oracle_func=flag_oracle)
     else:
         graph = GraphPlanner(motion)
         if not args['outdoor_target']:

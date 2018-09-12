@@ -217,7 +217,7 @@ class SimpleRNNPolicy(torch.nn.Module):
 
 
 class RNNPlanner(BasePlanner):
-    def __init__(self, motion, rnn_units=50, warmstart=None):
+    def __init__(self, motion, rnn_units=50, warmstart=None, oracle_func=None):
         super(RNNPlanner, self).__init__(motion)
         #self.task = motion.task
         #self.env = self.task.env
@@ -237,6 +237,7 @@ class RNNPlanner(BasePlanner):
         self.accu_mask = np.zeros(n_mask_feature, dtype=np.uint8)
         self.last_mask = None
         self.last_hidden = self._zero_hidden = self.policy.get_zero_state() # variable
+        self._oracle_func = oracle_func
 
     def save(self, save_dir, version=""):
         save_policy(self.policy, save_dir, version=version)
@@ -324,7 +325,7 @@ class RNNPlanner(BasePlanner):
 
     def _get_feature_mask(self, feat=None):
         if feat is None:
-            feat = self.task.get_feature_mask()
+            feat = self.task.get_feature_mask() if self._oracle_func is None else self._oracle_func(self.task)
         if feat.shape[0] == n_mask_feature:
             return feat
         return feat[:n_mask_feature]
