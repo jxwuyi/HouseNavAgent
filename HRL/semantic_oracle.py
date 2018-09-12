@@ -66,6 +66,7 @@ class SemanticOracle(object):
         self.classifiers = []
         if isinstance(model_device, int): model_device=[model_device]
         for i, target in enumerate(self.allowed_targets):
+            print('---> current target = {}'.format(target))
             cur_dir = os.path.join(model_dir, target)
             assert os.path.exists(cur_dir), '[SemanticOracle] model dir <{}> for target <{}> not found!'.format(cur_dir, target)
             config_file = os.path.join(cur_dir, 'train_args.json')

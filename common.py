@@ -642,7 +642,7 @@ def create_env(k=0,
     Task = RoomNavTask if task_name == 'roomnav' else ObjNavTask
     task = Task(env, reward_type=reward_type,
                 hardness=hardness, max_birthplace_steps=max_birthplace_steps,
-                segment_input=(segment_input != 'None'),
+                segment_input=(segment_input != 'none'),
                 joint_visual_signal=(segment_input == 'joint'),
                 depth_signal=depth_input,
                 target_mask_signal=target_mask_input,

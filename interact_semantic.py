@@ -41,6 +41,13 @@ def evaluate(house, seed = 0, render_device=None, model_device=None,
              threshold=None):
 
     elap = time.time()
+    
+    # Process Observation Shape
+    common.process_observation_shape(model='cnn',
+                                     resolution_level=resolution,
+                                     segmentation_input=segmentation_input,
+                                     depth_input=depth_input,
+                                     history_frame_len=1)
 
     # Do not need to log detailed computation stats
     common.debugger = utils.FakeLogger()
@@ -49,7 +56,7 @@ def evaluate(house, seed = 0, render_device=None, model_device=None,
 
     # load semantic classifiers
     print('Loading Semantic Oracle ...')
-    oracle = SemanticOracle(model_dir=model_dir, model_device=model_device, include_object=include_object_target)
+    oracle = SemanticOracle(model_dir=model_dir, model_device=model_device, include_object=False)
 
     # create env
     env = common.create_env(house,
