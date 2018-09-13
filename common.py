@@ -578,7 +578,7 @@ def create_house_from_index(k, genRoomTypeMap=False, cacheAllTarget=False, inclu
         k = -k
         print('Multi-House Environment! Total Selected Houses = {}'.format(k))
         if k > len(all_houseIDs):
-            print('  >> k={} exceeds total number of houses ({})! use all houses!')
+            print('  >> k={} exceeds total number of houses ({})! use all houses!'.format(k, len(all_houseIDs)))
             k = len(all_houseIDs)
         import time
         ts = time.time()
