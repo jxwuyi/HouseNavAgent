@@ -136,6 +136,7 @@ def parse_args():
     parser = argparse.ArgumentParser("Evaluation Locomotion for 3D House Navigation")
     parser.add_argument("--data", type=str, help="path to eval_data.pkl")
     parser.add_argument("--log-dir", type=str, help="dir to store info")
+    parser.add_argument("--render-gpu", type=int, help="gpu for render")
     return parser.parse_args()
 
 
@@ -146,6 +147,7 @@ if __name__ == '__main__':
     with open(cmd_args.data, 'rb') as f:
         episode_stats, args = pickle.load(f)
 
+    args.render_gpu = cmd_args.render_gpu
     dict_args = args.__dict__
 
     details = evaluate(episode_stats, dict_args)
