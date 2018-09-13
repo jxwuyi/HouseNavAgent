@@ -147,6 +147,17 @@ if __name__ == '__main__':
     with open(cmd_args.data, 'rb') as f:
         episode_stats, args = pickle.load(f)
 
+
+    common.set_house_IDs(args.env_set, ensure_kitchen=(not args.multi_target))
+    print('>> Environment Set = <%s>, Total %d Houses!' % (args.env_set, len(common.all_houseIDs)))
+
+    if args.object_target:
+        common.ensure_object_targets()
+    
+    if not os.path.exists(args.log_dir):
+        print('Directory <{}> does not exist! Creating directory ...'.format(args.log_dir))
+        os.makedirs(args.log_dir)
+
     args.render_gpu = cmd_args.render_gpu
     dict_args = args.__dict__
 
