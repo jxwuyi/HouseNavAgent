@@ -148,7 +148,7 @@ if __name__ == '__main__':
 
     dict_args = args.__dict__
 
-    details = evaluate(epsiode_stats, dict_args)
+    details = evaluate(episode_stats, dict_args)
 
     filename = os.path.join(cmd_args.log_dir, 'details.pkl')
     print('Store Fetched Details to <{}>....'.format(filename))
