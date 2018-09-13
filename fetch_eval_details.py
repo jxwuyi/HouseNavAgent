@@ -13,50 +13,6 @@ from HRL.random_motion import RandomMotion
 from HRL.mixture_motion import MixMotion, create_mixture_motion_trainer_dict
 
 
-def create_motion(args, task, oracle_func=None):
-    if args['motion'] == 'rnn':
-        if (args['warmstart_dict'] is not None) and os.path.isfile(args['warmstart_dict']):
-            with open(args['warmstart_dict'], 'r') as f:
-                trainer_args = json.load(f)
-        else:
-            trainer_args = args
-        common.process_observation_shape('rnn', trainer_args['resolution_level'],
-                                         segmentation_input=trainer_args['segment_input'],
-                                         depth_input=trainer_args['depth_input'],
-                                         history_frame_len=1,
-                                         target_mask_input=trainer_args['target_mask_input'])
-        import zmq_train
-        trainer = zmq_train.create_zmq_trainer('a3c', 'rnn', trainer_args)
-        model_file = args['warmstart']
-        if model_file is not None:
-            trainer.load(model_file)
-        trainer.eval()
-        motion = RNNMotion(task, trainer,
-                           pass_target=args['multi_target'],
-                           term_measure=args['terminate_measure'],
-                           oracle_func=oracle_func)
-    elif args['motion'] == 'random':
-        motion = RandomMotion(task, None, term_measure=args['terminate_measure'], oracle_func=oracle_func)
-    elif args['motion'] == 'fake':
-        motion = FakeMotion(task, None, term_measure=args['terminate_measure'], oracle_func=oracle_func)
-    else: # mixture motion
-        mixture_dict_file = args['mixture_motion_dict']
-        try:
-            with open(mixture_dict_file, 'r') as f:
-                arg_dict = json.load(f)
-        except Exception as e:
-            print('Invalid Mixture Motion Dict!! file = <{}>'.format(mixture_dict_file))
-            raise e
-        trainer_dict, pass_tar_dict, obs_mode_dict = create_mixture_motion_trainer_dict(arg_dict)
-        motion = MixMotion(task, trainer_dict, pass_tar_dict,
-                           term_measure=args['terminate_measure'],
-                           obs_mode=obs_mode_dict,
-                           oracle_func=oracle_func)
-        common.ensure_object_targets(args['object_target'])
-
-    return motion
-
-
 def set_seed(seed):
     random.seed(seed)
     np.random.seed(seed)
@@ -120,7 +76,17 @@ def evaluate(ep_stats, args):
         set_seed(seed + it + 1)  # reset seed
         task.reset(target=fixed_target)
 
-        cur_detail = dict(plan=task.get_optimal_plan(), targets=task.get_avail_targets(), graph=task.house.get_graph())
+        #cur_detail = dict(plan=task.get_optimal_plan(), targets=task.get_avail_targets(), graph=task.house.get_graph())
+        #cur_detail=dict(graph=task.house.get_graph(), targets=task.get_avail_targets().copy())
+        targets = task.get_avail_targets().copy()
+        print('   ---> target done!')
+        print(targets)
+        graph = task.house.get_graph().copy()
+        print('   ---> graph done!')
+        print(graph)
+        plan = task.get_optimal_plan()
+        print('   ---> plan done!')
+        cur_detail=dict(plan=plan,graph=graph,targets=targets)
 
         ep_plans.append(cur_detail)
 
@@ -163,7 +129,7 @@ if __name__ == '__main__':
 
     details = evaluate(episode_stats, dict_args)
 
-    filename = os.path.join(cmd_args.log_dir, 'details.pkl')
+    filename = os.path.join(cmd_args.log_dir, '_eval_details.pkl')
     print('Store Fetched Details to <{}>....'.format(filename))
     with open(filename, 'wb') as f:
         pickle.dump(details)
