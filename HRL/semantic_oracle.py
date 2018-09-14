@@ -99,12 +99,12 @@ class SemanticOracle(object):
             assert self.stack_frame and (self.stack_frame == len(np_frame))
             shape = None
             for i in range(len(np_frame)):
-                if np_frame[i]:
+                if np_frame[i] is not None:
                     if len(np_frame[i].shape) == 4:
                         np_frame[i] = np_frame[i][0]
                     shape = np_frame[i].shape
             for i in range(len(np_frame)):
-                if np_frame[i] is not None:
+                if np_frame[i] is None:
                     np_frame[i] = np.zeros(shape, dtype=np.uint8)
             np_frame_list = np_frame
             np_frame = np.stack(np_frame_list)[np.newaxis, ...]
