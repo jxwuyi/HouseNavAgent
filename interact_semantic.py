@@ -57,6 +57,8 @@ def evaluate(house, seed = 0, render_device=None, model_device=None,
     # load semantic classifiers
     print('Loading Semantic Oracle ...')
     oracle = SemanticOracle(model_dir=model_dir, model_device=model_device, include_object=False)
+    stack_frame = oracle.stack_frame
+    recent_frames = [None] * stack_frame if stack_frame else [None]
 
     # create env
     env = common.create_env(house,
@@ -76,7 +78,8 @@ def evaluate(house, seed = 0, render_device=None, model_device=None,
                             discrete_angle=True,
                             cache_supervision=False)
 
-    def display(obs):
+    def display(recent_frames):
+        obs = recent_frames if stack_frame else recent_frames[0]
         mask = oracle.get_mask_feature(obs, threshold=threshold)
         if threshold is not None:
             ret = [oracle.targets[i] for i in range(oracle.n_target) if mask[i] > 0]
@@ -124,6 +127,10 @@ def evaluate(house, seed = 0, render_device=None, model_device=None,
         rew = 0
         good = 0
         obs = env.reset(target=fixed_target)
+        if stack_frame:
+            recent_frames = recent_frames[1:] + [obs]
+        else:
+            recent_frames[0] = obs
         target = env.info['target_room']
 
         def get_supervision_name(act):
@@ -142,7 +149,7 @@ def evaluate(house, seed = 0, render_device=None, model_device=None,
             #############
             # Plan Info
             #############
-            display(obs)
+            display(recent_frames)
             while True:
                 key = cv2.waitKey(0)
                 key = chr(key)
@@ -160,6 +167,10 @@ def evaluate(house, seed = 0, render_device=None, model_device=None,
             act = action_dict[key]
 
             obs, reward, done, info = env.step(act)
+            if stack_frame:
+                recent_frames = recent_frames[1:] + [obs]
+            else:
+                recent_frames[0] = obs
             
             rew += reward
             print('>> r = %.2f, done = %f, accu_rew = %.2f, step = %d' % (reward, done, rew, step))

@@ -32,7 +32,9 @@ def create_policy(args, observation_shape, n_class):
                           linear_hiddens=[32],
                           use_batch_norm=args['batch_norm'],
                           multi_label=False,
-                          dropout_rate=0.05)
+                          dropout_rate=args['dropout_rate'],
+                          stack_frame=args['stack_frame'],
+                          self_attention_dim=args['self_attention_dim'])
     if common.use_cuda:
         if 'train_gpu' in args:
             train_gpus = args['train_gpu']
@@ -65,6 +67,7 @@ class SemanticOracle(object):
             print('[SemanticOracle] model_dir <{}> not found!'.format(model_dir))
         self.classifiers = []
         if isinstance(model_device, int): model_device=[model_device]
+        self.stack_frame = 0
         for i, target in enumerate(self.allowed_targets):
             print('---> current target = {}'.format(target))
             cur_dir = os.path.join(model_dir, target)
@@ -74,10 +77,14 @@ class SemanticOracle(object):
             with open(config_file, 'r') as f:
                 args = json.load(f)
             if 'train_gpu' in args: del args['train_gpu']
+            if ('stack_frame' in args) and args['stack_frame']:
+                self.stack_frame = max(self.stack_frame, args['stack_frame'])
             args['train_gpu'] = model_device[i % len(model_device)]
             cur_trainer = create_trainer(args, n_class=2)
             cur_trainer.load(cur_dir, version='best')
             self.classifiers.append(cur_trainer)    # TODO: multi-class softmax classifier
+        if self.stack_frame <= 1:
+            self.stack_frame = None
         print('[SemanticOracle] Successfully Launched trainers for target <{}>'.format(self.allowed_targets))
     
     @property
@@ -88,11 +95,32 @@ class SemanticOracle(object):
         """
         threshold: when not None, return a np.array with binary signals; otherwise return a list of float number
         """
-        if len(np_frame.shape) == 3:
-            np_frame = np_frame[np.newaxis, ...]
+        if isinstance(np_frame, list):
+            assert self.stack_frame and (self.stack_frame == len(np_frame))
+            shape = None
+            for i in range(len(np_frame)):
+                if np_frame[i]:
+                    if len(np_frame[i].shape) == 4:
+                        np_frame[i] = np_frame[i][0]
+                    shape = np_frame[i].shape
+            for i in range(len(np_frame)):
+                if np_frame[i] is not None:
+                    np_frame[i] = np.zeros(shape, dtype=np.uint8)
+            np_frame_list = np_frame
+            np_frame = np.stack(np_frame_list)[np.newaxis, ...]
+        else:
+            assert not self.stack_frame
+            if len(np_frame.shape) == 3:
+                np_frame = np_frame[np.newaxis, ...]
         ret = np.zeros(self.n_target, dtype=(np.uint8 if threshold is not None else np.float))
         for i, trainer in enumerate(self.classifiers):
-            prob = trainer.action(np_frame, return_numpy=True)[0]
+            if trainer.stack_frame == self.stack_frame:
+                cur_frame = np_frame
+            elif trainer.stack_frame:
+                cur_frame = np_frame[:, -trainer.stack_frame:, ...]
+            else:
+                cur_frame = np_frame[:, -1, ...]
+            prob = trainer.action(cur_frame, return_numpy=True)[0]
             if threshold is not None:
                 ret[i] = (prob[0] > threshold)
             else:
