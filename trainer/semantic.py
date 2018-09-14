@@ -27,6 +27,7 @@ class SemanticTrainer(AgentTrainer):
         self.args = args
         self.lrate = args['lrate'] if 'lrate' in args else 0.001
         self.batch_size = args['batch_size'] if 'batch_size' in args else 64
+        self.stack_frame = args['stack_frame'] if 'stack_frame' in args else None
         self.grad_batch = args['grad_batch'] if 'grad_batch' in args else 1
         self.accu_grad_steps = 0
         self.accu_ret_dict = dict()
@@ -43,28 +44,13 @@ class SemanticTrainer(AgentTrainer):
             self.optim = optim.RMSprop(self.policy.parameters(), lr=self.lrate, weight_decay=args['weight_decay'])
         self.grad_norm_clip = args['grad_clip'] if 'grad_clip' in args else None
 
-    def _create_feature_tensor(self, feature, return_variable=True, volatile=False):
-        # feature: [batch, t_max, feature_dim]
-        ret = torch.from_numpy(feature).type(ByteTensor).type(FloatTensor)
-        if return_variable:
-            ret = Variable(ret, volatile=volatile)
-        return ret
-
-    def _create_target_tensor(self, targets, seq_len, return_variable=True, volatile=False):
-        # targets: [batch]
-        # return: [batch, seq_len, n_instructions]
-        batch = len(targets)
-        target_n = torch.zeros(batch, 1, self.policy.n_target_instructions).type(FloatTensor)
-        ids = torch.from_numpy(np.array(targets)).type(LongTensor).view(batch, 1, 1)
-        target_n.scatter_(2, ids, 1.0)
-        target_n = target_n.repeat(1, seq_len, 1)
-        if return_variable:
-            target_n = Variable(target_n, volatile=volatile)
-        return target_n
-
     def _create_gpu_tensor(self, frames, return_variable=True, volatile=False):
         # convert to tensor
-        gpu_tensor = torch.from_numpy(frames).type(ByteTensor).permute(0,3,1,2).type(FloatTensor)
+        gpu_tensor = torch.from_numpy(frames).type(ByteTensor)
+        if self.stack_frame:  # shape: [batch_size, stack_frame, n, m, channel]
+            gpu_tensor = gpu_tensor.permute(0, 1, 4, 2, 3).type(FloatTensor)
+        else:
+            gpu_tensor = gpu_tensor.permute(0,3,1,2).type(FloatTensor)
         if self.args['segment_input'] != 'index':
             if self.args['depth_input'] or ('attentive' in self.args['model_name']):
                 gpu_tensor /= 256.0  # special hack here for depth info
@@ -76,7 +62,7 @@ class SemanticTrainer(AgentTrainer):
 
     def action(self, obs, return_numpy=False, greedy_act=False, return_argmax=False):
         # Assume all input data are numpy arrays!
-        # obs: [batch, n, m, channel], uint8
+        # obs: [batch, n, m, channel] or [batch, stack_frame, n, m, channel], uint8
         # return: [batch, n_class], probability over classes
         batch_size = obs.shape[0]
         obs = self._create_gpu_tensor(obs, return_variable=True, volatile=True)  # [batch, t_max, n, m, channel]
@@ -104,7 +90,7 @@ class SemanticTrainer(AgentTrainer):
     def update(self, obs, label):
         """
         all input params are numpy arrays
-        :param obs: [batch, seq_len, n, m, channel]
+        :param obs: [batch, n, m, channel] or [batch, stack_frame, n, m, channel]
         :param label: [batch, n_class] (sigmoid) or [batch] (softmax)
         """
         tt = time.time()

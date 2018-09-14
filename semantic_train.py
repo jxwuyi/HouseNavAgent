@@ -53,7 +53,7 @@ def create_trainer(args, n_class):
     return trainer
 
 
-def data_loader(data_dir, n_part, fixed_target=None, logger=None, neg_rate=1):
+def data_loader(data_dir, n_part, fixed_target=None, logger=None, neg_rate=1, stack_frame=None):
     # data_dir: directory of data partitions
     # n_part: the number of partitions
     # fixed_target: required target, if not None, use binary classification; else softmax classification
@@ -134,14 +134,31 @@ def data_loader(data_dir, n_part, fixed_target=None, logger=None, neg_rate=1):
             ####
             accu_label.append(label_index[info['target_room']])
             label_stats[info['target_room']] += 1
-            accu_data.append(frames[-1])
+            if stack_frame:
+                if seq_len < stack_frame:
+                    cur_frame = np.zeros((stack_frame, ) + frames.shape[1:], dtype=np.uint8)
+                    cur_frame[-stack_frame:, ...] = frames[:seq_len, ...]
+                    accu_data.append(cur_frame)
+                else:
+                    accu_data.append(frames[seq_len-stack_frame:])
+            else:
+                accu_data.append(frames[-1])
             n_pos_samples += 1
             neg_samples_need += neg_rate
             if seq_len < 3: continue
+            rnd_range = seq_len - 2
             for i in range(neg_samples_need):
-                j = random.randint(0, seq_len - 2)
+                j = random.randint(0, rnd_range)
                 accu_label.append(label_index['NA'])
-                accu_data.append(frames[j])
+                if stack_frame:
+                    if j+1 >= stack_frame:
+                        accu_data.append(frames[j-stack_frame+1:j])
+                    else:
+                        cur_frame = np.zeros((stack_frame, ) + frames.shape[1:], dtype=np.uint8)
+                        cur_frame[-j-1:, ...] = frames[:j, ...]
+                        accu_data.append(cur_frame)
+                else:
+                    accu_data.append(frames[j])
                 n_neg_samples += 1
                 label_stats['NA'] += 1
             neg_samples_need = 0
@@ -238,7 +255,8 @@ def train(args=None, warmstart=None):
 
     ############################
     # Training Data
-    train_data = data_loader(args['data_dir'], args['n_part'], fixed_target=args['fixed_target'], logger=logger, neg_rate=args['neg_rate'])
+    train_data = data_loader(args['data_dir'], args['n_part'], fixed_target=args['fixed_target'], 
+                             logger=logger, neg_rate=args['neg_rate'], stack_frame=args['stack_frame'])
     train_size = train_data[-1]['n_samples']
     # cache training batch memory
     global batch_frames, batch_labels
@@ -249,7 +267,8 @@ def train(args=None, warmstart=None):
     test_data = None
     test_size = 0
     if args['eval_dir'] and args['eval_n_part']:
-        test_data = data_loader(args['eval_dir'], args['eval_n_part'], fixed_target=args['fixed_target'], logger=logger, neg_rate=1)
+        test_data = data_loader(args['eval_dir'], args['eval_n_part'], fixed_target=args['fixed_target'],
+                                logger=logger, neg_rate=1, stack_frame=args['stack_frame'])
         test_size = test_data[-1]['n_samples']
         test_batch_size = args['eval_batch_size']
         global test_batch_frames, test_batch_labels
@@ -366,6 +385,9 @@ def parse_args():
     parser.add_argument("--data-dump-dir", type=str,
                         help="Only Effect when --only-data-loading")
     parser.add_argument("--seed", type=int, help="random seed")
+    parser.add_argument("--stack-frame", type=int, help="When set, will stack frames for a joint prediction")
+    parser.add_argument("--self-attention-dim", type=int,
+                        help="When set, classifier will use self attention when --stack-frame > 1")
     ########################################################
     # Environment Setting
     parser.add_argument("--segmentation-input", choices=['none', 'index', 'color', 'joint'], default='none', dest='segment_input',
@@ -455,6 +477,10 @@ if __name__ == '__main__':
     if cmd_args.grad_batch < 1:
         print('--grad-batch option must be a positive integer! reset to default value <1>!')
         cmd_args.grad_batch = 1
+    
+    if (cmd_args.stack_frame is None) or (cmd_args.stack_frame <= 1):
+        cmd_args.stack_frame = None
+        cmd_args.self_attention_dim = None
 
     args = cmd_args.__dict__
 

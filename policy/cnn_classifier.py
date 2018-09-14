@@ -13,7 +13,9 @@ class CNNClassifier(torch.nn.Module):
                  linear_hiddens=[32],
                  activation=F.relu, use_batch_norm=False,
                  multi_label=False,
-                 dropout_rate=None):
+                 dropout_rate=None,
+                 stack_frame=None,
+                 self_attention_dim=None):
         """
         D_shape_in: tupe of two ints, the shape of input images
         n_class: a int for number of semantic classes
@@ -32,6 +34,12 @@ class CNNClassifier(torch.nn.Module):
         if len(self.strides) == 1: self.strides = self.strides * self.n_layer
 
         assert ((len(self.hiddens) == len(self.kernel_sizes)) and (len(self.strides) == len(self.hiddens))), '[CNNClassifier] hiddens, kernel_sizes, strides must share the same length'
+
+        if (stack_frame is None) or (stack_frame <= 1):
+            stack_frame = None
+            self_attention_dim = None
+        self.stack_frame = stack_frame
+        self.attention_dim = self_attention_dim
 
         self.out_dim = n_class
         self.func = activation
@@ -74,6 +82,13 @@ class CNNClassifier(torch.nn.Module):
         n_size, n_col, n_row = self._get_feature_dim(D_shape_in)
         self.avg_pool = nn.AvgPool2d((n_row, n_col))
         self.feat_size = prev_hidden
+        if self.stack_frame:
+            if self.attention_dim:
+                self.att_trans = nn.Linear(prev_hidden * self.stack_frame, self.attention_dim)
+                utils.initialize_weights(self.att_trans)
+                self.att_proj = nn.Linear(prev_hidden, self.attention_dim)
+                utils.initialize_weights(self.att_proj)
+            
 
         cur_dim = self.feat_size
         linear_hiddens.append(n_class)
@@ -114,9 +129,26 @@ class CNNClassifier(torch.nn.Module):
         """
         compute the forward pass of the model.
         return logits and the softmax prob w./w.o. gumbel noise
+        x: shape is [batch, channel, n, m] or [batch, stack_frames, channel, n, m]
         """
+        batch_size = x.size(0)
+        if self.stack_frame:
+            assert len(x.size()) == 5
+            chn, n, m = x.size(2), x.size(3), x.size(4)
+            x = x.view(-1, chn, n, m)
         self.feat = feat = self.avg_pool(self._forward_feature(x))
         feat = feat.view(-1, self.feat_size)
+        if self.stack_frame:
+            unpacked_feat = feat.view(batch_size, self.stack_frame, self.feat_size)
+            if self.attention_dim:
+                hidden = F.tanh(self.att_trans(unpacked_feat.view(batch_size, -1))).view(batch_size, 1, self.attention_dim)   # [batch, 1, att_dim]
+                proj = self.att_proj(feat).view(batch_size, self.stack_frame, self.attention_dim)
+                rep_hidden = hidden.repeat(1, self.stack_frame, 1)
+                weight = F.softmax(torch.sum(proj * rep_hidden, dim=-1, keepdim=False)).view(batch_size, self.stack_frame, 1)   # attention weight, [batch, stack_frame, 1]
+                att_feat = weight.repeat(1, 1, self.feat_size) * unpacked_feat   # [batch, stack_frame, feat_size]
+                feat = torch.sum(att_feat, dim=1, keepdim=False)
+            else:
+                feat = torch.sum(unpacked_feat, dim=1, keepdim=False) / float(self.stack_frame)
         for i, l in enumerate(self.linear_layers):
             if i > 0:
                 feat = self.func(feat)
