@@ -132,4 +132,4 @@ if __name__ == '__main__':
     filename = os.path.join(cmd_args.log_dir, '_eval_details.pkl')
     print('Store Fetched Details to <{}>....'.format(filename))
     with open(filename, 'wb') as f:
-        pickle.dump(details)
+        pickle.dump(details, f)

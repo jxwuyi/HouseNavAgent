@@ -76,7 +76,7 @@ def evaluate(args):
 
     fixed_target = args['fixed_target']
     if (fixed_target is not None) and (fixed_target != 'any-room') and (fixed_target != 'any-object'):
-        assert fixed_target in common.n_target_instructions, 'invalid fixed target <{}>'.format(fixed_target)
+        assert fixed_target in common.all_target_instructions, 'invalid fixed target <{}>'.format(fixed_target)
 
     __backup_CFG = common.CFG.copy()
     if fixed_target == 'any-room':

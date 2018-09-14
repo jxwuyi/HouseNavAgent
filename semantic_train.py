@@ -32,7 +32,9 @@ def create_policy(args, observation_shape, n_class):
                           linear_hiddens=[32],
                           use_batch_norm=args['batch_norm'],
                           multi_label=False,
-                          dropout_rate=0.05)
+                          dropout_rate=args['dropout_rate'],
+                          stack_frame=args['stack_frame'],
+                          self_attention_dim=args['self_attention_dim'])
     if common.use_cuda:
         if 'train_gpu' in args:
             train_gpus = args['train_gpu']
@@ -137,7 +139,7 @@ def data_loader(data_dir, n_part, fixed_target=None, logger=None, neg_rate=1, st
             if stack_frame:
                 if seq_len < stack_frame:
                     cur_frame = np.zeros((stack_frame, ) + frames.shape[1:], dtype=np.uint8)
-                    cur_frame[-stack_frame:, ...] = frames[:seq_len, ...]
+                    cur_frame[-seq_len:, ...] = frames[:seq_len, ...]
                     accu_data.append(cur_frame)
                 else:
                     accu_data.append(frames[seq_len-stack_frame:])
@@ -152,10 +154,10 @@ def data_loader(data_dir, n_part, fixed_target=None, logger=None, neg_rate=1, st
                 accu_label.append(label_index['NA'])
                 if stack_frame:
                     if j+1 >= stack_frame:
-                        accu_data.append(frames[j-stack_frame+1:j])
+                        accu_data.append(frames[j-stack_frame+1:j+1])
                     else:
                         cur_frame = np.zeros((stack_frame, ) + frames.shape[1:], dtype=np.uint8)
-                        cur_frame[-j-1:, ...] = frames[:j, ...]
+                        cur_frame[(-j-1):, ...] = frames[:j+1, ...]
                         accu_data.append(cur_frame)
                 else:
                     accu_data.append(frames[j])
@@ -423,6 +425,7 @@ def parse_args():
     parser.add_argument("--entropy-penalty", type=float, help="policy entropy regularizer")
     parser.add_argument("--logits-penalty", type=float, help="policy logits regularizer")
     parser.add_argument("--optimizer", choices=['adam', 'rmsprop'], default='adam', help="optimizer")
+    parser.add_argument("--dropout-rate", type=float, default=0.05, help="dropout rate, NOTE: default value = 0.05, set 0.0 to turn it off!")
 
     ###################################################
     # Checkpointing
@@ -481,6 +484,9 @@ if __name__ == '__main__':
     if (cmd_args.stack_frame is None) or (cmd_args.stack_frame <= 1):
         cmd_args.stack_frame = None
         cmd_args.self_attention_dim = None
+
+    if cmd_args.dropout_rate < 1e-6:
+        cmd_args.dropout_rate = None
 
     args = cmd_args.__dict__
 

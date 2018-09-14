@@ -1,6 +1,9 @@
 #!/bin/bash
-MODEL_NAME='train_kitchen_t20_ent5e1_lgt1e1_slr'
+#all_targets="bathroom living_room office dining_room garage"
 target="kitchen"
+#for target in $all_targets
+#do
+MODEL_NAME='train_'$target'_t20_ent5e1_lgt1e1_slr'
 CUDA_VISIBLE_DEVICES=0 python3 sup_train.py --seed 0 \
     --data-dir ./_sup_data_/large --n-part 20 \
     --segmentation-input color --depth-input --resolution normal \
@@ -21,3 +24,4 @@ CUDA_VISIBLE_DEVICES=0 python3 sup_train.py --seed 0 \
     # --include-mask-feature
     # --logits-penalty 0.0001
     # --random-data-clip 
+#done
