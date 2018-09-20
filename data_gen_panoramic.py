@@ -133,7 +133,7 @@ def gen_data(args):
         # logging
         if sample_ptr in report_index:
             elap = time.time() - dur
-            logger.print(" ---> Part#%d: Total Finished %d / %d, Percent = %.3f, Time Elapsed = %.3fs, Avg Elap = %.4fs" % (part_id, sample_ptr + 1, total_samples, (sample_ptr + 1) / total_samples, elap, elap / (i+1)))
+            logger.print(" ---> Part#%d: Total Finished %d / %d, Percent = %.3f, Time Elapsed = %.3fs, Avg Elap = %.4fs" % (part_id, sample_ptr + 1, total_samples, (sample_ptr + 1) / total_samples, elap, elap / (sample_ptr+1)))
 
 
     logger.print(" ---> Part#%d: Finished, Time Elapsed = %.3f" % (part_id, time.time() - dur))
