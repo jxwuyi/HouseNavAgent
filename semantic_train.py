@@ -55,11 +55,67 @@ def create_trainer(args, n_class):
     return trainer
 
 
-def data_loader(data_dir, n_part, fixed_target=None, logger=None, neg_rate=1, stack_frame=None):
+def data_loader_panoramic(data_dir, n_part, fixed_target, logger, stack_frame):
+    def myprint(s):
+        if logger is None:
+            print(s)
+        else:
+            logger.print(s)
+
+    dur = time.time()
+    myprint('Data-Loading: dir = <{}>, partition = <{}> ...'.format(data_dir, n_part))
+
+    if not os.path.exists(data_dir):
+        myprint('[ERROR] data dir <{}> does not exist!'.format(data_dir))
+        assert False
+    
+    all_data = []
+    all_label = []
+
+    frame_shape = None
+    total_samples = 0
+
+    for p in range(n_part):
+        part_file = os.path.join(data_dir, 'partition%d.pkl' % p)
+        if not os.path.exists(part_file):
+            myprint('[WARNING] data partition <{}> does not exist!'.format(part_file))
+            continue
+        with open(part_file, 'rb') as f:
+            _, birth_infos, data, label = pickle.load(f)
+        assert birth_infos[0]['target_room'] == fixed_target, '[ERROR] target in partition<{}> [{}] differs from the fixed target [{}]'.format(p, birth_infos[0]['target_room'], fixed_target)
+        assert len(data[0]) == stack_frame, '[ERROR] stack-frame in partition<{}> [{}] differs from the required number [{}]'.format(p, len(data[0]), stack_frame)
+        if frame_shape is None:
+            frame_shape = (stack_frame, ) + data[0][0].shape
+        all_data.append(data)
+        # originally: target -> 1, NA -> 0
+        label *= -1
+        label += 1  # now: target -> 0, NA -> 1
+        all_label.append(label)
+        total_samples += len(data)
+        myprint('    ----> partition%d: Done!' % p)
+    assert total_samples > 0, '[ERROR] No data found!'
+
+    label_names = [fixed_target, 'NA']
+    np_data = np.concatenate(all_data)
+    np_label = np.concatenate(all_label)
+
+    n_neg_samples = np.sum(np_label)
+    n_pos_samples = total_samples - n_neg_samples
+
+    myprint('[Data_Loader] Positive Samples = %d, Negative Samples = %d, Total Sample = %d'%(n_pos_samples, n_neg_samples, total_samples))
+    myprint('  >>> Label <%s>: # = %d (%.4f)' % (fixed_target, n_pos_samples, n_pos_samples / total_samples))
+    myprint('  >>> Label <NA>: # = %d (%.4f)' % (n_neg_samples, n_neg_samples / total_samples))
+    return np_data, np_label, {'labels': label_names, 'shape': frame_shape, 'n_class': 2, 'n_samples': total_samples}
+
+
+def data_loader(data_dir, n_part, fixed_target=None, logger=None, neg_rate=1, stack_frame=None, is_panoramic=False):
     # data_dir: directory of data partitions
     # n_part: the number of partitions
     # fixed_target: required target, if not None, use binary classification; else softmax classification
     # @return: np_frames, np_label
+
+    if is_panoramic:
+        return data_loader_panoramic(data_dir, n_part, fixed_target, logger, stack_frame)
 
     #################################################
     # TODO: support general training with softmax
@@ -258,7 +314,8 @@ def train(args=None, warmstart=None):
     ############################
     # Training Data
     train_data = data_loader(args['data_dir'], args['n_part'], fixed_target=args['fixed_target'], 
-                             logger=logger, neg_rate=args['neg_rate'], stack_frame=args['stack_frame'])
+                             logger=logger, neg_rate=args['neg_rate'], stack_frame=args['stack_frame'],
+                             is_panoramic=args['panoramic'])
     train_size = train_data[-1]['n_samples']
     # cache training batch memory
     global batch_frames, batch_labels
@@ -270,7 +327,8 @@ def train(args=None, warmstart=None):
     test_size = 0
     if args['eval_dir'] and args['eval_n_part']:
         test_data = data_loader(args['eval_dir'], args['eval_n_part'], fixed_target=args['fixed_target'],
-                                logger=logger, neg_rate=1, stack_frame=args['stack_frame'])
+                                logger=logger, neg_rate=1, stack_frame=args['stack_frame'],
+                                is_panoramic=args['panoramic'])
         test_size = test_data[-1]['n_samples']
         test_batch_size = args['eval_batch_size']
         global test_batch_frames, test_batch_labels
@@ -377,6 +435,9 @@ def parse_args():
     # Data Setting
     parser.add_argument("--data-dir", type=str,
                         help="the directory containing data partitions")
+    parser.add_argument("--panoramic", dest="panoramic", action="store_true",
+                        help="when set, will assume <--data-dir> contains paranomic samples with <--stack-frame> frames")
+    parser.set_defaults(panoramic=False)
     parser.add_argument("--n-part", type=int,
                         help="number of partitions")
     parser.add_argument("--neg-rate", type=int, default=1,
@@ -487,6 +548,9 @@ if __name__ == '__main__':
 
     if cmd_args.dropout_rate < 1e-6:
         cmd_args.dropout_rate = None
+    
+    if cmd_args.panoramic:
+        assert (cmd_args.stack_frame is not None) and (cmd_args.self_attention_dim is not None), 'Error: when set --panoramic, --stack-frame and --self-attention-dim must be set!'
 
     args = cmd_args.__dict__
 
