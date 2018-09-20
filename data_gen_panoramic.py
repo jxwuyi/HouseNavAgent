@@ -122,7 +122,12 @@ def gen_data(args):
     n_neg_samples = n_samples * neg_rate
     for i in range(n_neg_samples):
         sample_ptr = i + n_samples
-        task.reset(target=target)
+        while True:
+            try:
+                task.reset(target=target)
+                break
+            except Exception as e:
+                continue
         birth_infos.append(task.info)
         data.append(task._render_panoramic(n_frames=n_frame))  # assume 4 frames
         # logging

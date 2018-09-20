@@ -28,7 +28,7 @@ def create_mixture_motion_trainer_dict(arg_dict):
         args = arg_dict[target]
         model_file = args['warmstart']
         assert (model_file is not None) and os.path.exists(model_file), \
-            '[MixtureMotion] model file <{}> for target <{}> does not exist!!'.format(args[model_file], target)
+            '[MixtureMotion] model file <{}> for target <{}> does not exist!!'.format(model_file, target)
         if model_file in loaded_model:
             trainer_dict[target] = trainer_dict[loaded_model[model_file]]
             pass_tar_dict[target] = pass_tar_dict[loaded_model[model_file]]
