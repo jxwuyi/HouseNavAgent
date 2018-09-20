@@ -549,7 +549,7 @@ if __name__ == '__main__':
         cmd_args.dropout_rate = None
     
     if cmd_args.panoramic:
-        assert (cmd_args.stack_frame is not None) and (cmd_args.self_attention_dim is not None), 'Error: when set --panoramic, --stack-frame and --self-attention-dim must be set!'
+        assert cmd_args.stack_frame is not None, 'Error: when set --panoramic, --stack-frame must be set!'
 
     args = cmd_args.__dict__
 
