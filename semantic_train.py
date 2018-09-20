@@ -88,8 +88,7 @@ def data_loader_panoramic(data_dir, n_part, fixed_target, logger, stack_frame):
             frame_shape = (stack_frame, ) + data[0][0].shape
         all_data.append(data)
         # originally: target -> 1, NA -> 0
-        label *= -1
-        label += 1  # now: target -> 0, NA -> 1
+        label ^=1  # now: target -> 0, NA -> 1
         all_label.append(label)
         total_samples += len(data)
         myprint('    ----> partition%d: Done!' % p)
