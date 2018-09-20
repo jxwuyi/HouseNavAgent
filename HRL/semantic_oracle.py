@@ -55,6 +55,52 @@ def create_trainer(args, n_class):
     return trainer
 ###############################
 
+class OracleFunction(object):
+    def __init__(self, oracle, threshold=0.5, filter_steps=None):
+        self.oracle = oracle
+        self.n_target = oracle.n_target
+        self.threshold = threshold
+        if (filter_steps is not None) and (filter_steps < 2):
+            filter_steps = None
+        self.filter_steps = filter_steps
+        self._filter_cnt = None if filter_steps is None else np.zeros(self.n_target, dtype=np.int32)
+        self._zero_mask = np.zeros(self.n_target, dtype=np.uint8)
+        self.stack_frame = oracle.stack_frame
+        self.flag_panoramic = oracle.panoramic
+        self._step_cnt = 0
+        self._frame_stack = None if (self.stack_frame is not None) and not self.flag_panoramic else [None] * self.stack_frame
+    
+    def reset(self):
+        self._step_cnt = 0
+        self._filter_cnt[:] = 0
+        self._frame_stack = None if (self.stack_frame is not None) and not self.flag_panoramic else [None] * self.stack_frame
+
+    def get(self, task, return_current=False):
+        if self.flag_panoramic:   # using panoramic view
+            cur_mask = self.oracle.get_mask_feature(task._render_panoramic(n_frames=self.stack_frame), threshold=self.threshold)
+        else:
+            cur_obs = task._cached_obs
+            if self.stack_frame is None:
+                cur_mask = self.oracle.get_mask_feature(cur_obs, threshold=self.threshold)
+            else:
+                self._frame_stack = self._frame_stack[1:] + [cur_obs]
+                cur_mask = self.oracle.get_mask_feature(self._frame_stack, threshold=self.threshold)
+        self._step_cnt += 1
+        ret_val = None
+        if self.filter_steps is not None:
+            self._filter_cnt *= cur_mask
+            self._filter_cnt += cur_mask
+            if self._step_cnt < self.filter_steps:
+                ret_val = self._zero_mask
+            else:
+                ret_val = (self._filter_cnt >= self.filter_steps).astype(np.uint8)
+        else:
+            ret_val = cur_mask
+        if return_current:
+            return ret_val, cur_mask
+        else:
+            return ret_val
+
 
 class SemanticOracle(object):
     def __init__(self, model_dir=None, model_device=None, include_object=False):
@@ -68,6 +114,7 @@ class SemanticOracle(object):
         self.classifiers = []
         if isinstance(model_device, int): model_device=[model_device]
         self.stack_frame = 0
+        self.panoramic=None
         for i, target in enumerate(self.allowed_targets):
             print('---> current target = {}'.format(target))
             cur_dir = os.path.join(model_dir, target)
@@ -76,6 +123,11 @@ class SemanticOracle(object):
             assert os.path.exists(config_file), '[SemanticOracle] config file <{}> for target <{}> not found!'.format(config_file, target)
             with open(config_file, 'r') as f:
                 args = json.load(f)
+            if 'panoramic' in args:
+                if (self.panoramic is None):
+                    self.panoramic = args['panoramic']
+                else:
+                    assert self.panoramic == args['panoramic'], '[ERROR] when --panoramic, all the sub-classifers must all has --panoramic option on'
             if 'train_gpu' in args: del args['train_gpu']
             if ('stack_frame' in args) and args['stack_frame']:
                 self.stack_frame = max(self.stack_frame, args['stack_frame'])

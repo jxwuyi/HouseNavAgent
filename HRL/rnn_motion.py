@@ -29,6 +29,8 @@ class RNNMotion(BaseMotion):
     def reset(self):
         self.trainer.reset_agent()
         self._interrupt = None
+        if self._oracle_func is not None:
+            self._oracle_func.reset()
 
     def is_interrupt(self):
         if self._interrupt is None:
@@ -57,7 +59,7 @@ class RNNMotion(BaseMotion):
         return mask[target_id] > 0   # term_measure == 'mask'
 
     def _get_feature_mask(self):
-        feat = self.task.get_feature_mask() if self._oracle_func is None else self._oracle_func(self.task)
+        feat = self.task.get_feature_mask() if self._oracle_func is None else self._oracle_func.get(self.task)
         return feat[: self._use_mask_feat_dim]
 
     """
@@ -84,7 +86,7 @@ class RNNMotion(BaseMotion):
             action = int(action.squeeze())
             # environment step
             _, rew, done, info = task.step(action)
-            feature_mask = task.get_feature_mask() if self._oracle_func is None else self._oracle_func(task)
+            feature_mask = task.get_feature_mask() if self._oracle_func is None else self._oracle_func.get(task)
             episode_stats.append((feature_mask, action, rew, done, info))
             # check terminate
             if done or (not consistent_target and self.check_terminate(target_id, feature_mask, action)):

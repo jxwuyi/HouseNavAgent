@@ -325,7 +325,7 @@ class RNNPlanner(BasePlanner):
 
     def _get_feature_mask(self, feat=None):
         if feat is None:
-            feat = self.task.get_feature_mask() if self._oracle_func is None else self._oracle_func(self.task)
+            feat = self.task.get_feature_mask() if self._oracle_func is None else self._oracle_func.get(self.task)
         if feat.shape[0] == n_mask_feature:
             return feat
         return feat[:n_mask_feature]
@@ -487,3 +487,5 @@ class RNNPlanner(BasePlanner):
         self.last_mask = None
         self.accu_mask[:] = 0
         self.last_hidden = self._zero_hidden
+        if self._oracle_func is not None:
+            self._oracle_func.reset()

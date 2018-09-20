@@ -12,7 +12,7 @@ import time
 
 from trainer.semantic import SemanticTrainer
 from policy.cnn_classifier import CNNClassifier
-from HRL.semantic_oracle import SemanticOracle
+from HRL.semantic_oracle import SemanticOracle, OracleFunction
 
 def set_seed(seed):
     random.seed(seed)
@@ -33,13 +33,13 @@ def evaluate(house, seed = 0, render_device=None, model_device=None,
              model_dir=None, log_dir='./log/eval',
              store_history=False,
              segmentation_input='none', depth_input=False, 
-             show_mask_feature=False,
+             show_mask_feature=True,
              resolution='normal', 
              include_object_target=False,
              include_outdoor_target=True,
              cache_supervision=True,
-             threshold=None):
-
+             threshold=None,
+             filter_steps=None):
     elap = time.time()
     
     # Process Observation Shape
@@ -57,8 +57,9 @@ def evaluate(house, seed = 0, render_device=None, model_device=None,
     # load semantic classifiers
     print('Loading Semantic Oracle ...')
     oracle = SemanticOracle(model_dir=model_dir, model_device=model_device, include_object=False)
-    stack_frame = oracle.stack_frame
-    recent_frames = [None] * stack_frame if stack_frame else [None]
+    oracle_func = OracleFunction(oracle, threshold, filter_steps=filter_steps)
+    #stack_frame = oracle.stack_frame
+    #recent_frames = [None] * stack_frame if stack_frame else [None]
 
     # create env
     env = common.create_env(house,
@@ -78,14 +79,18 @@ def evaluate(house, seed = 0, render_device=None, model_device=None,
                             discrete_angle=True,
                             cache_supervision=False)
 
-    def display(recent_frames):
-        obs = recent_frames if stack_frame else recent_frames[0]
-        mask = oracle.get_mask_feature(obs, threshold=threshold)
+    def display_mask(env):
+        #obs = recent_frames if stack_frame else recent_frames[0]
+        #mask = oracle.get_mask_feature(obs, threshold=threshold)
+        mask, prob_mask = oracle_func.get(env, return_current=True)
+        prob_mask_str = [oracle.targets[i] + ": %.3f, " % prob_mask[i] for i in range(oracle.n_target)]
         if threshold is not None:
-            ret = [oracle.targets[i] for i in range(oracle.n_target) if mask[i] > 0]
+            mask_str = [oracle.targets[i] for i in range(oracle.n_target) if mask[i] > 0]
         else:
-            ret = [oracle.targets[i] + ": %.3f, " % mask[i] for i in range(oracle.n_target)]
-        print('<Semantic>: {}'.format(ret))
+            mask_str = None
+        print('<Current-Prob>: {}'.format(prob_mask_str))
+        if mask_str is not None:
+            print('<Semantic>: {}'.format(mask_str))
         if show_mask_feature:
             mask_feat = env.get_feature_mask()
             env_ret = [oracle.targets[i] for i in range(oracle.n_target) if mask_feat[i] > 0]
@@ -94,8 +99,6 @@ def evaluate(house, seed = 0, render_device=None, model_device=None,
 
     if (fixed_target is not None) and ('any' not in fixed_target):
         env.reset_target(fixed_target)
-
-    flag_random_reset_target = (fixed_target is None) or ('any' in fixed_target)
 
     logger = utils.MyLogger(log_dir, True)
     logger.print('Start Evaluating ...')
@@ -127,10 +130,6 @@ def evaluate(house, seed = 0, render_device=None, model_device=None,
         rew = 0
         good = 0
         obs = env.reset(target=fixed_target)
-        if stack_frame:
-            recent_frames = recent_frames[1:] + [obs]
-        else:
-            recent_frames[0] = obs
         target = env.info['target_room']
 
         def get_supervision_name(act):
@@ -149,7 +148,7 @@ def evaluate(house, seed = 0, render_device=None, model_device=None,
             #############
             # Plan Info
             #############
-            display(recent_frames)
+            display_mask(env)
             while True:
                 key = cv2.waitKey(0)
                 key = chr(key)
@@ -167,10 +166,6 @@ def evaluate(house, seed = 0, render_device=None, model_device=None,
             act = action_dict[key]
 
             obs, reward, done, info = env.step(act)
-            if stack_frame:
-                recent_frames = recent_frames[1:] + [obs]
-            else:
-                recent_frames[0] = obs
             
             rew += reward
             print('>> r = %.2f, done = %f, accu_rew = %.2f, step = %d' % (reward, done, rew, step))
@@ -250,12 +245,8 @@ def parse_args():
     # Semantic Classifiers
     parser.add_argument('--semantic-dir', type=str, help='[SEMANTIC] root folder containing all semantic classifiers')
     parser.add_argument('--semantic-threshold', type=float, help='[SEMANTIC] threshold for semantic labels. None: probability')
+    parser.add_argument('--semantic-filter-steps', type=int, help="[SEMANTIC] filter steps (default, None)")
     parser.add_argument("--semantic-gpu", type=int, help="[SEMANTIC] gpu id for running semantic classifier")
-
-    # Other Options
-    parser.add_argument("--no-cache-supervision", dest='cache_supervision', action='store_false',
-                        help="When set, will not show supervision signal at each timestep (for saving caching time)")
-    parser.set_defaults(cache_supervision=True)
     
     # Checkpointing
     parser.add_argument("--log-dir", type=str, default="./log/eval", help="directory in which logs eval stats")
@@ -302,9 +293,10 @@ if __name__ == '__main__':
              model_dir=args.semantic_dir, log_dir=args.log_dir,
              store_history=args.store_history,
              segmentation_input=args.segmentation_input, depth_input=args.depth_input, 
-             show_mask_feature=args.target_mask_input,
+             show_mask_feature=True,
              resolution=args.resolution,
              include_object_target=args.object_target,
              include_outdoor_target=args.outdoor_target,
-             cache_supervision=args.cache_supervision,
-             threshold=args.semantic_threshold)
+             cache_supervision=False,
+             threshold=args.semantic_threshold,
+             filter_steps=args.semantic_filter_steps)

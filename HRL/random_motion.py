@@ -44,7 +44,7 @@ class RandomMotion(BaseMotion):
                     task._yaw_ind = (task._yaw_ind + discrete_angle_delta_value[act] + task.discrete_angle) % task.discrete_angle
             if (_s == max_steps - 1) and (max_steps < skilled_steps):
                 restore_state = task.info
-            mask = task.get_feature_mask()  # if self._oracle_func is None else self._oracle_func(task), NOTE: we do not need oracle actually.. this is random policy
+            mask = task.get_feature_mask()  # if self._oracle_func is None else self._oracle_func.get(task), NOTE: we do not need oracle actually.. this is random policy
             done = self._is_success(final_target_id, mask, term_measure='see')
             ret.append((mask, act, (10 if done else 0), done, task.info))
             if (done and (_s < max_steps)) or self._is_success(target_id, mask, term_measure=self.term_measure):
