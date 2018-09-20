@@ -110,7 +110,7 @@ def gen_data(args):
             if flag_semantic:
                 break
         data.append(cur_frames)
-        #birth_infos.append(cur_info)
+        birth_infos.append(cur_info)
         # logging
         if i in report_index:
             elap = time.time() - dur
