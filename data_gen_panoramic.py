@@ -2,8 +2,6 @@ from headers import *
 import common
 import utils
 
-from policy.rnn_discrete_actor_critic import DiscreteRNNPolicy
-
 import os, sys, time, pickle, json, argparse
 import numpy as np
 import random
@@ -20,7 +18,6 @@ def create_data_gen_config(args):
     config['n_house'] = args['n_house']
     config['hardness'] = args['hardness']
     config['max_birthplace_steps'] = args['max_birthplace_steps']
-    config['min_birthplace_grids'] = args['min_birthplace_grids']
     all_gpus = common.get_gpus_for_rendering()
     assert (len(all_gpus) > 0), 'No GPU found! There must be at least 1 GPU for rendering!'
     if args['render_gpu'] is not None:
@@ -32,18 +29,18 @@ def create_data_gen_config(args):
     config['segment_input'] = (args['segment_input'] == 'color')
     config['depth_input'] = args['depth_input']
     config['target_mask_input'] = args['target_mask_input']
-    config['success_measure'] = args['success_measure']
-    config['multi_target'] = args['multi_target']
+    config['multi_target'] = True
     config['object_target'] = args['object_target']
     config['fixed_target'] = args['fixed_target']
     config['mask_feature_dim'] = len(common.all_target_instructions) if ('mask_feature' in args) and args['mask_feature'] else None
-    config['outdoor_target'] = args['outdoor_target']
+    config['outdoor_target'] = True
 
-    config['t_max'] = args['t_max']
+    config['n_frame'] = args['n_frame']
+
+    config['t_max'] = -1
     config['seed'] = args['seed']
     config['log_rate'] = args['log_rate']
     config['save_dir'] = args['save_dir']
-    config['max_expansion'] = None if args['max_expansion'] <= 0 else args['max_expansion']
     return config
 
 
@@ -59,83 +56,86 @@ def gen_data(args):
 
     task = common.create_env(k=args['house_range'],hardness=args['hardness'],
                              max_birthplace_steps=args['max_birthplace_steps'],
-                             min_birthplace_grids=args['min_birthplace_grids'],
-                             success_measure=args['success_measure'],
+                             success_measure='see-stop',
                              segment_input=args['segment_input'], depth_input=args['depth_input'],
                              max_steps=-1, render_device=args['device_id'],
                              genRoomTypeMap=args['mask_feature_dim'] is not None,
                              cacheAllTarget=True, use_discrete_action=True,
                              include_object_target=args['object_target'],
                              target_mask_input=args['mask_feature_dim'],
-                             include_outdoor_target=args['outdoor_target'],
+                             include_outdoor_target=True,
                              discrete_angle=True,
                              cache_supervision=False,
                              cache_discrete_angles=True,
                              multithread_api=True)
     n_samples = args['sample_size']
+    neg_rate = args['neg_rate']
+    total_samples = n_samples * (1 + neg_rate)
     target = args['fixed_target']
-    t_max = args['t_max']
-    if t_max <= 0: t_max = None
     data = []
-    bad_cases = []
+    labels = np.zeros(total_samples, dtype=np.uint8)
+    labels[: n_samples] = 1
     birth_infos = []
 
+    n_frame = args['n_frame']
+    stop_action = common.n_discrete_actions - 1
+
+    def fetch_segmentation_channels(frames):
+        if not args['segment_input']:
+            return None
+        if args['depth_input']:
+            return frames[:,:,:3]
+        return frames
+        
+
     # logging related
-    report_index = set([int(n_samples // log_rate * i) for i in range(1, log_rate)])
+    report_index = set([int(total_samples // log_rate * i) for i in range(1, log_rate)])
 
-    logger.print(' --> Part#%d: data collecting ....' % part_id)
-
+    # generate positive samples
+    logger.print(' --> Part#%d: positive data collecting ....' % part_id)
+    task.reset_hardness(max_birthplace_steps=0)
     for i in range(n_samples):
         while True:
             task.reset(target=target)
             cur_info = task.info
-            try:
-                cur_sample = task.gen_supervised_plan(return_numpy_frames=True,
-                                                      max_allowed_steps=t_max,
-                                                      mask_feature_dim=args['mask_feature_dim'],
-                                                      max_expansion=args['max_expansion'],
-                                                      logger=logger)  # np_frames, np_act, (optional) np_mask_feat
-            except Exception as e:
-                logger.print("############ Exception Caught ##############")
-                logger.print(str(e))
-                logger.print("############################################")
-                cur_sample = None
-            if cur_sample is None:   # no path found
-                continue
-
-            ################
-            # a path found!
-            if FLAG_SANITY_CHECK:
-                logger.print('>> Part#%d: SANITY Check#%d...' % (part_id, i))
-                #assert task._sanity_check_supervised_plan(birth_infos[-1], data[-1][1], logger=logger)
-                okay_flag = task._sanity_check_supervised_plan(cur_info, cur_sample[1])
-                #print('SANITY = {}'.format(okay_flag))
-                if not okay_flag:
-                    bad_cases.append((cur_info, cur_sample))
-                    logger.print('  -->>> Part#%d: SANITY Check FAIL!!! Total Bad cases = {}'.format(len(bad_cases)))
-                    continue
-
-            ###################
-            # good to check in
-            birth_infos.append(cur_info)
-            data.append(cur_sample)
-            break
-
+            cur_frames = task._render_panoramic(n_frames=n_frame)  # assume 4 frames
+            flag_semantic = False
+            for frame in cur_frames:
+                task.last_obs = None
+                task._cached_seg = None
+                task._gen_target_mask(seg_frame=fetch_segmentation_channels(frame))
+                if task._is_success(0, grid=None, act=stop_action):
+                    flag_semantic = True
+                    break
+            if flag_semantic:
+                break
+        data.append(cur_frames)
+        #birth_infos.append(cur_info)
         # logging
         if i in report_index:
             elap = time.time() - dur
-            logger.print(" ---> Part#%d: Finished %d / %d, Percent = %.3f, Time Elapsed = %.3fs, Avg Elap = %.4fs" % (part_id, i + 1, n_samples, (i + 1) / n_samples, elap, elap / (i+1)))
+            logger.print(" ---> Part#%d: Total Finished %d / %d, Percent = %.3f, Time Elapsed = %.3fs, Avg Elap = %.4fs" % (part_id, i + 1, total_samples, (i + 1) / total_samples, elap, elap / (i+1)))
+
+    # generate negative samples
+    logger.print(' --> Part#%d: negative data collecting ....' % part_id)
+    task.reset_hardness(max_birthplace_steps=1000000, min_birth_grid_dist=3)
+    n_neg_samples = n_samples * neg_rate
+    for i in range(n_neg_samples):
+        sample_ptr = i + n_samples
+        task.reset(target=target)
+        birth_infos.append(task.info)
+        data.append(task._render_panoramic(n_frames=n_frame))  # assume 4 frames
+        # logging
+        if sample_ptr in report_index:
+            elap = time.time() - dur
+            logger.print(" ---> Part#%d: Total Finished %d / %d, Percent = %.3f, Time Elapsed = %.3fs, Avg Elap = %.4fs" % (part_id, sample_ptr + 1, total_samples, (sample_ptr + 1) / total_samples, elap, elap / (i+1)))
+
 
     logger.print(" ---> Part#%d: Finished, Time Elapsed = %.3f" % (part_id, time.time() - dur))
     file_name = args['storage_file']
     logger.print(" ---> Part#{}: Dumping to {} ...".format(part_id, file_name))
     with open(file_name, 'wb') as f:
-        pickle.dump([args, birth_infos, data], f)
-    if len(bad_cases) > 0:
-        file_name = args['badcase_file']
-        logger.print(" ---> Part#{}: Dumping Bad Cases to {} ...".format(part_id, file_name))
-        with open(file_name, 'wb') as f:
-            pickle.dump([args, bad_cases], f)
+        pickle.dump([args, birth_infos, data, labels], f)
     logger.print(" ---> Part#%d: Done!" % part_id)
     return time.time() - dur
 
@@ -155,24 +155,26 @@ def run(args=None):
     n_proc = args['n_proc']
     n_part = args['n_partition']
     n_device = len(config['render_devices'])
-    total_samples = args['sample_size']
+    n_pos_samples = args['sample_size']
+    neg_sample_rate = args['neg_rate']
+    total_samples = n_pos_samples * (1 + neg_sample_rate)
 
     proc_args = []
     prev_house_id = 0
     for i in range(n_part):
-        data_size = total_samples // n_proc
+        data_size = n_pos_samples // n_proc
         house_size = n_house // n_proc
         if i < (total_samples % n_proc):
             data_size += 1
             house_size += 1
         cur_config = config.copy()
         cur_config['sample_size'] = data_size
+        cur_config['neg_rate'] = neg_sample_rate
         cur_config['house_range'] = (prev_house_id, prev_house_id + house_size)
         cur_config['part_id'] = i
         cur_config['device_id'] = config['render_devices'][i % n_device]
 
         cur_config['storage_file'] = os.path.join(args['save_dir'], 'partition%d.pkl' % i)
-        cur_config['badcase_file'] = os.path.join(args['save_dir'], 'partition%d_badcase.pkl' % i)
         cur_config['log_file'] = 'partition%d_log.txt' % i
         proc_args.append((cur_config,))
         prev_house_id += house_size
@@ -191,9 +193,7 @@ def run(args=None):
 
 
 def parse_args():
-    parser = argparse.ArgumentParser("Supervision Data Generator for 3D House Navigation")
-    # Special Job Tag
-    parser.add_argument("--job-name", type=str, default='')
+    parser = argparse.ArgumentParser("Panoramic Data Generator for 3D House Navigation")
     # Select Task
     parser.add_argument("--task-name", choices=['roomnav', 'objnav'], default='roomnav')
     # Environment
@@ -203,8 +203,6 @@ def parse_args():
     parser.add_argument("--seed", type=int, help="random seed")
     parser.add_argument("--hardness", type=float, help="real number from 0 to 1, indicating the hardness of the environment")
     parser.add_argument("--max-birthplace-steps", type=int, help="int, the maximum steps required from birthplace to target")
-    parser.add_argument("--min-birthplace-grids", type=int, default=0,
-                        help="int, the minimum grid distance of the birthplace towards target. Default 0, namely possible to born with gird_dist=0.")
     parser.add_argument("--segmentation-input", choices=['none', 'index', 'color', 'joint'], default='none', dest='segment_input',
                         help="whether to use segmentation mask as input; default=none; <joint>: use both pixel input and color segment input")
     parser.add_argument("--depth-input", dest='depth_input', action='store_true',
@@ -216,24 +214,10 @@ def parse_args():
     parser.add_argument("--resolution", choices=['normal', 'low', 'tiny', 'high', 'square', 'square_low'],
                         dest='resolution_level', default='normal',
                         help="resolution of visual input, default normal=[120 * 90]")
-    #parser.add_argument("--history-frame-len", type=int, default=4,
-    #                    help="length of the stacked frames, default=4")
-    #parser.add_argument("--max-episode-len", type=int, default=50, help="maximum episode length")
-    parser.add_argument("--success-measure", choices=['see-stop', 'stop', 'stay', 'see'], default='see-stop',
-                        help="criteria for a successful episode")
-    parser.add_argument("--multi-target", dest='multi_target', action='store_true',
-                        help="when this flag is set, a new target room will be selected per episode")
-    parser.set_defaults(multi_target=False)
     parser.add_argument("--include-object-target", dest='object_target', action='store_true',
                         help="when this flag is set, target can be also an object. Only effective when --multi-target")
     parser.set_defaults(object_target=False)
-    parser.add_argument("--include-mask-feature", dest='mask_feature', action='store_true',
-                        help="when this flag is set, mast_feature will be fed to the neural network.")
-    parser.set_defaults(mask_feature=False)
     parser.add_argument("--fixed-target", type=str, help="fixed training targets: candidate values room, object or any-room/object")
-    parser.add_argument("--no-outdoor-target", dest='outdoor_target', action='store_false',
-                        help="when this flag is set, we will exclude <outdoor> target")
-    parser.set_defaults(outdoor_target=True)
     ########################################################
     # Multi-thread Parameters
     parser.add_argument("--render-gpu", type=str,
@@ -245,43 +229,34 @@ def parse_args():
 
     ########################################################
     # Data Generation Core Parameters
-    parser.add_argument("--t-max", type=int, default=-1,
-                        help="[Data] maximum number of horizon. <=0 if no constraint")
+    parser.add_argument("--n-frame", type=int, default=4,
+                        help="[Data] number of frames per panoramic view")
     parser.add_argument("--sample-size", type=int, default=10000,
                         help="[Data] number of data samples to generate. This will be uniformly distributed over houses")
-    parser.add_argument("--log-rate", type=int, default=5,
+    parser.add_argument("--neg-rate", type=int, default=1,
+                        help="[Data] Negative samples for postive sample")
+    parser.add_argument("--log-rate", type=int, default=100,
                         help="[Data] number of times for recording progress in each partition")
-    parser.add_argument("--sanity-check", dest='sanity_check', action="store_true",
-                       help="[Data] Whether run sanity check")
-    parser.add_argument("--max-expansion", type=int, default=0,
-                        help="[Data] Maximum States of A* expansion. Default 0, no constraint")
 
     ###################################################
     # Checkpointing
-    parser.add_argument("--save-dir", type=str, default="./_sup_data_", help="directory in which data samples are stored")
+    parser.add_argument("--save-dir", type=str, default="./_sup_data_/panoramic", help="directory in which data samples are stored")
 
     return parser.parse_args()
 
 if __name__ == '__main__':
     cmd_args = parse_args()
 
-    FLAG_SANITY_CHECK = cmd_args.sanity_check
-
-    assert cmd_args.success_measure == 'see-stop', 'currently only support success_measure <see-stop>'
-
-    common.set_house_IDs(cmd_args.env_set, ensure_kitchen=(not cmd_args.multi_target))
+    common.set_house_IDs(cmd_args.env_set)
     print('>> Environment Set = <%s>, Total %d Houses!' % (cmd_args.env_set, len(common.all_houseIDs)))
 
     common.ensure_object_targets(cmd_args.object_target)
 
     if cmd_args.fixed_target is not None:
-        allowed_targets = list(common.target_instruction_dict.keys()) + ['any-room']
-        if cmd_args.object_target:
-            allowed_targets.append('any-object')
+        allowed_targets = list(common.target_instruction_dict.keys())
         assert cmd_args.fixed_target in allowed_targets, '--fixed-target specified an invalid target <{}>!'.format(cmd_args.fixed_target)
-        if not ('any' in cmd_args.fixed_target):
-            common.filter_house_IDs_by_target(cmd_args.fixed_target)
-            print('[data_gen.py] Filter Houses By Fixed-Target <{}> to N=<{}> Houses...'.format(cmd_args.fixed_target, len(common.all_houseIDs)))
+        common.filter_house_IDs_by_target(cmd_args.fixed_target)
+        print('[data_gen.py] Filter Houses By Fixed-Target <{}> to N=<{}> Houses...'.format(cmd_args.fixed_target, len(common.all_houseIDs)))
 
     if cmd_args.n_house > len(common.all_houseIDs):
         print('[data_gen.py] No enough houses! Reduce <n_house> to [{}].'.format(len(common.all_houseIDs)))
@@ -301,9 +276,6 @@ if __name__ == '__main__':
     assert cmd_args.segment_input in ['none', 'color'], '[Segment-Input] Currently only support <none> and <color>'
 
     args = cmd_args.__dict__
-
-    if any([args[k] is not None for k in args.keys() if 'rew_shape' in k]):
-        common.set_reward_shaping_params(args)
 
     # store training args
     config_file = args['save_dir']
