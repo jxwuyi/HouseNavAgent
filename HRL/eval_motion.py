@@ -78,7 +78,7 @@ def evaluate(args):
 
     # ensure observation shape
     common.process_observation_shape('rnn', args['resolution'],
-                                         segmentation_input=args['segment_input'],
+                                         segmentation_input=args['segmentation_input'],
                                          depth_input=args['depth_input'],
                                          history_frame_len=1,
                                          target_mask_input=args['target_mask_input'])
