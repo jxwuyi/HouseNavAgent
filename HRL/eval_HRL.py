@@ -10,7 +10,7 @@ import random
 from HRL.eval_motion import create_motion
 from HRL.BayesGraph import GraphPlanner
 from HRL.RNNController import RNNPlanner
-from HRL.semantic_oracle import SemanticOracle
+from HRL.semantic_oracle import SemanticOracle, OracleFunction
 
 
 def set_seed(seed):
@@ -78,20 +78,20 @@ def evaluate(args):
     logger.print('Start Evaluating ...')
 
 
-    # create semantic oracle
-    oracle_func = lambda task: task.get_feature_mask()
-    flag_oracle = None
-    if args['semantic_model_dir'] and os.path.exists(args['semantic_model_dir']):
-        logger.print(' > Loading semantic oracle model from dir = <{}>'.format(args['semantic_model_dir']))
-        oracle = SemanticOracle(args['semantic_model_dir'],
-                                model_device=args['semantic_gpu'],
-                                include_object=(args['object_target'] and ((fixed_target is None) or (fixed_target == 'any-object') or (fixed_target in common.ALLOWED_OBJECT_TARGET_TYPES))))
-        oracle_threshold = args['semantic_threshold']
-        oracle_func = lambda task: oracle.get_mask_feature(task.last_obs, threshold=oracle_threshold)
-        flag_oracle = oracle_func
+    # create semantic classifier
+    if args['semantic_dir'] is not None:
+        assert os.path.exists(args['semantic_dir']), '[Error] Semantic Dir <{}> not exists!'.format(args['semantic_dir'])
+        assert not args['object_target'], '[ERROR] currently do not support --object-target!'
+        print('Loading Semantic Oracle from dir <{}>...'.format(args['semantic_dir']))
+        if args['semantic_gpu'] is None:
+            args['semantic_gpu'] = common.get_gpus_for_rendering()[0]
+        oracle = SemanticOracle(model_dir=args['semantic_dir'], model_device=args['semantic_gpu'], include_object=args['object_target'])
+        oracle_func = OracleFunction(oracle, threshold=args['semantic_threshold'], filter_steps=args['semantic_filter_steps'])
+    else:
+        oracle_func = None
 
     # create motion
-    motion = create_motion(args, task, oracle_func=flag_oracle)
+    motion = create_motion(args, task, oracle_func=oracle_func)
     if args['motion'] == 'random':
         motion.set_skilled_rate(args['random_motion_skill'])
     flag_interrupt = args['interruptive_motion']
@@ -303,12 +303,13 @@ def parse_args():
     parser.add_argument("--planner-units", type=int, help='hidden units for planner, only effective when --planner rnn')
     parser.add_argument("--n-exp-steps", type=int, default=40, help='maximum number of steps for exploring a sub-policy')
     parser.add_argument("--planner-obs-noise", type=float, help="setting the parameters of observation noise")
-    # Semantic Classifier 
-    parser.add_argument("--semantic-model-dir", type=str,
-                        help="[Semantic] when set, load pre-trained semantic classifiers from that repo")
-    parser.add_argument("--semantic-threshold", type=float, default=0.4,
-                        help="[Semantic] only effect when --semantic-model-dir is not None. the threshold, default=0.4")
-    parser.add_argument("--semantic-gpu", type=int, help="[Semantic] gpu used for semantic model")
+    ##########################################    
+    # Semantic Classifiers
+    parser.add_argument('--semantic-dir', type=str, help='[SEMANTIC] root folder containing all semantic classifiers; or the path to the dictionary file')
+    parser.add_argument('--semantic-threshold', type=float, default=0.85, help='[SEMANTIC] threshold for semantic labels. None: probability')
+    parser.add_argument('--semantic-filter-steps', type=int, help="[SEMANTIC] filter steps (default, None)")
+    parser.add_argument("--semantic-gpu", type=int, help="[SEMANTIC] gpu id for running semantic classifier")
+    ##########################################
     # Checkpointing
     parser.add_argument("--log-dir", type=str, default="./log/eval", help="directory in which logs eval stats")
     parser.add_argument("--warmstart", type=str, help="file to load the policy model")

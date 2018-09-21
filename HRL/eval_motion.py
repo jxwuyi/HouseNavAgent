@@ -12,6 +12,8 @@ from HRL.rnn_motion import RNNMotion
 from HRL.random_motion import RandomMotion
 from HRL.mixture_motion import MixMotion, create_mixture_motion_trainer_dict
 
+from HRL.semantic_oracle import SemanticOracle, OracleFunction
+
 
 def create_motion(args, task, oracle_func=None):
     if args['motion'] == 'rnn':
@@ -108,9 +110,21 @@ def evaluate(args):
     if fixed_target == 'any-room':
         common.CFG = __backup_CFG
         common.ensure_object_targets(True)
+    
+    # create semantic classifier
+    if args['semantic_dir'] is not None:
+        assert os.path.exists(args['semantic_dir']), '[Error] Semantic Dir <{}> not exists!'.format(args['semantic_dir'])
+        assert not args['object_target'], '[ERROR] currently do not support --object-target!'
+        print('Loading Semantic Oracle from dir <{}>...'.format(args['semantic_dir']))
+        if args['semantic_gpu'] is None:
+            args['semantic_gpu'] = common.get_gpus_for_rendering()[0]
+        oracle = SemanticOracle(model_dir=args['semantic_dir'], model_device=args['semantic_gpu'], include_object=args['object_target'])
+        oracle_func = OracleFunction(oracle, threshold=args['semantic_threshold'], filter_steps=args['semantic_filter_steps'])
+    else:
+        oracle_func = None
 
     # create motion
-    motion = create_motion(args, task)
+    motion = create_motion(args, task, oracle_func)
 
     logger = utils.MyLogger(args['log_dir'], True)
     logger.print('Start Evaluating ...')
@@ -270,10 +284,13 @@ def parse_args():
                         help="[RNN-Only] number of layers in RNN")
     parser.add_argument("--rnn-cell", choices=['lstm', 'gru'],
                         help="[RNN-Only] RNN cell type")
-    # Auxiliary Task Options
-    parser.add_argument("--auxiliary-task", dest='aux_task', action='store_true',
-                        help="Whether to perform auxiliary task of predicting room types")
-    parser.set_defaults(aux_task=False)
+    ##########################################    
+    # Semantic Classifiers
+    parser.add_argument('--semantic-dir', type=str, help='[SEMANTIC] root folder containing all semantic classifiers; or the path to the dictionary file')
+    parser.add_argument('--semantic-threshold', type=float, default=0.85, help='[SEMANTIC] threshold for semantic labels. None: probability')
+    parser.add_argument('--semantic-filter-steps', type=int, help="[SEMANTIC] filter steps (default, None)")
+    parser.add_argument("--semantic-gpu", type=int, help="[SEMANTIC] gpu id for running semantic classifier")
+    ##########################################
     # Checkpointing
     parser.add_argument("--log-dir", type=str, default="./log/eval", help="directory in which logs eval stats")
     parser.add_argument("--warmstart", type=str, help="file to load the policy model")
@@ -286,8 +303,6 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
     assert (args.warmstart is None) or (os.path.exists(args.warmstart)), 'Model File Not Exists!'
-
-    assert not args.aux_task, 'Currently do not support Aux-Task!'
 
     common.set_house_IDs(args.env_set, ensure_kitchen=(not args.multi_target))
     print('>> Environment Set = <%s>, Total %d Houses!' % (args.env_set, len(common.all_houseIDs)))
