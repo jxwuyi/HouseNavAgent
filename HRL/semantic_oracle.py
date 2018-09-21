@@ -1,4 +1,4 @@
-headers import *
+from headers import *
 import common
 import utils
 import json
