@@ -1,4 +1,4 @@
-from headers import *
+ headers import *
 import common
 import utils
 import json
@@ -217,14 +217,15 @@ class SemanticOracle(object):
                 if var_pano is None:
                     var_pano = trainer._create_gpu_tensor(np_pano, return_variable=True, volatile=True)
                 prob = trainer.action(var_pano, return_numpy=True, input_tensor=True)[0]
-            elif trainer.stack_frame is None:
-                if isinstance(recent_frames, list):
-                    cur_frame = np_frame[:, -1, ...]
+            else:
+                if trainer.stack_frame is None:
+                    if isinstance(recent_frames, list):
+                        cur_frame = np_frame[:, -1, ...]
+                    else:
+                        cur_frame = np_frame
                 else:
                     cur_frame = np_frame
-            else:
-                cur_frame = np_frame
-            prob = trainer.action(cur_frame, return_numpy=True)[0]
+                prob = trainer.action(cur_frame, return_numpy=True)[0]
             if threshold is not None:
                 ret[i] = (prob[0] > threshold)
             else:
