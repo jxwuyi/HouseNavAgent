@@ -91,7 +91,7 @@ class RNNMotion(BaseMotion):
             # environment step
             _, rew, done, info = task.step(action)
             if batched_size is None:
-                feature_mask = task.get_feature_mask()   # if self._oracle_func is None else self._oracle_func.get(task)
+                feature_mask = task.get_feature_mask() if self._oracle_func is None else self._oracle_func.get(task)
             else:
                 self._oracle_func.batched_add(task)
                 batched_ptr += 1
