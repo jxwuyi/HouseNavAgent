@@ -75,6 +75,8 @@ class RNNMotion(BaseMotion):
 
         episode_stats = []
         obs = task._cached_obs
+        if self._oracle_func is not None:
+            self._oracle_func.batched_clear()
         for _st in range(max_steps):
             # mask feature if necessary
             mask = None if self._use_mask_feat_dim is None else self._get_feature_mask()
@@ -86,9 +88,17 @@ class RNNMotion(BaseMotion):
             action = int(action.squeeze())
             # environment step
             _, rew, done, info = task.step(action)
-            feature_mask = task.get_feature_mask() if self._oracle_func is None else self._oracle_func.get(task)
+            if self._oracle_func is None:
+                feature_mask = task.get_feature_mask()   # if self._oracle_func is None else self._oracle_func.get(task)
+            else:
+                self._oracle_func.batched_add(task)
+                feature_mask = None
             episode_stats.append((feature_mask, action, rew, done, info))
             # check terminate
             if done or (not consistent_target and self.check_terminate(target_id, feature_mask, action)):
                 break
+        if self._oracle_func is not None:
+            mask_list = self._oracle_func.batched_get()
+            for i in range(episode_stats):
+                episode_stats[i] = (mask_list[i],) + episode_stats[i][1:]
         return episode_stats

@@ -119,6 +119,51 @@ class OracleFunction(object):
             return ret_val, cur_prob
         else:
             return ret_val
+    
+    def batched_clear(self):
+        self.batched_pano = [] if self.flag_panoramic else None
+        self.batched_frame = []
+
+    def batched_add(self, task):
+        cur_obs = task._cached_obs
+        if self.flag_panoramic:
+            self.batched_pano.append(task._render_panoramic(n_frames=self.pano_stack_frame))
+        if self.stack_frame is None:
+            self.batched_frame.append(cur_obs)
+        else:
+            if self._frame_stack[-1] is None:
+                shape = cur_obs.shape
+                for i in len(self._frame_stack):
+                    if self._frame_stack[i] is None:
+                        self._frame_stack[i] = np.zeros(shape, dtype=np.uint8)
+            self.batched_frame.append([a for a in self._frame_stack])
+        
+    def batched_get(self):
+        tt=time.time()
+        # compute per-frame masks, [n_steps/batch, n_target]
+        batched_mask = self.oracle.batched_get_mask_feature(self.batched_frame, batched_pano=self.batched_pano, threshold=self.threshold)
+        n_steps = batched_mask.shape[0]
+
+        # run filtering
+        ret_list = []
+        for t in range(n_steps):
+            self._step_cnt += 1
+            ret_val = None
+            cur_mask = batched_mask[t]
+            if self.filter_steps is not None:
+                self._filter_cnt *= cur_mask
+                self._filter_cnt += cur_mask
+                if self._step_cnt < self.filter_steps:
+                    ret_val = self._zero_mask
+                else:
+                    ret_val = (self._filter_cnt >= self.filter_steps).astype(np.uint8)
+            else:
+                ret_val = cur_mask
+            ret_list.append(ret_val)
+
+        # TODO #######################
+        self.accu_time+=time.time()-tt
+        return ret_list
 
 
 class SemanticOracle(object):
@@ -158,7 +203,8 @@ class SemanticOracle(object):
                 else:
                     assert self.pano_stack == args['stack_frame'], '[SemanticOracle] all panoramic classifiers must have the same stack_frame size!'
             if 'train_gpu' in args: del args['train_gpu']
-            if ('stack_frame' in args) and args['stack_frame'] and (('panoramic' not in args) or not args['panoramic']):
+            if ('stack_frame' in args) and (('panoramic' not in args) or not args['panoramic']):
+                assert args['stack_frame'] is not None
                 if self.has_stack_frame is None:
                     self.has_stack_frame = args['stack_frame']
                 else:
@@ -217,20 +263,49 @@ class SemanticOracle(object):
                 if var_pano is None:
                     var_pano = trainer._create_gpu_tensor(np_pano, return_variable=True, volatile=True)
                 prob = trainer.action(var_pano, return_numpy=True, input_tensor=True)[0]
-            elif trainer.stack_frame is None:
-                if isinstance(recent_frames, list):
-                    cur_frame = np_frame[:, -1, ...]
+            else:
+                if trainer.stack_frame is None:
+                    if isinstance(recent_frames, list):
+                        cur_frame = np_frame[:, -1, ...]
+                    else:
+                        cur_frame = np_frame
                 else:
                     cur_frame = np_frame
-            else:
-                cur_frame = np_frame
-            prob = trainer.action(cur_frame, return_numpy=True)[0]
+                prob = trainer.action(cur_frame, return_numpy=True)[0]
             if threshold is not None:
                 ret[i] = (prob[0] > threshold)
             else:
                 ret[i] = prob[0]
         return ret
     
+    def batched_get_mask_feature(self, batched_frames=None, batched_pano=None, threshold=None):
+        """
+        batched_frames: a list of stacked frames
+        batched_pano: a list of stacked panoramic frames
+        threshold: when not None, return a np.array with binary signals; otherwise return a list of float number
+        """
+        batch_size = len(batched_frames) if batched_frames is not None else len(batched_pano)
+        np_frame = np.array(batched_frames) if batched_frames is not None else None
+        np_pano = np.array(batched_pano) if batched_pano is not None else None
+        var_pano = None
+        var_frame = None
+
+        ret = np.zeros((batch_size, self.n_target), dtype=(np.uint8 if threshold is not None else np.float))
+        for i, trainer in enumerate(self.classifiers):
+            if trainer.panoramic:
+                if var_pano is None:
+                    var_pano = trainer._create_gpu_tensor(np_pano, return_variable=True, volatile=True)
+                prob = trainer.action(var_pano, return_numpy=True, input_tensor=True)[:, 0]
+            else:
+                if var_frame is None:
+                    var_frame = trainer._create_gpu_tensor(np_frame, return_variable=True, volatile=True)
+                prob = trainer.action(var_frame, return_numpy=True, input_tensor=True)[:, 0]
+            if threshold is not None:
+                ret[:, i] = (prob[0] > threshold)
+            else:
+                ret[:, i] = prob[0]
+        return ret
+
     def to_binary(self, probs, threshold):
         return (probs > threshold).astype(np.uint8)
 
