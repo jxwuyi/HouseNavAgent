@@ -103,6 +103,7 @@ def parse_args():
     parser.add_argument("--data", type=str, help="path to eval_data.pkl")
     parser.add_argument("--log-dir", type=str, help="dir to store info")
     parser.add_argument("--render-gpu", type=int, help="gpu for render")
+    parser.add_argument("--filename", type=str, default='_eval_details.pkl', help="gpu for render")
     return parser.parse_args()
 
 
@@ -129,7 +130,7 @@ if __name__ == '__main__':
 
     details = evaluate(episode_stats, dict_args)
 
-    filename = os.path.join(cmd_args.log_dir, '_eval_details.pkl')
+    filename = os.path.join(cmd_args.log_dir, args.filename)
     print('Store Fetched Details to <{}>....'.format(filename))
     with open(filename, 'wb') as f:
         pickle.dump(details, f)
