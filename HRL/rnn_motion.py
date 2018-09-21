@@ -65,7 +65,9 @@ class RNNMotion(BaseMotion):
     """
     return a list of [aux_mask, action, reward, done, info]
     """
-    def run(self, target, max_steps, temperature=None, batched_size=5):
+    def run(self, target, max_steps, temperature=None, batched_size=10):
+        if (self._oracle_func is None) or (self._use_mask_feat_dim is not None):
+            batched_size = None
         task = self.task
         trainer = self.trainer
         target_id = common.target_instruction_dict[target]
@@ -75,7 +77,7 @@ class RNNMotion(BaseMotion):
 
         episode_stats = []
         obs = task._cached_obs
-        if self._oracle_func is not None:
+        if batched_size is not None:
             self._oracle_func.batched_clear()
             batched_ptr = 0
         for _st in range(max_steps):
@@ -89,7 +91,7 @@ class RNNMotion(BaseMotion):
             action = int(action.squeeze())
             # environment step
             _, rew, done, info = task.step(action)
-            if self._oracle_func is None:
+            if batched_size is None:
                 feature_mask = task.get_feature_mask()   # if self._oracle_func is None else self._oracle_func.get(task)
             else:
                 self._oracle_func.batched_add(task)
@@ -98,7 +100,7 @@ class RNNMotion(BaseMotion):
             episode_stats.append((feature_mask, action, rew, done, info))
 
             # batched process
-            if (self._oracle_func is not None) and (batched_ptr == batched_size):
+            if (batched_size is not None) and (batched_ptr == batched_size):
                 mask_list = self._oracle_func.batched_get()
                 self._oracle_func.batched_clear()
                 base_ptr = len(episode_stats) - batched_ptr
@@ -109,7 +111,7 @@ class RNNMotion(BaseMotion):
             # check terminate
             if done or (not consistent_target and self.check_terminate(target_id, episode_stats[-1][0], action)):
                 break
-        if (self._oracle_func is not None) and (batched_ptr > 0):
+        if (batched_size is not None) and (batched_ptr > 0):
             mask_list = self._oracle_func.batched_get()
             base_ptr = len(episode_stats) - batched_ptr
             for t in range(batched_ptr):
