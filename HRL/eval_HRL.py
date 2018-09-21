@@ -153,7 +153,8 @@ def evaluate(args):
             if flag_interrupt and motion.is_interrupt():
                 graph_target = task.get_current_target()
             else:
-                graph_target = graph.plan(oracle_func.get(task), task_target)
+                mask_feat = oracle_func.get(task) if oracle_func is not None else task.get_feature_mask()
+                graph_target = graph.plan(mask_feat, task_target)
             graph_target_id = common.target_instruction_dict[graph_target]
             allowed_steps = min(max_episode_len - episode_step, max_motion_steps)
 
