@@ -22,11 +22,6 @@ def create_motion(args, task, oracle_func=None):
                 trainer_args = json.load(f)
         else:
             trainer_args = args
-        common.process_observation_shape('rnn', trainer_args['resolution_level'],
-                                         segmentation_input=trainer_args['segment_input'],
-                                         depth_input=trainer_args['depth_input'],
-                                         history_frame_len=1,
-                                         target_mask_input=trainer_args['target_mask_input'])
         import zmq_train
         trainer = zmq_train.create_zmq_trainer('a3c', 'rnn', trainer_args)
         model_file = args['warmstart']
@@ -75,6 +70,13 @@ def evaluate(args):
 
     # Do not need to log detailed computation stats
     common.debugger = utils.FakeLogger()
+
+    # ensure observation shape
+    common.process_observation_shape('rnn', trainer_args['resolution_level'],
+                                         segmentation_input=trainer_args['segment_input'],
+                                         depth_input=trainer_args['depth_input'],
+                                         history_frame_len=1,
+                                         target_mask_input=trainer_args['target_mask_input'])
 
     fixed_target = args['fixed_target']
     if (fixed_target is not None) and (fixed_target != 'any-room') and (fixed_target != 'any-object'):
