@@ -56,7 +56,7 @@ class RNNMotion(BaseMotion):
         if self.term_measure == 'stay':
             return self._is_success(target_id, mask, self.term_measure,
                                     is_stay=(act==n_discrete_actions-1))
-        return mask[target_id] > 0   # term_measure == 'mask'
+        return (mask is not None) and (mask[target_id] > 0)   # term_measure == 'mask'
 
     def _get_feature_mask(self):
         feat = self.task.get_feature_mask() if self._oracle_func is None else self._oracle_func.get(self.task)
@@ -65,7 +65,7 @@ class RNNMotion(BaseMotion):
     """
     return a list of [aux_mask, action, reward, done, info]
     """
-    def run(self, target, max_steps, temperature=None):
+    def run(self, target, max_steps, temperature=None, batched_size=5):
         task = self.task
         trainer = self.trainer
         target_id = common.target_instruction_dict[target]
@@ -77,6 +77,7 @@ class RNNMotion(BaseMotion):
         obs = task._cached_obs
         if self._oracle_func is not None:
             self._oracle_func.batched_clear()
+            batched_ptr = 0
         for _st in range(max_steps):
             # mask feature if necessary
             mask = None if self._use_mask_feat_dim is None else self._get_feature_mask()
@@ -92,13 +93,25 @@ class RNNMotion(BaseMotion):
                 feature_mask = task.get_feature_mask()   # if self._oracle_func is None else self._oracle_func.get(task)
             else:
                 self._oracle_func.batched_add(task)
+                batched_ptr += 1
                 feature_mask = None
             episode_stats.append((feature_mask, action, rew, done, info))
+
+            # batched process
+            if (self._oracle_func is not None) and (batched_ptr == batched_size):
+                mask_list = self._oracle_func.batched_get()
+                self._oracle_func.batched_clear()
+                base_ptr = len(episode_stats) - batched_ptr
+                for t in range(batched_ptr):
+                    episode_stats[base_ptr + t] = (mask_list[t],) + episode_stats[base_ptr + t][1:]
+                batched_ptr = 0
+
             # check terminate
-            if done or (not consistent_target and self.check_terminate(target_id, feature_mask, action)):
+            if done or (not consistent_target and self.check_terminate(target_id, episode_stats[-1][0], action)):
                 break
-        if self._oracle_func is not None:
+        if (self._oracle_func is not None) and (batched_ptr > 0):
             mask_list = self._oracle_func.batched_get()
-            for i in range(episode_stats):
-                episode_stats[i] = (mask_list[i],) + episode_stats[i][1:]
+            base_ptr = len(episode_stats) - batched_ptr
+            for t in range(batched_ptr):
+                episode_stats[base_ptr + t] = (mask_list[t],) + episode_stats[base_ptr + t][1:]
         return episode_stats
