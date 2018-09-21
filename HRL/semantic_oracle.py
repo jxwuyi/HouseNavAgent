@@ -56,7 +56,7 @@ def create_trainer(args, n_class):
 ###############################
 
 class OracleFunction(object):
-    def __init__(self, oracle, threshold=0.5, filter_steps=None):
+    def __init__(self, oracle, threshold=0.5, filter_steps=None, batched_size=None):
         self.oracle = oracle
         self.n_target = oracle.n_target
         self.threshold = threshold
@@ -64,6 +64,7 @@ class OracleFunction(object):
             filter_steps = None
         self.filter_steps = filter_steps
         self._filter_cnt = None if filter_steps is None else np.zeros(self.n_target, dtype=np.int32)
+        self.batched_size = batched_size
         self._zero_mask = np.zeros(self.n_target, dtype=np.uint8)
         self.stack_frame = oracle.has_stack_frame
         self.flag_panoramic = oracle.has_panoramic

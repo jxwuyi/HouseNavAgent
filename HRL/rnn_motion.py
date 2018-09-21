@@ -65,9 +65,8 @@ class RNNMotion(BaseMotion):
     """
     return a list of [aux_mask, action, reward, done, info]
     """
-    def run(self, target, max_steps, temperature=None, batched_size=10):
-        if (self._oracle_func is None) or (self._use_mask_feat_dim is not None):
-            batched_size = None
+    def run(self, target, max_steps, temperature=None):
+        batched_size = self._oracle_func.batched_size if (self._oracle_func is not None) and (self._use_mask_feat_dim is None) else None
         task = self.task
         trainer = self.trainer
         target_id = common.target_instruction_dict[target]

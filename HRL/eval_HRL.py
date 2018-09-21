@@ -86,7 +86,8 @@ def evaluate(args):
         if args['semantic_gpu'] is None:
             args['semantic_gpu'] = common.get_gpus_for_rendering()[0]
         oracle = SemanticOracle(model_dir=args['semantic_dir'], model_device=args['semantic_gpu'], include_object=args['object_target'])
-        oracle_func = OracleFunction(oracle, threshold=args['semantic_threshold'], filter_steps=args['semantic_filter_steps'])
+        oracle_func = OracleFunction(oracle, threshold=args['semantic_threshold'],
+                                    filter_steps=args['semantic_filter_steps'], batched_size=args['semantic_batch_size'])
     else:
         oracle_func = None
 
@@ -336,6 +337,7 @@ def parse_args():
     parser.add_argument('--semantic-threshold', type=float, default=0.85, help='[SEMANTIC] threshold for semantic labels. None: probability')
     parser.add_argument('--semantic-filter-steps', type=int, help="[SEMANTIC] filter steps (default, None)")
     parser.add_argument("--semantic-gpu", type=int, help="[SEMANTIC] gpu id for running semantic classifier")
+    parser.add_argument("--semantic-batch-size", type=int, help="[SEMANTIC] group --batch-size of frames for fast semantic computation")
     ##########################################
     # Checkpointing
     parser.add_argument("--log-dir", type=str, default="./log/eval", help="directory in which logs eval stats")
