@@ -57,9 +57,7 @@ def evaluate(house, seed = 0, render_device=None, model_device=None,
     # load semantic classifiers
     print('Loading Semantic Oracle ...')
     oracle = SemanticOracle(model_dir=model_dir, model_device=model_device, include_object=False)
-    oracle_func = OracleFunction(oracle, threshold, filter_steps=filter_steps)
-    #stack_frame = oracle.stack_frame
-    #recent_frames = [None] * stack_frame if stack_frame else [None]
+    oracle_func = OracleFunction(oracle, threshold=threshold, filter_steps=filter_steps)
 
     # create env
     env = common.create_env(house,
@@ -82,8 +80,8 @@ def evaluate(house, seed = 0, render_device=None, model_device=None,
     def display_mask(env):
         #obs = recent_frames if stack_frame else recent_frames[0]
         #mask = oracle.get_mask_feature(obs, threshold=threshold)
-        mask, prob_mask = oracle_func.get(env, return_current=True)
-        prob_mask_str = [oracle.targets[i] + ": %.3f, " % prob_mask[i] for i in range(oracle.n_target)]
+        mask, cur_prob = oracle_func.get(env, return_current_prob=True)
+        prob_mask_str = [oracle.targets[i] + ": %.3f, " % cur_prob[i] for i in range(oracle.n_target)]
         if threshold is not None:
             mask_str = [oracle.targets[i] for i in range(oracle.n_target) if mask[i] > 0]
         else:
@@ -243,7 +241,7 @@ def parse_args():
     parser.add_argument("--store-history", action='store_true', default=False, help="whether to store all the episode frames")
 
     # Semantic Classifiers
-    parser.add_argument('--semantic-dir', type=str, help='[SEMANTIC] root folder containing all semantic classifiers')
+    parser.add_argument('--semantic-dir', type=str, help='[SEMANTIC] root folder containing all semantic classifiers; or the path to the dictionary file')
     parser.add_argument('--semantic-threshold', type=float, help='[SEMANTIC] threshold for semantic labels. None: probability')
     parser.add_argument('--semantic-filter-steps', type=int, help="[SEMANTIC] filter steps (default, None)")
     parser.add_argument("--semantic-gpu", type=int, help="[SEMANTIC] gpu id for running semantic classifier")
