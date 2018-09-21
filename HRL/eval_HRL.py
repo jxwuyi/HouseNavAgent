@@ -219,8 +219,6 @@ def evaluate(args):
         logger.print(' >>> Mask Time = %.4f min' % (accu_mask_time / 60))
         logger.print(' >>> Plan Time = %.4f min' % (accu_plan_time / 60))
         logger.print(' >>> Motion Time = %.4f min' % (accu_exe_time / 60))
-        if oracle_func is not None:
-            logger.print(' >>> Semantic Time = %.4f min' % (oracle_func.accu_time / 60))
         if args['multi_target']:
             logger.print('  ---> Target Room = {}'.format(cur_stats['target']))
         logger.print('  ---> Total Samples = {}'.format(t))

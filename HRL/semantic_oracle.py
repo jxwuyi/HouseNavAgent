@@ -71,9 +71,6 @@ class OracleFunction(object):
         self.pano_stack_frame = oracle.pano_stack
         self._step_cnt = 0
         self._frame_stack = None if self.stack_frame is None else [None] * self.stack_frame
-        ##########
-        self.accu_time = 0
-        #TODO###########
     
     def reset(self):
         self._step_cnt = 0
@@ -81,7 +78,6 @@ class OracleFunction(object):
         self._frame_stack = None if self.stack_frame is None else [None] * self.stack_frame
 
     def get(self, task, return_current_prob=False):
-        tt=time.time()
         # get recent frames
         cur_obs = task._cached_obs
         if self.stack_frame is None:
@@ -113,9 +109,6 @@ class OracleFunction(object):
         else:
             ret_val = cur_mask
 
-        # TODO #######################
-        self.accu_time+=time.time()-tt
-
         if return_current_prob:
             return ret_val, cur_prob
         else:
@@ -140,7 +133,6 @@ class OracleFunction(object):
             self.batched_frame.append([a for a in self._frame_stack])
         
     def batched_get(self):
-        tt=time.time()
         # compute per-frame masks, [n_steps/batch, n_target]
         batched_mask = self.oracle.batched_get_mask_feature(self.batched_frame, batched_pano=self.batched_pano, threshold=self.threshold)
         n_steps = batched_mask.shape[0]
@@ -161,9 +153,6 @@ class OracleFunction(object):
             else:
                 ret_val = cur_mask
             ret_list.append(ret_val)
-
-        # TODO #######################
-        self.accu_time+=time.time()-tt
         return ret_list
 
 
