@@ -122,6 +122,13 @@ def evaluate(args):
     t = 0
     seed = args['seed']
     max_episode_len = args['max_episode_len']
+
+    ####################
+    accu_plan_time = 0
+    accu_exe_time = 0
+    accu_mask_time = 0
+    ####################
+
     for it in range(args['max_iters']):
         cur_infos = []
         motion.reset()
@@ -153,12 +160,22 @@ def evaluate(args):
             if flag_interrupt and motion.is_interrupt():
                 graph_target = task.get_current_target()
             else:
+                # TODO #####################
+                tt = time.time()
                 mask_feat = oracle_func.get(task) if oracle_func is not None else task.get_feature_mask()
+                accu_mask_time += time.time() - tt
+                tt = time.time()
                 graph_target = graph.plan(mask_feat, task_target)
+                accu_plan_time += time.time() - tt
+                ################################
             graph_target_id = common.target_instruction_dict[graph_target]
             allowed_steps = min(max_episode_len - episode_step, max_motion_steps)
 
+            ###############
+            # TODO
+            tt = time.time()
             motion_data = motion.run(graph_target, allowed_steps)
+            accu_exe_time += time.time() -tt
 
             cur_stats['plan'].append((graph_target, len(motion_data), (motion_data[-1][0][graph_target_id] > 0)))
 
@@ -175,7 +192,10 @@ def evaluate(args):
                     cur_stats['best_dist'] = cur_dist
 
             # update graph
+            ## TODO ############
+            tt = time.time()
             graph.observe(motion_data, graph_target)
+            accu_plan_time += time.time() - tt
 
             episode_step += len(motion_data)
 
@@ -194,6 +214,12 @@ def evaluate(args):
 
         dur = time.time() - elap
         logger.print('Episode#%d, Elapsed = %.3f min' % (it+1, dur/60))
+        #TODO #################
+        logger.print(' >>> Mask Time = %.4f min' % (accu_mask_time / 60))
+        logger.print(' >>> Plan Time = %.4f min' % (accu_plan_time / 60))
+        logger.print(' >>> Motion Time = %.4f min' % (accu_exe_time / 60))
+        if oracle_func is not None:
+            logger.print(' >>> Semantic Time = %.4f min' % (oracle_func.accu_time / 60))
         if args['multi_target']:
             logger.print('  ---> Target Room = {}'.format(cur_stats['target']))
         logger.print('  ---> Total Samples = {}'.format(t))

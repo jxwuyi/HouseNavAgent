@@ -60,12 +60,15 @@ class SemanticTrainer(AgentTrainer):
             gpu_tensor = Variable(gpu_tensor, volatile=volatile)
         return gpu_tensor
 
-    def action(self, obs, return_numpy=False, greedy_act=False, return_argmax=False):
+    def action(self, obs, return_numpy=False, greedy_act=False, return_argmax=False, input_tensor=False):
         # Assume all input data are numpy arrays!
         # obs: [batch, n, m, channel] or [batch, stack_frame, n, m, channel], uint8
         # return: [batch, n_class], probability over classes
-        batch_size = obs.shape[0]
-        obs = self._create_gpu_tensor(obs, return_variable=True, volatile=True)  # [batch, t_max, n, m, channel]
+        if not input_tensor:
+            batch_size = obs.shape[0]
+            obs = self._create_gpu_tensor(obs, return_variable=True, volatile=True)  # [batch, t_max, n, m, channel]
+        else:
+            batch_size = obs.size(0)
         prob = self.policy(obs).data   # tensor
         if greedy_act:
             if self.multi_label:  # sigmoid

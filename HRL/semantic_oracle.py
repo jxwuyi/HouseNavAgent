@@ -3,7 +3,7 @@ import common
 import utils
 import json
 
-import sys, os, platform
+import sys, os, platform, time
 
 import numpy as np
 import random
@@ -70,6 +70,9 @@ class OracleFunction(object):
         self.pano_stack_frame = oracle.pano_stack
         self._step_cnt = 0
         self._frame_stack = None if self.stack_frame is None else [None] * self.stack_frame
+        ##########
+        self.accu_time = 0
+        #TODO###########
     
     def reset(self):
         self._step_cnt = 0
@@ -77,6 +80,7 @@ class OracleFunction(object):
         self._frame_stack = None if self.stack_frame is None else [None] * self.stack_frame
 
     def get(self, task, return_current_prob=False):
+        tt=time.time()
         # get recent frames
         cur_obs = task._cached_obs
         if self.stack_frame is None:
@@ -107,6 +111,10 @@ class OracleFunction(object):
                 ret_val = (self._filter_cnt >= self.filter_steps).astype(np.uint8)
         else:
             ret_val = cur_mask
+
+        # TODO #######################
+        self.accu_time+=time.time()-tt
+
         if return_current_prob:
             return ret_val, cur_prob
         else:
@@ -132,7 +140,7 @@ class SemanticOracle(object):
 
         self.classifiers = []
         if isinstance(model_device, int): model_device=[model_device]
-        self.has_stack_frame = 0
+        self.has_stack_frame = None
         self.has_panoramic = False
         self.pano_stack = None
         for i, target in enumerate(self.allowed_targets):
@@ -151,13 +159,16 @@ class SemanticOracle(object):
                     assert self.pano_stack == args['stack_frame'], '[SemanticOracle] all panoramic classifiers must have the same stack_frame size!'
             if 'train_gpu' in args: del args['train_gpu']
             if ('stack_frame' in args) and args['stack_frame'] and (('panoramic' not in args) or not args['panoramic']):
-                self.has_stack_frame = max(self.has_stack_frame, args['stack_frame'])
+                if self.has_stack_frame is None:
+                    self.has_stack_frame = args['stack_frame']
+                else:
+                    assert self.has_stack_frame == args['stack_frame']
             args['train_gpu'] = model_device[i % len(model_device)]
             cur_trainer = create_trainer(args, n_class=2)
             cur_trainer.load(cur_dir, version='best')
             cur_trainer.panoramic = ('panoramic' in args) and args['panoramic']
             self.classifiers.append(cur_trainer)    # TODO: multi-class softmax classifier
-        if self.has_stack_frame <= 1:
+        if (self.has_stack_frame is not None) and (self.has_stack_frame <= 1):
             self.has_stack_frame = None
         if self.has_panoramic:
             assert self.pano_stack is not None
@@ -174,6 +185,7 @@ class SemanticOracle(object):
         threshold: when not None, return a np.array with binary signals; otherwise return a list of float number
         """
         if recent_frames is not None:
+            var_frame = None
             if isinstance(recent_frames, list):
                 shape = None
                 for i in range(len(recent_frames)):
@@ -194,6 +206,7 @@ class SemanticOracle(object):
         if pano_frames is not None:
             assert isinstance(pano_frames, list) and (len(pano_frames) == self.pano_stack)
             np_pano = np.stack(pano_frames)[np.newaxis, ...]
+            var_pano = None
         else:
             assert not self.has_panoramic
             np_pano = None
@@ -201,7 +214,9 @@ class SemanticOracle(object):
         ret = np.zeros(self.n_target, dtype=(np.uint8 if threshold is not None else np.float))
         for i, trainer in enumerate(self.classifiers):
             if trainer.panoramic:
-                prob = trainer.action(np_pano, return_numpy=True)[0]
+                if var_pano is None:
+                    var_pano = trainer._create_gpu_tensor(np_pano, return_variable=True, volatile=True)
+                prob = trainer.action(var_pano, return_numpy=True, input_tensor=True)[0]
             elif trainer.stack_frame is None:
                 if isinstance(recent_frames, list):
                     cur_frame = np_frame[:, -1, ...]
@@ -209,8 +224,6 @@ class SemanticOracle(object):
                     cur_frame = np_frame
             else:
                 cur_frame = np_frame
-                if trainer.stack_frame != self.has_stack_frame:
-                    cur_frame = cur_frame[:, -trainer.stack_frame:, ...]
             prob = trainer.action(cur_frame, return_numpy=True)[0]
             if threshold is not None:
                 ret[i] = (prob[0] > threshold)
