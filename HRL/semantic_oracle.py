@@ -213,6 +213,7 @@ class SemanticOracle(object):
             args['train_gpu'] = model_device[i % len(model_device)]
             cur_trainer = create_trainer(args, n_class=2)
             cur_trainer.load(cur_dir, version='best')
+            cur_trainer.eval()
             cur_trainer.panoramic = ('panoramic' in args) and args['panoramic']
             self.classifiers.append(cur_trainer)    # TODO: multi-class softmax classifier
         if (self.has_stack_frame is not None) and (self.has_stack_frame <= 1):
