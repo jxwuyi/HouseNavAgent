@@ -150,7 +150,7 @@ class SemanticOracle(object):
                 else:
                     assert self.pano_stack == args['stack_frame'], '[SemanticOracle] all panoramic classifiers must have the same stack_frame size!'
             if 'train_gpu' in args: del args['train_gpu']
-            if ('stack_frame' in args) and args['stack_frame'] and not args['panoramic']:
+            if ('stack_frame' in args) and args['stack_frame'] and (('panoramic' not in args) or not args['panoramic']):
                 self.has_stack_frame = max(self.has_stack_frame, args['stack_frame'])
             args['train_gpu'] = model_device[i % len(model_device)]
             cur_trainer = create_trainer(args, n_class=2)

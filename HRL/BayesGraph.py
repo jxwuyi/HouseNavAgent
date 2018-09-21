@@ -58,6 +58,8 @@ def _get_room_index_from_mask(mask):
 
 def _get_object_index_from_mask(mask):
     base = n_rooms - 1
+    if len(mask) <= n_rooms:
+        return list(range(n_objects))
     return [_i for _i in range(n_objects) if mask[base + _i] > 0]
 
 

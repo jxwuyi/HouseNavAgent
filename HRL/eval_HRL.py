@@ -101,7 +101,7 @@ def evaluate(args):
     max_motion_steps = args['n_exp_steps']
     if args['planner'] == 'rnn':
         #assert False, 'Currently only support Graph-planner'
-        graph = RNNPlanner(motion, args['planner_units'], args['planner_filename'], oracle_func=flag_oracle)
+        graph = RNNPlanner(motion, args['planner_units'], args['planner_filename'], oracle_func=oracle_func)
     else:
         graph = GraphPlanner(motion)
         if not args['outdoor_target']:
@@ -153,7 +153,7 @@ def evaluate(args):
             if flag_interrupt and motion.is_interrupt():
                 graph_target = task.get_current_target()
             else:
-                graph_target = graph.plan(oracle_func(task), task_target)
+                graph_target = graph.plan(oracle_func.get(task), task_target)
             graph_target_id = common.target_instruction_dict[graph_target]
             allowed_steps = min(max_episode_len - episode_step, max_motion_steps)
 
