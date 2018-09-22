@@ -124,6 +124,8 @@ def evaluate(args):
     seed = args['seed']
     max_episode_len = args['max_episode_len']
 
+    plan_req = args['plan_dist_iters'] if 'plan_dist_iters' in args else None
+
     ####################
     accu_plan_time = 0
     accu_exe_time = 0
@@ -134,7 +136,15 @@ def evaluate(args):
         cur_infos = []
         motion.reset()
         set_seed(seed + it + 1)  # reset seed
-        task.reset(target=fixed_target)
+        if plan_req is not None:
+            while True:
+                task.reset(target=fixed_target)
+                m = len(task.get_optimal_plan())
+                if (m in plan_req) and plan_req[m] > 0:
+                    break
+            plan_req[m] -= 1
+        else:
+            task.reset(target=fixed_target)
         info = task.info
 
         episode_success.append(0)
@@ -316,6 +326,11 @@ def parse_args():
     parser.add_argument("--use-target-gating", dest='target_gating', action='store_true',
                         help="[only affect when --multi-target] whether to use target instruction gating structure in the model")
     parser.set_defaults(target_gating=False)
+    ######################
+    # Regarding Plan-Dist
+    ######################
+    parser.add_argument("--plan-dist-iters", type=str,
+                        help="Required iterations for each plan-distance birthplaces. In the format of Dist1:Number1,Dist2:Number2,...")
     # RNN Parameters
     parser.add_argument("--rnn-units", type=int,
                         help="[RNN-Only] number of units in an RNN cell")
@@ -377,6 +392,27 @@ if __name__ == '__main__':
         assert args.motion in ['rnn', 'mixture']
         args.terminate_measure = "interrupt"
         print('--> Using Interruptive Terminate Measure!')
+
+    if args.plan_dist_iters is not None:
+        print('>> Parsing Plan Dist Iters ...')
+        try:
+            all_dist = args.plan_dist_iters.split(',')
+            assert len(all_dist) > 0
+            req = dict()
+            total_req = 0
+            for dat in all_dist:
+                vals = dat.split(':')
+                a, b = int(vals[0]), int(vals[1])
+                assert (a > 0) and (b > 0) and (a not in req)
+                req[a] = b
+                total_req += b
+            args.plan_dist_iters = req
+            args.max_iters = total_req
+            print(' ---> Parsing Done! Set Max-Iters to <{}>'.format(total_req))
+            print('    >>> Details = {}'.format(req))
+        except Exception as e:
+            print('[ERROR] PlanDistIters Parsing Error for input <{}>!'.format(args.plan_dist_iters))
+            raise e
 
     dict_args = args.__dict__
 
