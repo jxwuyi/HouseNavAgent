@@ -166,7 +166,7 @@ if __name__ == '__main__':
 
     details = evaluate(episode_stats, dict_args)
 
-    filename = os.path.join(cmd_args.log_dir, args.filename)
+    filename = os.path.join(cmd_args.log_dir, cmd_args.filename)
     print('Store Fetched Details to <{}>....'.format(filename))
     with open(filename, 'wb') as f:
         pickle.dump(details, f)
