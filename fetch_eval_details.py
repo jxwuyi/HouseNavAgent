@@ -104,6 +104,8 @@ def parse_args():
     parser.add_argument("--log-dir", type=str, help="dir to store info")
     parser.add_argument("--render-gpu", type=int, help="gpu for render")
     parser.add_argument("--filename", type=str, default='_eval_details.pkl', help="gpu for render")
+    parser.add_argument("--plan-dist-iters", type=str,
+                        help="Required iterations for each plan-distance birthplaces. In the format of Dist1:Number1,Dist2:Number2,...")
     return parser.parse_args()
 
 
@@ -113,7 +115,6 @@ if __name__ == '__main__':
     print('Data Loading ....')
     with open(cmd_args.data, 'rb') as f:
         episode_stats, args = pickle.load(f)
-
 
     common.set_house_IDs(args.env_set, ensure_kitchen=(not args.multi_target))
     print('>> Environment Set = <%s>, Total %d Houses!' % (args.env_set, len(common.all_houseIDs)))
@@ -127,6 +128,29 @@ if __name__ == '__main__':
 
     args.render_gpu = cmd_args.render_gpu
     dict_args = args.__dict__
+
+    if ('plan_dist_iters' in dict_args) and (dict_args['plan_dist_iters'] is not None):
+        assert cmd_args.plan_dist_iters is not None
+    if cmd_args.plan_dist_iters is not None:
+        print('>> Parsing Plan Dist Iters ...')
+        try:
+            all_dist = cmd_args.plan_dist_iters.split(',')
+            assert len(all_dist) > 0
+            req = dict()
+            total_req = 0
+            for dat in all_dist:
+                vals = dat.split(':')
+                a, b = int(vals[0]), int(vals[1])
+                assert (a > 0) and (b > 0) and (a not in req)
+                req[a] = b
+                total_req += b
+            dict_args['plan_dist_iters'] = req
+            assert dict_args['max_iters'] == total_req
+            print(' ---> Parsing Done! Set Max-Iters to <{}>'.format(total_req))
+            print('    >>> Details = {}'.format(req))
+        except Exception as e:
+            print('[ERROR] PlanDistIters Parsing Error for input <{}>!'.format(args.plan_dist_iters))
+            raise e
 
     details = evaluate(episode_stats, dict_args)
 
