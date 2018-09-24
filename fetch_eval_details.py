@@ -71,10 +71,20 @@ def evaluate(ep_stats, args):
 
     t = 0
     seed = args['seed']
+
+    plan_req = args['plan_dist_iters']
     
     for it in range(args['max_iters']):
         set_seed(seed + it + 1)  # reset seed
-        task.reset(target=fixed_target)
+        if plan_req is not None:
+            while True:
+                task.reset(target=fixed_target)
+                m = len(task.get_optimal_plan())
+                if (m in plan_req) and plan_req[m] > 0:
+                    break
+            plan_req[m] -= 1
+        else:
+            task.reset(target=fixed_target)
 
         #cur_detail = dict(plan=task.get_optimal_plan(), targets=task.get_avail_targets(), graph=task.house.get_graph())
         #cur_detail=dict(graph=task.house.get_graph(), targets=task.get_avail_targets().copy())
@@ -131,6 +141,8 @@ if __name__ == '__main__':
 
     if ('plan_dist_iters' in dict_args) and (dict_args['plan_dist_iters'] is not None):
         assert cmd_args.plan_dist_iters is not None
+    else:
+        dict_args['plan_dist_iters'] = None
     if cmd_args.plan_dist_iters is not None:
         print('>> Parsing Plan Dist Iters ...')
         try:
