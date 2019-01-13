@@ -32,6 +32,7 @@ class RandomMotion(BaseMotion):
         env = self.env
         ret = []
         restore_state = None
+        accu_success_steps = 0
         for _s in range(skilled_steps):
             act = allowed_action_index[np.random.randint(n_allowed_actions)]
             det_fwd, det_hor, det_rot = discrete_actions[act]
@@ -45,9 +46,22 @@ class RandomMotion(BaseMotion):
             if (_s == max_steps - 1) and (max_steps < skilled_steps):
                 restore_state = task.info
             mask = task.get_feature_mask()  # if self._oracle_func is None else self._oracle_func.get(task), NOTE: we do not need oracle actually.. this is random policy
-            done = self._is_success(final_target_id, mask, term_measure='see')
-            ret.append((mask, act, (10 if done else 0), done, task.info))
-            if (done and (_s < max_steps)) or self._is_success(target_id, mask, term_measure=self.term_measure):
+            if self._is_success(final_target_id, mask, term_measure='see'):
+                accu_success_steps += 1
+            else:
+                accu_success_steps = 0
+            if not self._force_oracle_done:
+                done = accu_success_steps > task.succSeeSteps
+                rew = 10 if done else 0
+            else:
+                ####################
+                # HACK!
+                predict_mask = self._oracle_func.get(task)
+                done = predict_mask[final_target_id] > 0
+                rew = 10 if (accu_success_steps > 0) and done else 0
+                ####################
+            ret.append((mask, act, rew, done, task.info))
+            if (done and (_s < max_steps)) or ((target != final_target) and self._is_success(target_id, mask, term_measure=self.term_measure)):
                 flag_term = True
                 break
         if flag_term:

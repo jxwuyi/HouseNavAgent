@@ -144,6 +144,10 @@ class BaseMotion(object):
         #assert term_measure in ['mask', 'stay', 'see']
         self.term_measure = term_measure
         self._oracle_func = oracle_func
+        self._force_oracle_done = False
+    
+    def set_force_oracle_done(self, oracle_done=True):
+        self._force_oracle_done = oracle_done
 
     def _is_insight(self, target_name=None, obs_seg=None, n_pixel=50):
         if target_name is None:

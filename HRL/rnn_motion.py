@@ -73,6 +73,7 @@ class RNNMotion(BaseMotion):
         #self._cached_target_id = target_id
         #trainer.set_target(target)
         consistent_target = (target == self.task.get_current_target())
+        final_target_id = common.target_instruction_dict[self.task.get_current_target()]
 
         episode_stats = []
         obs = task._cached_obs
@@ -90,12 +91,26 @@ class RNNMotion(BaseMotion):
             action = int(action.squeeze())
             # environment step
             _, rew, done, info = task.step(action)
+
             if batched_size is None:
                 feature_mask = task.get_feature_mask() if self._oracle_func is None else self._oracle_func.get(task)
+                ####################
+                # HACK!
+                if self._force_oracle_done: # and consistent_target
+                    done = feature_mask[final_target_id] > 0  # terminator prediction + see the object
+                    rew = 10 if (task.success_stay_cnt > 0) and done else 0
+                ####################
             else:
                 self._oracle_func.batched_add(task)
                 batched_ptr += 1
                 feature_mask = None
+                ####################
+                # HACK!
+                if self._force_oracle_done: # and consistent_target
+                    info['_target_insight'] = task.success_stay_cnt > 0
+                    done = False
+                    rew = 0
+                ####################
             episode_stats.append((feature_mask, action, rew, done, info))
 
             # batched process
@@ -105,6 +120,16 @@ class RNNMotion(BaseMotion):
                 base_ptr = len(episode_stats) - batched_ptr
                 for t in range(batched_ptr):
                     episode_stats[base_ptr + t] = (mask_list[t],) + episode_stats[base_ptr + t][1:]
+                    ####################
+                    # HACK!
+                    if self._force_oracle_done: # and consistent_target
+                        if mask_list[t][final_target_id] > 0:
+                            done = True
+                            rew = 10 if episode_stats[base_ptr + t][-1]['_target_insight'] else 0
+                            episode_stats[base_ptr + t] = episode_stats[base_ptr + t][:2] + (rew, done) + episode_stats[base_ptr + t][-1:]
+                            episode_stats = episode_stats[: base_ptr + t + 1]
+                            break
+                    ####################
                 batched_ptr = 0
 
             # check terminate
@@ -115,4 +140,14 @@ class RNNMotion(BaseMotion):
             base_ptr = len(episode_stats) - batched_ptr
             for t in range(batched_ptr):
                 episode_stats[base_ptr + t] = (mask_list[t],) + episode_stats[base_ptr + t][1:]
+                ####################
+                # HACK!
+                if self._force_oracle_done: # and consistent_target
+                    if mask_list[t][final_target_id] > 0:
+                        done = True
+                        rew = 10 if episode_stats[base_ptr + t][-1]['_target_insight'] else 0
+                        episode_stats[base_ptr + t] = episode_stats[base_ptr + t][:2] + (rew, done) + episode_stats[base_ptr + t][-1:]
+                        episode_stats = episode_stats[: base_ptr + t + 1]
+                        break
+                ####################
         return episode_stats
