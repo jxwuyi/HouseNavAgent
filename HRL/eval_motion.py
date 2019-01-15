@@ -56,6 +56,9 @@ def create_motion(args, task, oracle_func=None):
                            oracle_func=oracle_func)
         common.ensure_object_targets(args['object_target'])
 
+    if ('force_oracle_done' in args['force_oracle_done']) and args['force_oracle_done']:
+        motion.set_force_oracle_done(True)
+
     return motion
 
 
@@ -313,6 +316,9 @@ def parse_args():
     parser.add_argument('--semantic-threshold', type=float, default=0.85, help='[SEMANTIC] threshold for semantic labels. None: probability')
     parser.add_argument('--semantic-filter-steps', type=int, help="[SEMANTIC] filter steps (default, None)")
     parser.add_argument("--semantic-gpu", type=int, help="[SEMANTIC] gpu id for running semantic classifier")
+    parser.add_argument("--force-semantic-done", dest="force_oracle_done", action='store_true',
+                        help="When flag set, agent will terminate its episode based on the semantic classifier.")
+    parser.set_defaults(force_oracle_done=False)
     ##########################################
     # Checkpointing
     parser.add_argument("--log-dir", type=str, default="./log/eval", help="directory in which logs eval stats")
