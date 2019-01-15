@@ -56,7 +56,7 @@ def create_motion(args, task, oracle_func=None):
                            oracle_func=oracle_func)
         common.ensure_object_targets(args['object_target'])
 
-    if ('force_oracle_done' in args['force_oracle_done']) and args['force_oracle_done']:
+    if ('force_oracle_done' in args) and args['force_oracle_done']:
         motion.set_force_oracle_done(True)
 
     return motion
