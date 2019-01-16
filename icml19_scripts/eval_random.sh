@@ -13,7 +13,7 @@ do
         flag_object=""
         flag_target="--only-eval-room-target"
     fi
-    for ep_len in "300" #"500" "1000"
+    for ep_len in "300" "500" "1000"
     do
         CUDA_VISIBLE_DEVICES=1 python3 HRL/eval_motion.py --task-name roomnav --env-set test \
             --house -50 --seed $seed \

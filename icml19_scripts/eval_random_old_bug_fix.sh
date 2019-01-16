@@ -14,7 +14,7 @@ do
     fi
     for ep_len in "300" "500" "1000"
     do
-        CUDA_VISIBLE_DEVICES=2 python3 HRL/eval_motion.py --task-name roomnav --env-set test \
+        CUDA_VISIBLE_DEVICES=1 python3 HRL/eval_motion.py --task-name roomnav --env-set test \
             --house -50 --seed $seed \
             --max-birthplace-steps $max_birth --min-birthplace-grids 1 \
             --render-gpu 1 --hardness 0.95 \
