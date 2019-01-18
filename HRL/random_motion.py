@@ -61,7 +61,9 @@ class RandomMotion(BaseMotion):
                 rew = (10 if done else 0)
             else:
                 if self._oracle_func is None:
-                    done = (np.random.randint(n_allowed_actions + 1) == 0) # random terminate
+                    # sample terminate action, randomly
+                    mask = task.get_feature_mask()
+                    done = (np.random.randint(n_allowed_actions + 1) == 0)
                 else:
                     # slow simulation
                     mask = self._oracle_func.get(task)
