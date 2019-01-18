@@ -46,7 +46,7 @@ class RandomMotion(BaseMotion):
             if (_s == max_steps - 1) and (max_steps < skilled_steps):
                 restore_state = task.info
             
-            if (self._oracle_func is None) or (not self._force_oracle_done):
+            if not self._force_oracle_done:
                 # fast simulation
                 mask = task.get_feature_mask()  # if self._oracle_func is None else self._oracle_func.get(task), NOTE: we do not need oracle actually.. this is random policy
                 flag = self._is_success(final_target_id, mask, term_measure='see')
@@ -60,14 +60,16 @@ class RandomMotion(BaseMotion):
                     done = False
                 rew = (10 if done else 0)
             else:
-                # slow simulation
-                mask = self._oracle_func.get(task)
-                if mask[final_target_id] > 0:
-                    done = True
+                if self._oracle_func is None:
+                    done = (np.random.randint(n_allowed_actions + 1) == 0) # random terminate
+                else:
+                    # slow simulation
+                    mask = self._oracle_func.get(task)
+                    done = (mask[final_target_id] > 0)
+                if done:
                     true_mask = task.get_feature_mask()
                     rew = 10 if self._is_success(final_target_id, true_mask, term_measure='see') else 0
                 else:
-                    done = False
                     rew = 0
             ret.append((mask, act, rew, done, task.info))
             if (done and (_s < max_steps)) or ((target != final_target) and self._is_success(target_id, mask, term_measure=self.term_measure)):
