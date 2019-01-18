@@ -12,7 +12,7 @@ max_iters="5000" #"10000"
 for ep_len in "300" "500" "1000"
 do
     CUDA_VISIBLE_DEVICES=2 python3 HRL/eval_motion.py --task-name roomnav --env-set test \
-        --house -2 --seed $seed --render-gpu 0 \
+        --house -50 --seed $seed --render-gpu 0 \
         --max-birthplace-steps $max_birth $flag_min_birth \
         --hardness 0.95 \
         --segmentation-input color --depth-input \
