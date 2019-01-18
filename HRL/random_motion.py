@@ -45,17 +45,30 @@ class RandomMotion(BaseMotion):
                     task._yaw_ind = (task._yaw_ind + discrete_angle_delta_value[act] + task.discrete_angle) % task.discrete_angle
             if (_s == max_steps - 1) and (max_steps < skilled_steps):
                 restore_state = task.info
-            mask = task.get_feature_mask()  # if self._oracle_func is None else self._oracle_func.get(task), NOTE: we do not need oracle actually.. this is random policy
-            flag = self._is_success(final_target_id, mask, term_measure='see')
-            if flag:
-                accu_success_steps += 1
+            
+            if self._oracle_func is None:
+                # fast simulation
+                mask = task.get_feature_mask()  # if self._oracle_func is None else self._oracle_func.get(task), NOTE: we do not need oracle actually.. this is random policy
+                flag = self._is_success(final_target_id, mask, term_measure='see')
+                if flag:
+                    accu_success_steps += 1
+                else:
+                    accu_success_steps = 0
+                if accu_success_steps >= task.succSeeSteps:
+                    done = True
+                else:
+                    done = False
+                rew = (10 if done else 0)
             else:
-                accu_success_steps = 0
-            if accu_success_steps == 3:
-                done = True
-            else:
-                done = False
-            rew = (10 if done else 0)
+                # slow simulation
+                mask = self._oracle_func.get(task)
+                if mask[final_target_id] > 0:
+                    done = True
+                    true_mask = task.get_feature_mask()
+                    rew = 10 if self._is_success(final_target_id, true_mask, term_measure='see') else 0
+                else:
+                    done = False
+                    rew = 0
             ret.append((mask, act, rew, done, task.info))
             if (done and (_s < max_steps)) or ((target != final_target) and self._is_success(target_id, mask, term_measure=self.term_measure)):
                 flag_term = True
