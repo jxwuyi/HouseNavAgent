@@ -54,7 +54,7 @@ class RandomMotion(BaseMotion):
                     accu_success_steps += 1
                 else:
                     accu_success_steps = 0
-                if accu_success_steps >= task.succSeeSteps:
+                if accu_success_steps >= max(2, task.succSeeSteps):
                     done = True
                 else:
                     done = False
