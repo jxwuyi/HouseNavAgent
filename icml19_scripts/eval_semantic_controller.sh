@@ -7,12 +7,13 @@ GRAPH_DIR="/home/jxwuyi/backup/HouseNavAgent/_graph_/controller_room/mix_motion/
 
 exp_len="30"
 
-all_ep_len="300 500 1000"
-#all_ep_len="500"
+#all_ep_len="300 500 1000"
+all_ep_len="1000"
 
 max_iters="5000"   #"10000"
 
-seed="0"   #"7"
+#seed="0"
+seed="7"
 
 for TERM in mask # see
 do
@@ -29,7 +30,7 @@ do
             --segmentation-input color --depth-input \
             --rnn-units 256 --rnn-layers 1 --rnn-cell lstm --batch-norm \
             --store-history \
-            --log-dir ./results/force_terminate/controller/m_"$exp_len"_g_"$ep_len" \
+            --log-dir ./results/force_terminate/controller/m_"$exp_len"_g_"$ep_len"_sd"$seed" \
             --force-semantic-done \
             --semantic-dir $SEMANTIC_DIR \
             --semantic-threshold 0.9 --semantic-filter-steps 3 --semantic-gpu 0

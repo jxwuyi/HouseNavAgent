@@ -8,10 +8,11 @@ GRAPH_DIR="/home/jxwuyi/backup/HouseNavAgent/_graph_/random_300/mle_random_graph
 
 noise="0.85"
 
-#all_ep_len="300"
-all_ep_len="300 500 1000"
+all_ep_len="1000"
+#all_ep_len="300 500 1000"
 
-seed=0
+#seed=0
+seed=7
 max_iters=5000
 
 #seed=7
@@ -33,7 +34,7 @@ do
             --segmentation-input color --depth-input \
             --rnn-units 256 --rnn-layers 1 --rnn-cell lstm --batch-norm \
             --store-history \
-            --log-dir ./results/force_terminate/HRL/g_"$ep_len"_m_"$exp_len"_term_"$TERM" \
+            --log-dir ./results/force_terminate/HRL/g_"$ep_len"_m_"$exp_len"_term_"$TERM"_sd"$seed" \
             --force-semantic-done \
             --semantic-dir $SEMANTIC_DIR \
             --semantic-threshold 0.9 --semantic-filter-steps 3 --semantic-gpu 0

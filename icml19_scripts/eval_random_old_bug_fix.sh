@@ -23,7 +23,7 @@ do
             --motion random \
             --max-episode-len $ep_len --max-iters $max_iters \
             --store-history \
-            --log-dir ./results/bug_fix/random/maxbth_"$max_birth"_eplen_"$ep_len"
+            --log-dir ./results/bug_fix/backup_random_accu/maxbth_"$max_birth"_eplen_"$ep_len"
     done
 done
 

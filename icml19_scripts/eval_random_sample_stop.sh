@@ -13,7 +13,7 @@ do
         flag_object=""
         flag_target="--only-eval-room-target"
     fi
-    for ep_len in "1000" #"300" "500" "1000"
+    for ep_len in "300" "500" "1000"
     do
         CUDA_VISIBLE_DEVICES=0 python3 HRL/eval_motion.py --task-name roomnav --env-set test \
             --house -50 --seed $seed \
@@ -24,10 +24,8 @@ do
             --motion random \
             --max-episode-len $ep_len --max-iters $max_iters \
             --store-history \
-            --log-dir ./results/force_terminate/random_new/maxbth_"$max_birth"_eplen_"$ep_len" \
-            --force-semantic-done \
-            --semantic-dir $SEMANTIC_DIR \
-            --semantic-threshold 0.9 --semantic-filter-steps 3 --semantic-gpu 0
+            --log-dir ./results/random_terminate/random/maxbth_"$max_birth"_eplen_"$ep_len" \
+            --force-semantic-done
     done
 done
 
