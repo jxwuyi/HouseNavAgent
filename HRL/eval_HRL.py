@@ -8,7 +8,7 @@ import numpy as np
 import random
 
 from HRL.eval_motion import create_motion
-from HRL.BayesGraph import GraphPlanner
+from HRL.BayesGraph import GraphPlanner, OraclePlanner, VoidPlanner
 from HRL.RNNController import RNNPlanner
 from HRL.semantic_oracle import SemanticOracle, OracleFunction
 
@@ -100,7 +100,11 @@ def evaluate(args):
     # create planner
     graph = None
     max_motion_steps = args['n_exp_steps']
-    if args['planner'] == 'rnn':
+    if (args['planner'] == None) or (args['planner'] == 'void'):
+        graph = VoidPlanner(motion)
+    elif args['planner'] == 'oracle':
+        graph = OraclePlanner(motion)
+    elif args['planner'] == 'rnn':
         #assert False, 'Currently only support Graph-planner'
         graph = RNNPlanner(motion, args['planner_units'], args['planner_filename'], oracle_func=oracle_func)
     else:
@@ -108,6 +112,7 @@ def evaluate(args):
         if not args['outdoor_target']:
             graph.add_excluded_target('outdoor')
         filename = args['planner_filename']
+        if filename == 'None': filename = None
         if filename is not None:
             logger.print(' > Loading Graph from file = <{}>'.format(filename))
             with open(filename,'rb') as f:
@@ -339,7 +344,7 @@ def parse_args():
     parser.add_argument("--rnn-cell", choices=['lstm', 'gru'],
                         help="[RNN-Only] RNN cell type")
     # Planner Parameters
-    parser.add_argument("--planner", choices=['rnn', 'graph', 'random'], default='graph', help='type of the planner')
+    parser.add_argument("--planner", choices=['rnn', 'graph', 'random', 'oracle', 'void'], default='graph', help='type of the planner')
     parser.add_argument("--planner-filename", type=str, help='parameters for the planners')
     parser.add_argument("--planner-units", type=int, help='hidden units for planner, only effective when --planner rnn')
     parser.add_argument("--n-exp-steps", type=int, default=40, help='maximum number of steps for exploring a sub-policy')

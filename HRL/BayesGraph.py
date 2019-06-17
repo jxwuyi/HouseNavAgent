@@ -78,6 +78,47 @@ def _log_it(logger, msg):
         logger.print(msg)
 
 
+class OraclePlanner(BasePlanner):
+    def __init__(self, motion):
+        super(OraclePlanner, self).__init__(motion)
+
+    def learn(self):
+        pass
+
+    def observe(self, exp_data, target):
+        pass
+
+    def plan(self, mask, target):
+        try:
+            plan = self.env.get_optimal_plan()
+            tar = plan[0][0]
+            assert tar in combined_target_list
+            return tar
+        except:
+            return self.env.get_current_target()
+
+    def reset(self):
+        pass
+
+
+class VoidPlanner(BasePlanner):
+    def __init__(self, motion):
+        super(VoidPlanner, self).__init__(motion)
+
+    def learn(self):
+        pass
+
+    def observe(self, exp_data, target):
+        pass
+
+    def plan(self, mask, target):
+        return self.env.get_current_target()
+
+    def reset(self):
+        pass
+
+
+
 class GraphPlanner(BasePlanner):
     def __init__(self, motion):
         super(GraphPlanner, self).__init__(motion)
@@ -85,7 +126,7 @@ class GraphPlanner(BasePlanner):
         #self.env = self.task.env
         #self.motion = motion
         self.n_param = n_rooms * (n_rooms - 1) // 2 + n_rooms * n_objects + 2
-        self.conn_rooms = np.ones((n_rooms, n_rooms), dtype=np.float32)
+        self.conn_rooms = np.ones((n_rooms, n_rooms), dtype=np.float32) * 0.5
         self.conn_objs = np.ones((n_rooms, n_objects), dtype=np.float32) * 0.1
         self.conn_noise = np.array([0.001, 0.95], dtype=np.float32)
         self.params = [self.conn_rooms, self.conn_objs, self.conn_noise]
