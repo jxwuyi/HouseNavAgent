@@ -4,7 +4,7 @@ MODEL_DIR="./results/motion_dict/nips_old_motion.json"
 
 SEMANTIC_DIR="./_model_/semantic/_dict_/semantic_oracle_rooms.json"
 
-GRAPH_DIR="NONE"
+GRAPH_DIR="None"
 
 noise="0.85"
 

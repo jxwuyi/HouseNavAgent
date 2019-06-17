@@ -90,12 +90,13 @@ class OraclePlanner(BasePlanner):
 
     def plan(self, mask, target):
         try:
-            plan = self.env.get_optimal_plan()
+            plan = self.task.get_optimal_plan()
             tar = plan[0][0]
             assert tar in combined_target_list
             return tar
-        except:
-            return self.env.get_current_target()
+        except Exception as e:
+            print('Exception received! e = {}'.format(e))
+            return self.task.get_current_target()
 
     def reset(self):
         pass
@@ -112,7 +113,7 @@ class VoidPlanner(BasePlanner):
         pass
 
     def plan(self, mask, target):
-        return self.env.get_current_target()
+        return self.task.get_current_target()
 
     def reset(self):
         pass
