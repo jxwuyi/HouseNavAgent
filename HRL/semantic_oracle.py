@@ -40,9 +40,9 @@ def create_policy(args, observation_shape, n_class):
             train_gpus = args['train_gpu']
             if isinstance(train_gpus, list):  # multi-gpu
                 #model = torch.nn.DataParallel(model, device_ids=train_gpus)
-                model.cuda(device_id=train_gpus[0])
+                model.cuda(device=train_gpus[0])
             else:  # single gpu
-                model.cuda(device_id=train_gpus)  # TODO: Actually we only support training on gpu_id=0
+                model.cuda(device=train_gpus)  # TODO: Actually we only support training on gpu_id=0
         else:
             model.cuda()
     return model
