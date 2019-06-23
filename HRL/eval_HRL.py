@@ -23,9 +23,11 @@ def proc_info(info):
                 dist=info['dist'])
 
 
-def evaluate(args):
+def evaluate(args, data_saver=None):
 
     args['segment_input'] = args['segmentation_input']
+
+    backup_rate = args['backup_rate']
 
     elap = time.time()
 
@@ -138,6 +140,10 @@ def evaluate(args):
     ####################
 
     for it in range(args['max_iters']):
+
+        if (it > 0) and (backup_rate > 0) and (it % backup_rate == 0) and (data_saver is not None):
+            data_saver.save(episode_stats, ep_id=it)
+
         cur_infos = []
         motion.reset()
         set_seed(seed + it + 1)  # reset seed
@@ -361,6 +367,7 @@ def parse_args():
     parser.set_defaults(force_oracle_done=False)
     ##########################################
     # Checkpointing
+    parser.add_argument("--backup-rate", type=int, default=0, help="when set > 0, store all the evaluation results every --backup-rate steps.")
     parser.add_argument("--log-dir", type=str, default="./log/eval", help="directory in which logs eval stats")
     parser.add_argument("--warmstart", type=str, help="file to load the policy model")
     parser.add_argument("--warmstart-dict", type=str, help="arg dict the policy model, only effective when --motion rnn")
@@ -424,7 +431,30 @@ if __name__ == '__main__':
 
     dict_args = args.__dict__
 
-    episode_stats = evaluate(dict_args)
+
+    class DataSaver:
+        def __init__(self, _args):
+            self.args = _args
+
+        def save(self, data, ep_id=None):
+            if self.args.store_history:
+                _filename = self.args.log_dir
+                if _filename[-1] != '/':
+                    _filename += '/'
+                _filename += self.args.motion
+
+                if ep_id is not None:
+                    _filename += '_ep{}_'.format(ep_id)
+                else:
+                    _filename += '_full_'
+                _filename += 'eval_history.pkl'
+                print('Saving stats to <{}> ...'.format(_filename))
+                with open(_filename, 'wb') as _f:
+                    pickle.dump([data, self.args], _f)
+                print('  >> Done!')
+
+
+    episode_stats = evaluate(dict_args, DataSaver(args))
 
     if args.store_history:
         filename = args.log_dir
