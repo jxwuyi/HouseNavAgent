@@ -89,9 +89,20 @@ class OraclePlanner(BasePlanner):
         pass
 
     def plan(self, mask, target):
+        # find shortest path towards target in self.graph
+        target_id = combined_target_index[target]
+        if mask[target_id] > 0:
+            return target  # already there, directly go
+
         try:
             plan = self.task.get_optimal_plan()
             tar = plan[0][0]
+            assert tar in combined_target_list
+            next_id = combined_target_index[tar]
+            if mask[next_id] == 0:
+                return tar
+            assert len(plan) > 1
+            tar = plan[1][0]
             assert tar in combined_target_list
             return tar
         except Exception as e:
