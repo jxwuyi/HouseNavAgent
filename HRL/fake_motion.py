@@ -22,15 +22,15 @@ all_allowed_target_names = ALLOWED_TARGET_ROOM_TYPES + ALLOWED_OBJECT_TARGET_TYP
 # Hyper Parameters
 #############
 rate_succ_within_range = 0.97
-range_sight = 5  # steps to be seen
+range_sight = 3  # steps to be seen
 rate_succ_within_sight = 0.85
-range_reach = 10  # steps able to be reached
+range_reach = 5  # steps able to be reached
 rate_succ_within_reach = 0.5
 
-range_for_exploration = 15
+range_for_exploration = 10
 
 rate_guess_right_direction = 0.65
-steps_guess_right_direction = 10
+steps_guess_right_direction = 5
 
 def rand():
     return np.random.rand()
