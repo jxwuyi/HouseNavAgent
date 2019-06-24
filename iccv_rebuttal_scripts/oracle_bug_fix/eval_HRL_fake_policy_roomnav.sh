@@ -11,7 +11,7 @@ noise="0.97"
 all_ep_len="1000"
 #all_ep_len="300 500 1000"
 
-all_exp_len="30 10 50"
+all_exp_len="30"
 
 #seed=0
 seed=7
