@@ -433,7 +433,11 @@ class GraphPlanner(BasePlanner):
         ptr_name = all_graph_rooms_names[ptr]
         if ptr_name not in self.excluded_targets:
             full_plan.append(ptr_name)
-        assert prev_rooms[ptr] > -1, '[BayesGraph.plan] Currently Target Room is {}, however it is not reachable!!!! curr house id = {}'.format(combined_target_list[ptr], self.task.house._id)
+        try:
+            assert prev_rooms[ptr] > -1, '[BayesGraph.plan] Currently Target Room is {}, however it is not reachable!!!! curr house id = {}'.format(combined_target_list[ptr], self.task.house._id)
+        except Exception as e:
+            print(e)
+            return target
         #print('[Graph] Fetching SSP Path ...')
         while prev_rooms[ptr] not in curr_rooms:
             ptr = prev_rooms[ptr]
