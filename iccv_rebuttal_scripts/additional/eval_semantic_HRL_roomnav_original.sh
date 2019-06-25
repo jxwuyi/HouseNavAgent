@@ -26,8 +26,8 @@ for exp_len in $all_exp_len
 do
     for ep_len in $all_ep_len
     do
-        CUDA_VISIBLE_DEVICES=0 python3 HRL/eval_HRL.py --seed $seed --env-set test --house -50 \
-            --hardness 0.95 --render-gpu 2 --max-birthplace-steps 40 --min-birthplace-grids 1 \
+        CUDA_VISIBLE_DEVICES=1 python3 HRL/eval_HRL.py --seed $seed --env-set test --house -50 \
+            --hardness 0.95 --render-gpu 0 --max-birthplace-steps 40 --min-birthplace-grids 1 \
             --planner graph --planner-file $GRAPH_DIR \
             --success-measure see --multi-target --use-target-gating --terminate-measure $TERM \
             --only-eval-room-target \

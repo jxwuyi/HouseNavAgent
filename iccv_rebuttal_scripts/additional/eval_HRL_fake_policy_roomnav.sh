@@ -22,7 +22,7 @@ required="4:253,5:436"
 
 TERM="mask"
 
-all_planner_types="graph void oracle"
+all_planner_types="graph oracle"
 
 
 for exp_len in $all_exp_len
@@ -30,8 +30,8 @@ do
     ep_len="1000"
     for planner in $all_planner_types
     do
-        CUDA_VISIBLE_DEVICES=0 python3 HRL/eval_HRL.py --seed $seed --env-set test --house -50 \
-            --hardness 0.95 --render-gpu 2 --max-birthplace-steps 40 --min-birthplace-grids 1 \
+        CUDA_VISIBLE_DEVICES=1 python3 HRL/eval_HRL.py --seed $seed --env-set test --house -50 \
+            --hardness 0.95 --render-gpu 0 --max-birthplace-steps 40 --min-birthplace-grids 1 \
             --planner $planner --planner-file $GRAPH_DIR \
             --success-measure see --multi-target --use-target-gating --terminate-measure $TERM \
             --only-eval-room-target \
@@ -45,18 +45,18 @@ do
     done
 
 
-    CUDA_VISIBLE_DEVICES=0 python3 HRL/eval_HRL.py --seed $seed --env-set test --house -50 \
-            --hardness 0.95 --render-gpu 2 --max-birthplace-steps 40 --min-birthplace-grids 1 \
-            --planner graph \
-            --success-measure see --multi-target --use-target-gating --terminate-measure $TERM \
-            --only-eval-room-target \
-            --planner-obs-noise $noise \
-            --motion fake \
-            --max-episode-len $ep_len --n-exp-steps $exp_len --plan-dist-iters $required \
-            --segmentation-input color --depth-input \
-            --rnn-units 256 --rnn-layers 1 --rnn-cell lstm --batch-norm \
-            --store-history \
-            --log-dir ./results/iccv/additional/fake_motion/g_"$ep_len"_m_"$exp_len"_planner_uniprior_graph_sd"$seed"
+    #CUDA_VISIBLE_DEVICES=1 python3 HRL/eval_HRL.py --seed $seed --env-set test --house -50 \
+    #        --hardness 0.95 --render-gpu 0 --max-birthplace-steps 40 --min-birthplace-grids 1 \
+    #        --planner graph \
+    #        --success-measure see --multi-target --use-target-gating --terminate-measure $TERM \
+    #        --only-eval-room-target \
+    #        --planner-obs-noise $noise \
+    #        --motion fake \
+    #        --max-episode-len $ep_len --n-exp-steps $exp_len --plan-dist-iters $required \
+    #        --segmentation-input color --depth-input \
+    #        --rnn-units 256 --rnn-layers 1 --rnn-cell lstm --batch-norm \
+    #        --store-history \
+    #        --log-dir ./results/iccv/additional/fake_motion/g_"$ep_len"_m_"$exp_len"_planner_uniprior_graph_sd"$seed"
 done
 
 
