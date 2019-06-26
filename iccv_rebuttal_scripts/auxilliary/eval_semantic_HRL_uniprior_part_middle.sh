@@ -14,8 +14,8 @@ all_ep_len="300"
 all_exp_len="30"
 
 #seed=0
-seed=3007
-max_iters=2000
+seed=2007
+max_iters=1000
 
 #seed=7
 #max_iters="10000"
