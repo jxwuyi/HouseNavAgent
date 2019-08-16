@@ -20,7 +20,8 @@ max_iters=5000
 
 TERM="mask"
 
-all_exp_len="10 15 20"
+#all_exp_len="10 15 20"
+all_exp_len="5 15"
 
 for exp_len in $all_exp_len # see
 do
@@ -37,7 +38,7 @@ do
             --segmentation-input color --depth-input \
             --rnn-units 256 --rnn-layers 1 --rnn-cell lstm --batch-norm \
             --store-history \
-            --log-dir ./results/iccv/experimental/HRL/g_"$ep_len"_m_"$exp_len"_term_"$TERM"_sd"$seed" \
+            --log-dir ./results/iccv/experimental/force_terminate/HRL/g_"$ep_len"_m_"$exp_len"_term_"$TERM"_sd"$seed" \
             --force-semantic-done \
             --semantic-dir $SEMANTIC_DIR \
             --semantic-threshold 0.9 --semantic-filter-steps 3 --semantic-gpu 0

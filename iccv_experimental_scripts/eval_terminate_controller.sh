@@ -5,7 +5,8 @@ MODEL_DIR="./results/motion_dict/nips_old_motion.json"
 SEMANTIC_DIR="./_model_/semantic/_dict_/semantic_oracle_rooms.json"
 GRAPH_DIR="/home/jxwuyi/backup/HouseNavAgent/_graph_/controller_room/mix_motion/p300_m30_max10_bc32/RNNPlanner.pkl"
 
-all_exp_len="10 15 20"
+#all_exp_len="10 15 20"
+all_exp_len="5"
 
 #all_ep_len="300 500 1000"
 all_ep_len="1000"
