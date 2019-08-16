@@ -2,7 +2,11 @@
 Navigation agent in the 3D house environment
 
 # PyTorch Version
-Currently only support pytorch 0.1 and 0.2. It will raise run-time error in pytorch 0.3.
+Currently the code is only fully tested in pytorch 0.2 (with some necessary API modifications). 
+
+Only evaluation is tested in pytorch 0.3.1.
+
+It will raise run-time error in pytorch 0.3.0. Make sure to avoid this version! The code will be kept as it is now and no further package upgrade will be performed.
 
 # Note and Usage
 0. These packages are required: `pytorch, gym, matplotlib, opencv, msgpack, msgpack_numpy`
