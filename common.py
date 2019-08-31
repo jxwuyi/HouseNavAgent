@@ -661,28 +661,10 @@ def create_env(k=0,
 
 def get_gpus_for_rendering():
     """
-    Please always use this function to choose rendering device.
-    So that your script can run on clusters.
-
     Returns:
         list of int. The device ids that can be used for RenderAPI
     """
-    def parse_devlist(fname):
-        ret = []
-        with open(fname) as f:
-            for line in f:
-                if line.startswith('c 195:') and ':255' not in line:
-                    gid = line.strip().split(' ')[1].split(':')[1]
-                    ret.append(int(gid))
-        return sorted(ret)
-
-    jid = os.environ.get('CHRONOS_JOB_INSTANCE_ID', None)
-    if jid:
-        # to work with chronos cluster
-        fname = '/sys/fs/cgroup/devices/chronos.slice/gp/{}/devices.list'.format(jid)
-        return parse_devlist(fname)
-    else:
-        # to respect env var
-        if 'CUDA_VISIBLE_DEVICES' not in os.environ:
-            return [0]  # default setting
-        return list(map(int, os.environ['CUDA_VISIBLE_DEVICES'].split(',')))
+	# to respect env var
+    if 'CUDA_VISIBLE_DEVICES' not in os.environ:
+        return [0]  # default setting
+    return list(map(int, os.environ['CUDA_VISIBLE_DEVICES'].split(',')))

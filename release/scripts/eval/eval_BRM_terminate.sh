@@ -57,8 +57,6 @@ do
             --store-history \
             --log-dir ./results/terminate/BRM_add \
             --semantic-dir $SEMANTIC_DIR \
-            --semantic-threshold 0.9 --semantic-filter-steps 3 --semantic-gpu 0 \
-            --backup-rate 1000
-    
+            --semantic-threshold 0.9 --semantic-filter-steps 3 --semantic-gpu 0
     done
 done

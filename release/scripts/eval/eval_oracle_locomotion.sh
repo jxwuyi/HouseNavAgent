@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 
-MODEL_DIR="./release/metadata/motion_dict.json"
 SEMANTIC_DIR="./release/metadata/semantic_oracle_rooms.json"
 GRAPH_DIR="./release/graph/mle_random_graph_params.pkl"
 
@@ -26,12 +25,12 @@ do
             --success-measure see --multi-target --use-target-gating --terminate-measure $TERM \
             --only-eval-room-target \
             --planner-obs-noise $noise \
-            --motion mixture --mixture-motion-dict $MODEL_DIR \
+            --motion fake \
             --max-episode-len $ep_len --n-exp-steps $exp_len --max-iters $max_iters \
             --segmentation-input color --depth-input \
             --rnn-units 256 --rnn-layers 1 --rnn-cell lstm --batch-norm \
             --store-history \
-            --log-dir ./results/BRM_main \
+            --log-dir ./results/oracle_motion_main \
             --semantic-dir $SEMANTIC_DIR \
             --semantic-threshold 0.9 --semantic-filter-steps 3 --semantic-gpu 0 \
             --backup-rate 1000
@@ -43,12 +42,12 @@ do
             --success-measure see --multi-target --use-target-gating --terminate-measure $TERM \
             --only-eval-room-target \
             --planner-obs-noise $noise \
-            --motion mixture --mixture-motion-dict $MODEL_DIR \
+            --motion fake \
             --max-episode-len $ep_len --n-exp-steps $exp_len --plan-dist-iters $required \
             --segmentation-input color --depth-input \
             --rnn-units 256 --rnn-layers 1 --rnn-cell lstm --batch-norm \
             --store-history \
-            --log-dir ./results/BRM_add \
+            --log-dir ./results/oracle_motion_add \
             --semantic-dir $SEMANTIC_DIR \
             --semantic-threshold 0.9 --semantic-filter-steps 3 --semantic-gpu 0
     done
