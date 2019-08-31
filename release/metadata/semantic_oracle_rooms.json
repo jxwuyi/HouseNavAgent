@@ -1,0 +1,1 @@
+{"outdoor": "./release/semantic/outdoor", "bedroom": "./release/semantic/bedroom", "bathroom": "./release/semantic/bathroom", "office": "./release/semantic/office", "dining_room": "./release/semantic/dining_room", "garage": "./release/semantic/garage", "living_room": "./release/semantic/living_room", "kitchen": "./release/semantic/kitchen"}

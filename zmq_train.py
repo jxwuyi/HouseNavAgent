@@ -2,7 +2,6 @@ from headers import *
 import common
 import utils
 
-import environment
 import threading
 
 from zmq_trainer.zmq_actor_critic import ZMQA3CTrainer
@@ -18,6 +17,18 @@ import random
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+def create_curriculum_schedule(curriculum):
+    if curriculum is None: return None
+    try:
+        val = tuple(map(int, curriculum.split(',')))
+    except Exception as e:
+        print('[Curriculum-Schedule Parser] Invalid Curriculum Input Format! Please input 3 comman-seperated integers!')
+        return None
+    if (len(val) != 3) or (min(val) < 1):
+        print('[Curriculum-Schedule Parser] Invalid Curriculum Input Format! Please input 3 comman-seperated integers!')
+        return None
+    return val
 
 def create_scheduler(type='medium'):
     if type == 'none':
@@ -53,10 +64,13 @@ def create_policy(model_name, args, observation_shape, n_action):
                               multi_target=args['multi_target'],
                               use_target_gating=args['target_gating'],
                               aux_prediction=(common.n_aux_predictions if args['aux_task'] else None),
-                              no_skip_connect=(args['no_skip_connect'] if 'no_skip_connect' in args else False))
+                              no_skip_connect=(args['no_skip_connect'] if 'no_skip_connect' in args else False),
+                              pure_feed_forward=(args['feed_forward'] if 'feed_forward' in args else False),
+                              extra_feature_dim=(len(common.all_target_instructions) if ('mask_feature' in args) and args['mask_feature'] else None)
+                              )
     if common.use_cuda:
         if 'train_gpu' in args:
-            model.cuda(device_id=args['train_gpu'])  # TODO: Actually we only support training on gpu_id=0
+            model.cuda(device=args['train_gpu'])  # TODO: Actually we only support training on gpu_id=0
         else:
             model.cuda()
     return model
@@ -68,8 +82,9 @@ def create_zmq_trainer(algo, model, args):
     n_action = common.n_discrete_actions
     if algo == 'a3c':
         model_gen = lambda: create_policy(model, args, observation_shape, n_action)
-        if args['aux_task']:
-            trainer = ZMQAuxTaskTrainer('ZMQAuxTaskA3CTrainer', model_gen, observation_shape, [n_action], args)
+        if ('aux_task' in args) and args['aux_task']:
+            assert False, '<aux_task> is not supported currently!'
+            #trainer = ZMQAuxTaskTrainer('ZMQAuxTaskA3CTrainer', model_gen, observation_shape, [n_action], args)
         else:
             trainer = ZMQA3CTrainer('ZMQA3CTrainer', model_gen, observation_shape, [n_action], args)
     else:
@@ -80,10 +95,18 @@ def create_zmq_trainer(algo, model, args):
 def create_zmq_config(args):
     config = dict()
 
+    # task name
+    config['task_name'] = args['task_name']
+    config['false_rate'] = args['false_rate']
+
     # env param
     config['n_house'] = args['n_house']
     config['reward_type'] = args['reward_type']
+    config['reward_silence'] = args['reward_silence']
     config['hardness'] = args['hardness']
+    config['max_birthplace_steps'] = args['max_birthplace_steps']
+    config['min_birthplace_grids'] = args['min_birthplace_grids']
+    config['curriculum_schedule'] = args['curriculum_schedule']
     all_gpus = common.get_gpus_for_rendering()
     assert (len(all_gpus) > 0), 'No GPU found! There must be at least 1 GPU for rendering!'
     if args['render_gpu'] is not None:
@@ -100,10 +123,16 @@ def create_zmq_config(args):
     config['render_devices'] = tuple(render_gpus)
     config['segment_input'] = args['segment_input']
     config['depth_input'] = args['depth_input']
+    config['target_mask_input'] = args['target_mask_input']
     config['max_episode_len'] = args['max_episode_len']
     config['success_measure'] = args['success_measure']
     config['multi_target'] = args['multi_target']
+    config['object_target'] = args['object_target']
+    config['fixed_target'] = args['fixed_target']
     config['aux_task'] = args['aux_task']
+    config['mask_feature_dim'] = len(common.all_target_instructions) if ('mask_feature' in args) and args['mask_feature'] else None
+    config['cache_supervision'] = args['cache_supervision']
+    config['outdoor_target'] = args['outdoor_target']
     return config
 
 
@@ -114,9 +143,19 @@ def train(args=None, warmstart=None):
                                      resolution_level=args['resolution_level'],
                                      segmentation_input=args['segment_input'],
                                      depth_input=args['depth_input'],
+                                     target_mask_input=args['target_mask_input'],
                                      history_frame_len=1)
 
-    args['logger'] = utils.MyLogger(args['log_dir'], True)
+    args['logger'] = utils.MyLogger(args['log_dir'], True, keep_file_handler=not args['append_file'])
+
+    name = 'ipc://@whatever' + args['job_name']
+    name2 = 'ipc://@whatever' + args['job_name'] + '2'
+    n_proc = args['n_proc']
+    config = create_zmq_config(args)
+    procs = [ZMQSimulator(k, name, name2, config) for k in range(n_proc)]
+    [k.start() for k in procs]
+    ensure_proc_terminate(procs)
+
     trainer = create_zmq_trainer(args['algo'], model='rnn', args=args)
     if warmstart is not None:
         if os.path.exists(warmstart):
@@ -127,13 +166,6 @@ def train(args=None, warmstart=None):
             print('Warmstarting from save_dir <{}> with version <{}> ...'.format(save_dir, warmstart))
             trainer.load(save_dir, warmstart)
 
-    name = 'ipc://whatever'
-    name2 = 'ipc://whatever2'
-    n_proc = args['n_proc']
-    config = create_zmq_config(args)
-    procs = [ZMQSimulator(k, name, name2, config) for k in range(n_proc)]
-    [k.start() for k in procs]
-    ensure_proc_terminate(procs)
 
     master = ZMQMaster(name, name2, trainer=trainer, config=args)
 
@@ -146,39 +178,70 @@ def train(args=None, warmstart=None):
         print('Done!')
         trainer.save(args['save_dir'], version='final')
     except KeyboardInterrupt:
-        master.save_all(version='last')
+        trainer.save_all(args['save_dir'], version='interrupt')
         raise
 
 
 def parse_args():
     parser = argparse.ArgumentParser("Reinforcement Learning for 3D House Navigation")
+    # Special Job Tag
+    parser.add_argument("--job-name", type=str, default='')
+    # Select Task
+    parser.add_argument("--task-name", choices=['roomnav', 'objnav'], default='roomnav')
+    parser.add_argument("--false-rate", type=float, default=0, help='The Rate of Impossible Targets')
     # Environment
-    parser.add_argument("--env-set", choices=['small', 'train', 'test'], default='small')
+    parser.add_argument("--env-set", choices=['small', 'train', 'test', 'color'], default='small')
     parser.add_argument("--n-house", type=int, default=1,
                         help="number of houses to train on. Should be no larger than --n-proc")
     parser.add_argument("--seed", type=int, help="random seed")
     parser.add_argument("--hardness", type=float, help="real number from 0 to 1, indicating the hardness of the environment")
+    parser.add_argument("--max-birthplace-steps", type=int, help="int, the maximum steps required from birthplace to target")
+    parser.add_argument("--min-birthplace-grids", type=int, default=0,
+                        help="int, the minimum grid distance of the birthplace towards target. Default 0, namely possible to born with gird_dist=0.")
+    parser.add_argument("--curriculum-schedule", type=str,
+                        help="in format of <a,b,c>, comma seperated 3 ints, the curriculum schedule. a: start birthsteps; b: brithstep increment; c: increment frequency")
     parser.add_argument("--linear-reward", action='store_true', default=False,
                         help="[Deprecated] whether to use reward according to distance; o.w. indicator reward")
-    parser.add_argument("--reward-type", choices=['none', 'linear', 'indicator', 'delta', 'speed'], default='indicator',
+    parser.add_argument("--reward-type", choices=['none', 'linear', 'indicator', 'delta', 'speed', 'new'], default='indicator',
                         help="Reward shaping type")
+    parser.add_argument("--reward-silence", type=int, default=0,
+                        help="When set, the first <--reward-silence> step of each episode will not have any reward signal except collision penalty")
     #parser.add_argument("--action-dim", type=int, help="degree of freedom of agent movement, must be in the range of [2, 4], default=4")
     parser.add_argument("--segmentation-input", choices=['none', 'index', 'color', 'joint'], default='none', dest='segment_input',
                         help="whether to use segmentation mask as input; default=none; <joint>: use both pixel input and color segment input")
     parser.add_argument("--depth-input", dest='depth_input', action='store_true',
                         help="whether to include depth information as part of the input signal")
     parser.set_defaults(depth_input=False)
+    parser.add_argument("--target-mask-input", dest='target_mask_input', action='store_true',
+                        help="whether to include target mask 0/1 signal as part of the input signal")
+    parser.set_defaults(target_mask_input=False)
     parser.add_argument("--resolution", choices=['normal', 'low', 'tiny', 'high', 'square', 'square_low'],
                         dest='resolution_level', default='normal',
                         help="resolution of visual input, default normal=[120 * 90]")
     #parser.add_argument("--history-frame-len", type=int, default=4,
     #                    help="length of the stacked frames, default=4")
     parser.add_argument("--max-episode-len", type=int, default=50, help="maximum episode length")
-    parser.add_argument("--success-measure", choices=['center', 'stay', 'see'], default='center',
+    parser.add_argument("--success-measure", choices=['stop', 'stay', 'see', 'see-stop'], default='see',
                         help="criteria for a successful episode")
     parser.add_argument("--multi-target", dest='multi_target', action='store_true',
                         help="when this flag is set, a new target room will be selected per episode")
     parser.set_defaults(multi_target=False)
+    parser.add_argument("--include-object-target", dest='object_target', action='store_true',
+                        help="when this flag is set, target can be also an object. Only effective when --multi-target")
+    parser.set_defaults(object_target=False)
+    parser.add_argument("--include-mask-feature", dest='mask_feature', action='store_true',
+                        help="when this flag is set, mast_feature will be fed to the neural network.")
+    parser.set_defaults(mask_feature=False)
+    parser.add_argument("--fixed-target", type=str, help="fixed training targets: candidate values room, object or any-room/object")
+    parser.add_argument("--no-outdoor-target", dest='outdoor_target', action='store_false',
+                        help="when this flag is set, we will exclude <outdoor> target")
+    parser.set_defaults(outdoor_target=True)
+    # Reward Shaping Parameters
+    parser.add_argument("--rew-shape-stay", type=float, help="stay_room_reward")
+    parser.add_argument("--rew-shape-leave", type=float, help="leave_penalty")
+    parser.add_argument("--rew-shape-collision", type=float, help="collision_penalty")
+    parser.add_argument("--rew-shape-wrong-stop", type=float, help="wrong_stop_penalty")
+    parser.add_argument("--rew-shape-time", type=float, help="time_penalty")
     ########################################################
     # ZMQ training parameters
     parser.add_argument("--train-gpu", type=int,
@@ -191,19 +254,29 @@ def parse_args():
                         help="[ZMQ] number of time steps in each batch")
     parser.add_argument("--batch-size", type=int, default=32,
                         help="[ZMQ] batch size, should be no greather than --num-proc")
+    parser.add_argument("--grad-batch", type=int, default=1,
+                        help="[ZMQ] the actual gradient descent batch-size will be <grad-batch> * <batch-size>")
 
     ###########################################################
     # Core training parameters
     parser.add_argument("--algo", choices=['a3c'], default="a3c", help="algorithm")
+    parser.add_argument("--supervised-learning", dest='cache_supervision', action='store_true',
+                        help="when set, use Dagger style supervised learning + RL fine-tuning (when close to target)")
+    parser.set_defaults(cache_supervision=False)
     parser.add_argument("--lrate", type=float, help="learning rate for policy")
     parser.add_argument('--weight-decay', type=float, help="weight decay for policy")
     parser.add_argument("--gamma", type=float, help="discount")
     parser.add_argument("--grad-clip", type=float, default = 5.0, help="gradient clipping")
+    parser.add_argument("--adv-norm", dest='adv_norm', action='store_true',
+                        help="perform advantage normalization (per-minibatch, not the full gradient batch)")
+    parser.set_defaults(adv_norm=False)
+    parser.add_argument("--rew-clip", type=int, help="if set [r], clip reward to [-r, r]")
     parser.add_argument("--max-iters", type=int, default=int(1e6), help="maximum number of training episodes")
     parser.add_argument("--batch-norm", action='store_true', dest='use_batch_norm',
                         help="Whether to use batch normalization in the policy network. default=False.")
     parser.set_defaults(use_batch_norm=False)
     parser.add_argument("--entropy-penalty", type=float, help="policy entropy regularizer")
+    parser.add_argument("--logits-penalty", type=float, help="policy logits regularizer")
     parser.add_argument("--optimizer", choices=['adam', 'rmsprop'], default='adam', help="optimizer")
     parser.add_argument("--exploration-scheduler", choices=['low', 'medium', 'high', 'none', 'linear', 'exp'],
                         dest='scheduler', default='none',
@@ -239,6 +312,9 @@ def parse_args():
     parser.add_argument("--no-skip-connect", dest='no_skip_connect', action='store_true',
                         help="[A3C-LSTM Only] no skip connect. only takes the output of rnn to compute action")
     parser.set_defaults(no_skip_connect=False)
+    parser.add_argument("--feed-forward-a3c", dest='feed_forward', action='store_true',
+                        help="[A3C-LSTM Only] skip rnn completely. essentially cnn-a3c")
+    parser.set_defaults(feed_forward=False)
 
     ###################################################
     # Checkpointing
@@ -250,6 +326,15 @@ def parse_args():
     parser.add_argument("--eval-rate", type=int, default=50,
                         help="report evaluation stats once every time this many *FRAMES* produced")
     parser.add_argument("--warmstart", type=str, help="model to recover from. can be either a directory or a file.")
+
+    ###################################################
+    # Logging Option
+    parser.add_argument("--append-file-handler", dest='append_file', action='store_true',
+                        help="[Logging] When set, the logger will be close when a log message is output and reopen in the next time.")
+    parser.set_defaults(append_file=False)
+    parser.add_argument("--only-fetch-model-dict", dest='only_fetch_model_dict', action='store_true',
+                        help="[Logging] When set, train() will not be performed.")
+    parser.set_defaults(only_fetch_model_dict=False)
     return parser.parse_args()
 
 if __name__ == '__main__':
@@ -257,6 +342,17 @@ if __name__ == '__main__':
 
     common.set_house_IDs(cmd_args.env_set, ensure_kitchen=(not cmd_args.multi_target))
     print('>> Environment Set = <%s>, Total %d Houses!' % (cmd_args.env_set, len(common.all_houseIDs)))
+
+    common.ensure_object_targets(cmd_args.object_target)
+
+    if cmd_args.fixed_target is not None:
+        allowed_targets = list(common.target_instruction_dict.keys()) + ['any-room']
+        if cmd_args.object_target:
+            allowed_targets.append('any-object')
+        assert cmd_args.fixed_target in allowed_targets, '--fixed-target specified an invalid target <{}>!'.format(cmd_args.fixed_target)
+        if not ('any' in cmd_args.fixed_target):
+            common.filter_house_IDs_by_target(cmd_args.fixed_target)
+            print('[ZMQ_Train.py] Filter Houses By Fixed-Target <{}> to N=<{}> Houses...'.format(cmd_args.fixed_target, len(common.all_houseIDs)))
 
     if cmd_args.n_house > len(common.all_houseIDs):
         print('[ZMQ_Train.py] No enough houses! Reduce <n_house> to [{}].'.format(len(common.all_houseIDs)))
@@ -274,8 +370,26 @@ if __name__ == '__main__':
     if cmd_args.linear_reward:
         print('--linearReward option is now *Deprecated*!!! Use --reward-type option instead! Now force <reward_type == \'linear\'>')
         cmd_args.reward_type = 'linear'
+
+    if cmd_args.grad_batch < 1:
+        print('--grad-batch option must be a positive integer! reset to default value <1>!')
+        cmd_args.grad_batch = 1
+
     args = cmd_args.__dict__
 
-    args['scheduler'] = create_scheduler(cmd_args.scheduler)
+    if any([args[k] is not None for k in args.keys() if 'rew_shape' in k]):
+        common.set_reward_shaping_params(args)
 
-    train(args, warmstart=cmd_args.warmstart)
+    args['model_name'] = 'rnn'
+    args['scheduler'] = create_scheduler(cmd_args.scheduler)
+    args['curriculum_schedule'] = create_curriculum_schedule(cmd_args.curriculum_schedule)
+
+    # store training args
+    config_file = args['save_dir']
+    if config_file[-1] != '/': config_file = config_file + '/'
+    config_file = config_file + 'train_args.json'
+    with open(config_file, 'w') as f:
+        json.dump(args, f)
+
+    if not cmd_args.only_fetch_model_dict:
+        train(args, warmstart=cmd_args.warmstart)

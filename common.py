@@ -4,6 +4,17 @@ import sys, os, platform
 
 import numpy as np
 import random
+
+import House3D
+from House3D.roomnav import n_discrete_actions
+from House3D import Environment as HouseEnv
+from House3D import MultiHouseEnv
+from House3D import House
+from House3D.house import ALLOWED_TARGET_ROOM_TYPES, ALLOWED_PREDICTION_ROOM_TYPES, ALLOWED_OBJECT_TARGET_TYPES
+from House3D.roomnav import RoomNavTask
+from House3D.objnav import ObjNavTask
+from House3D import objrender, load_config
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -17,6 +28,7 @@ from policy.joint_cnn_actor_critic import JointCNNPolicyCritic as JointModel
 from policy.attentive_cnn_actor_critic import AttentiveJointCNNPolicyCritic as AttJointModel
 from policy.discrete_cnn_actor_critic import DiscreteCNNPolicyCritic as A2CModel
 from policy.qac_cnn_actor_critic import DiscreteCNNPolicyQFunc as QACModel
+from policy.cnn_classifier import CNNClassifier
 from trainer.pg import PolicyGradientTrainer as PGTrainer
 from trainer.nop import NOPTrainer
 from trainer.ddpg import DDPGTrainer
@@ -27,48 +39,45 @@ from trainer.ddpg_joint_alter import JointAlterDDPGTrainer as AlterTrainer
 from trainer.a2c import A2CTrainer
 from trainer.qac import QACTrainer
 from trainer.dqn import DQNTrainer
-import environment
-from environment import SimpleHouseEnv as HouseEnv
-from multihouse_env import MultiHouseEnv
-from world import World, all_allowed_target_room_types, all_allowed_prediction_room_types
+from trainer.semantic import SemanticTrainer
 
-from config import get_config, get_house_ids
+from config import get_config, get_house_ids, get_house_targets
 
 house_ID_dict = get_house_ids()
+house_Targets_dict = get_house_targets()
 all_houseIDs = house_ID_dict['small']
+all_houseTargets = house_Targets_dict['small']
+
+# only works for python 3.5
+flag_parallel_init = False # (sys.version_info[1] == 5)#("Ubuntu" in platform.platform())
 
 
 def set_house_IDs(partition='small', ensure_kitchen=False):
-    global all_houseIDs, house_ID_dict
+    global all_houseIDs, house_ID_dict, house_Targets_dict, all_houseTargets
     assert partition in house_ID_dict, 'Partition <{}> not found!'.format(partition)
     all_houseIDs = house_ID_dict[partition]
-    if ensure_kitchen and (partition == 'small'):  # TODO: Currently a hack to remove house#10 in small set when not multi-target!!
+    all_houseTargets = house_Targets_dict[partition]
+    if ensure_kitchen and (partition in ['small', 'color']):  # TODO: Currently a hack to remove house#10 in small set when not multi-target!!
         all_houseIDs = all_houseIDs[:10] + all_houseIDs[11:]
+        all_houseTargets = all_houseTargets[:10] + all_houseTargets[11:]
+
+def filter_house_IDs_by_target(fixed_target):
+    global all_houseIDs, all_houseTargets
+    valid_ids = [i for i, T in enumerate(all_houseTargets) if fixed_target in T]
+    assert len(valid_ids) > 0, 'Invalid <fixed-target = [{}] >! No available houses!'.format(fixed_target)
+    _new_all_houseIDs = [all_houseIDs[i] for i in valid_ids]
+    _new_all_houseTargets = [all_houseTargets[i] for i in valid_ids]
+    all_houseIDs = _new_all_houseIDs
+    all_houseTargets = _new_all_houseTargets
 
 
-CFG = get_config()
+CFG = load_config('config.json')
 prefix = CFG['prefix']
-csvFile = CFG['csvFile']
+csvFile = CFG['modelCategoryFile']
 colorFile = CFG['colorFile']
 roomTargetFile = CFG['roomTargetFile']
-#if "Apple" in sys.version:
-    ## own mac laptop
-    #prefix = '/Users/yiw/Downloads/data/house/'
-    #csvFile = '/Users/yiw/Downloads/data/metadata/ModelCategoryMapping.csv'
-    #colorFile = '/Users/yiw/Downloads/data/metadata/colormap_coarse.csv'
-#elif "Red Hat" in sys.version:
-    ## dev server
-    #prefix = '/home/yiw/local/data/houses-yiwu/'
-    #csvFile = '/home/yiw/local/data/houses-yiwu/ModelCategoryMapping.csv'
-    #colorFile = '/home/yiw/local/data/houses-yiwu/colormap_coarse.csv'
-#elif "Ubuntu" in platform.platform():
-    ## ubuntu server
-    #colorFile = '/home/jxwuyi/workspace/objrender/metadata/colormap_coarse.csv'
-    #csvFile = '/home/jxwuyi/data/fb/data/metadata/ModelCategoryMapping.csv'
-    #prefix = '/home/jxwuyi/data/fb/data/house/'
-#else:
-    ## fair server
-    #assert False, 'Unable to locate data folder..... Please edit <common.py>'
+objectTargetFile = CFG['objectTargetFile'] if 'objectTargetFile' in CFG else None
+modelObjectMapFile = CFG['modelObjectMap'] if 'modelObjectMap' in CFG else None
 
 frame_history_len = 4
 #resolution = (200, 150)
@@ -81,14 +90,39 @@ single_observation_shape = (3, resolution[0], resolution[1])
 action_shape = (4, 2)
 colide_res = 1000
 default_eagle_resolution = 100
-n_discrete_actions = environment.n_discrete_actions
-n_target_instructions = len(all_allowed_target_room_types)
-all_target_instructions = all_allowed_target_room_types
+n_target_instructions = len(ALLOWED_TARGET_ROOM_TYPES)
+all_target_instructions = ALLOWED_TARGET_ROOM_TYPES
 target_instruction_dict = dict()
-for i, tp in enumerate(all_allowed_target_room_types):
+for i, tp in enumerate(ALLOWED_TARGET_ROOM_TYPES):
     target_instruction_dict[tp] = i
 
-all_aux_predictions = all_allowed_prediction_room_types
+def ensure_object_targets(flag_include_object_targets=True):
+    global n_target_instructions, all_target_instructions, target_instruction_dict
+    global CFG, objectTargetFile, modelObjectMapFile
+    if flag_include_object_targets:
+        assert 'modelObjectMap' in CFG, 'modelOjbectMap file <map_modelid_to_targetcat.json> is missing!!!'
+        assert 'objectTargetFile' in CFG, 'objectTargetFile file <object_target_map.csv> is missing!!!'
+        objectTargetFile = CFG['objectTargetFile']
+        modelObjectMapFile = CFG['modelObjectMap']
+        all_target_instructions = ALLOWED_TARGET_ROOM_TYPES + ALLOWED_OBJECT_TARGET_TYPES
+        n_target_instructions = len(all_target_instructions)
+        for i, tp in enumerate(all_target_instructions):
+            target_instruction_dict[tp] = i
+    else:
+        # only room objects
+        if objectTargetFile is not None:
+            del CFG['objectTargetFile']
+            objectTargetFile = None
+        if modelObjectMapFile is not None:
+            del CFG['modelObjectMap']
+            modelObjectMapFile = None
+        n_target_instructions = len(ALLOWED_TARGET_ROOM_TYPES)
+        all_target_instructions = ALLOWED_TARGET_ROOM_TYPES
+        target_instruction_dict = dict()
+        for i, tp in enumerate(ALLOWED_TARGET_ROOM_TYPES):
+            target_instruction_dict[tp] = i
+
+all_aux_predictions = ALLOWED_PREDICTION_ROOM_TYPES
 n_aux_predictions = len(all_aux_predictions)
 all_aux_prediction_list = [None] * n_aux_predictions
 for k in all_aux_predictions:
@@ -99,7 +133,26 @@ debugger = None
 def genCacheFile(houseID):
     return prefix + houseID + '/cachedmap1k.pkl'
 
-#######################
+##########################
+# Reward Shaping Related
+##########################
+def set_reward_shaping_params(args):
+    import House3D.roomnav as RN
+    assert args['reward_type'] == 'new', 'Only support reward shaping in <new> reward!'
+    if args['rew_shape_stay'] is not None:
+        RN.new_stay_room_reward=args['rew_shape_stay']
+    if args['rew_shape_leave'] is not None:
+        RN.new_leave_penalty=args['rew_shape_leave']
+    if args['rew_shape_collision'] is not None:
+        RN.collision_penalty_reward=args['rew_shape_collision']
+    if args['rew_shape_wrong_stop'] is not None:
+        r = args['rew_shape_wrong_stop']
+        if r > 0: r = -r
+        RN.wrong_stop_penalty = r
+    if args['rew_shape_time'] is not None:
+        RN.new_time_penalty_reward=args['rew_shape_time']
+
+##########################
 
 
 def create_args(model='random', gamma = 0.9, lrate = 0.001, critic_lrate = 0.001,
@@ -141,7 +194,7 @@ def create_args(model='random', gamma = 0.9, lrate = 0.001, critic_lrate = 0.001
                 resolution_level=resolution_level)
 
 
-def process_observation_shape(model, resolution_level, segmentation_input, depth_input, history_frame_len=4):
+def process_observation_shape(model, resolution_level, segmentation_input, depth_input, history_frame_len=4, target_mask_input=False):
     global frame_history_len, resolution, attention_resolution, observation_shape, single_observation_shape
     if 'rnn' in model: history_frame_len = 1
     if history_frame_len != 4:
@@ -160,8 +213,11 @@ def process_observation_shape(model, resolution_level, segmentation_input, depth
             n_chn = 6
             assert (segmentation_input == 'joint')
         single_observation_shape = (n_chn, resolution[0], resolution[1])
-    if depth_input:
-        single_observation_shape = (single_observation_shape[0] + 1,
+    else:
+        # RGB input
+        single_observation_shape = (3, resolution[0], resolution[1])
+    if depth_input or target_mask_input:
+        single_observation_shape = (single_observation_shape[0] + int(depth_input) + int(target_mask_input),
                                     single_observation_shape[1],
                                     single_observation_shape[2])
     observation_shape = (single_observation_shape[0] * frame_history_len, resolution[0], resolution[1])
@@ -185,12 +241,14 @@ def create_default_args(algo='pg', model='cnn', gamma=None,
                         segmentation_input='none',
                         depth_input=False,
                         resolution_level='normal',
-                        history_frame_len=4):
+                        history_frame_len=4,
+                        target_mask_input=False):
     process_observation_shape(model,
                               resolution_level=resolution_level,
                               segmentation_input=segmentation_input,
                               depth_input=depth_input,
-                              history_frame_len=history_frame_len)
+                              history_frame_len=history_frame_len,
+                              target_mask_input=target_mask_input)
     if algo == 'pg':  # policy gradient
         return create_args(model, gamma or 0.95, lrate or 0.001, None,
                            episode_len or 10, batch_size or 100, 1000,
@@ -389,7 +447,7 @@ def create_joint_model(args, inp_shape, act_shape):
                               attention_hiddens=[128]
                              )
     else:
-        assert False, 'model name <> not supported'.format(name)
+        assert False, 'model name <{}> not supported'.format(name)
 
     print('create joint model <{}>!!!! cuda = {}'.format(name, use_cuda))
     if use_cuda:
@@ -401,7 +459,7 @@ def create_discrete_model(algo, args, inp_shape):
     if args['multi_target']:
         assert algo in ['dqn'], '[Error] Multi-Target Learning only supports <DQN> and <Recurrent-A3C>'
     if (algo == 'a2c') or (algo == 'a3c'):
-        model = A2CModel(inp_shape, environment.n_discrete_actions,
+        model = A2CModel(inp_shape, n_discrete_actions,
                          cnn_hiddens=[64, 64, 128, 128],
                          linear_hiddens=[512],
                          critic_hiddens=[100, 32],
@@ -409,7 +467,7 @@ def create_discrete_model(algo, args, inp_shape):
                          activation=F.relu,
                          use_batch_norm=use_bc)
     elif algo == 'qac':
-        model = QACModel(inp_shape, environment.n_discrete_actions,
+        model = QACModel(inp_shape, n_discrete_actions,
                          cnn_hiddens=[32, 64, 128, 128],
                          linear_hiddens=[512],
                          critic_hiddens=[256, 32],
@@ -418,7 +476,7 @@ def create_discrete_model(algo, args, inp_shape):
                          multi_target=args['multi_target'],
                          use_target_gating=args['target_gating'])
     elif algo == 'dqn':
-        model = QACModel(inp_shape, environment.n_discrete_actions,
+        model = QACModel(inp_shape, n_discrete_actions,
                          cnn_hiddens=[32, 64, 128, 128],
                          linear_hiddens=[512],
                          critic_hiddens=[256, 32],
@@ -470,114 +528,143 @@ def create_trainer(algo, model, args):
         model_gen = lambda: create_discrete_model(algo, args, observation_shape)
         trainer = A2CTrainer('A2CTrainer', model_gen,
                              observation_shape,
-                             environment.n_discrete_actions, args)
+                             n_discrete_actions, args)
     elif algo == 'qac':
         model_gen = lambda: create_discrete_model(algo, args, observation_shape)
         trainer = QACTrainer('QACTrainer', model_gen, observation_shape,
-                             environment.n_discrete_actions, args)
+                             n_discrete_actions, args)
     elif algo == 'dqn':
         model_gen = lambda: create_discrete_model(algo, args, observation_shape)
         trainer = DQNTrainer('DQNTrainer', model_gen, observation_shape,
-                             environment.n_discrete_actions, args)
+                             n_discrete_actions, args)
     else:
         assert False, 'Trainer not defined for <{}>'.format(algo)
     return trainer
 
 
-def create_world(houseID, genRoomTypeMap=False, cacheAllTarget=False):
+def create_house(houseID, genRoomTypeMap=False, cacheAllTarget=False, includeOutdoor=True):
     objFile = prefix + houseID + '/house.obj'
     jsonFile = prefix + houseID + '/house.json'
     cachedFile = genCacheFile(houseID)
-    assert os.path.isfile(cachedFile), '[Error] No Cached Map File Found for House <{}>!'.format(houseID)
-    world = World(jsonFile, objFile, csvFile, colide_res,
-                  CachedFile=cachedFile, EagleViewRes=default_eagle_resolution,
-                  GenRoomTypeMap=genRoomTypeMap)
+    #if not os.path.isfile(cachedFile):
+    #    assert False, 'No Cache File Found! file={}'.format(cachedFile)
+    #    print('Generating Cached Map File for House <{}>!'.format(houseID))
+    #    house = House(jsonFile, objFile, csvFile,
+    #                  MapTargetCatFile=modelObjectMapFile,
+    #                  StorageFile=cachedFile, GenRoomTypeMap=genRoomTypeMap,
+    #                  IncludeOutdoorTarget=True)
+    #else:
+    house = House(jsonFile, objFile, csvFile,
+                      MapTargetCatFile=modelObjectMapFile,
+                      CachedFile=cachedFile, GenRoomTypeMap=genRoomTypeMap,
+                      IncludeOutdoorTarget=includeOutdoor)
+    #house = House(jsonFile, objFile, csvFile,
+    #              ColideRes=colide_res,
+    #              CachedFile=cachedFile, EagleViewRes=default_eagle_resolution,
+    #              GenRoomTypeMap=genRoomTypeMap)
     if cacheAllTarget:
-        world.cache_all_target()
-    return world
+        house.cache_all_target()
+    return house
 
-def create_world_from_index(k, genRoomTypeMap=False, cacheAllTarget=False):
+def create_house_from_index(k, genRoomTypeMap=False, cacheAllTarget=False, includeOutdoor=True):
     if k >= 0:
         if k >= len(all_houseIDs):
             print('k={} exceeds total number of houses ({})! Randomly Choose One!'.format(k, len(all_houseIDs)))
             houseID = random.choice(all_houseIDs)
         else:
             houseID = all_houseIDs[k]
-        return create_world(houseID, genRoomTypeMap, cacheAllTarget)
+        return create_house(houseID, genRoomTypeMap, cacheAllTarget, includeOutdoor=includeOutdoor)
     else:
         k = -k
         print('Multi-House Environment! Total Selected Houses = {}'.format(k))
         if k > len(all_houseIDs):
-            print('  >> k={} exceeds total number of houses ({})! use all houses!')
+            print('  >> k={} exceeds total number of houses ({})! use all houses!'.format(k, len(all_houseIDs)))
             k = len(all_houseIDs)
         import time
         ts = time.time()
         print('Caching All Worlds ...')
         # use the first k houses
-        from multiprocessing import Pool
-        _args = [(all_houseIDs[j], genRoomTypeMap, cacheAllTarget) for j in range(k)]
-        with Pool(k) as pool:
-            ret_worlds = pool.starmap(create_world, _args)  # parallel version for initialization
+        ret_worlds = []
+        if flag_parallel_init:
+            from multiprocessing import Pool
+            _args = [(all_houseIDs[j], genRoomTypeMap, cacheAllTarget, includeOutdoor) for j in range(k)]
+            #with Pool(min(50, k)) as pool:
+            with Pool(k) as pool:
+                ret_worlds = pool.starmap(create_house, _args)  # parallel version for initialization
+        else:
+            ret_worlds = [create_house(all_houseIDs[j], genRoomTypeMap, cacheAllTarget, includeOutdoor) for j in range(k)]
         print('  >> Done! Time Elapsed = %.4f(s)' % (time.time() - ts))
         return ret_worlds
         # return [create_world(houseID, genRoomTypeMap) for houseID in all_houseIDs[:k]]
 
 def create_env(k=0,
-               reward_type='linear', hardness=None, success_measure='center',
+               hardness=None, max_birthplace_steps=None,
+               reward_type='delta', success_measure='see',
                segment_input='none', depth_input=False,
                max_steps=-1,
                render_device=None,
                genRoomTypeMap=False,
-               cacheAllTarget=False):
+               cacheAllTarget=False,
+               use_discrete_action=False,
+               include_object_target=False,
+               reward_silence=0,
+               curriculum_schedule=None,
+               target_mask_input=False,
+               task_name='roomnav',
+               false_rate=0.0,
+               discrete_angle=True,
+               cache_supervision=False,
+               include_outdoor_target=True,
+               min_birthplace_grids=0,
+               cache_discrete_angles=False,
+               multithread_api=False):
     if render_device is None:
         render_device = get_gpus_for_rendering()[0]   # by default use the first gpu
     if segment_input is None:
         segment_input = 'none'
-    if k >= 0:
-        world = create_world_from_index(k, genRoomTypeMap, cacheAllTarget)
-        env = HouseEnv(world, colorFile, resolution=resolution, reward_type=reward_type,
-                       hardness=hardness, action_degree=action_shape[0],
-                       segment_input=(segment_input != 'none'),
-                       use_segment_id=(segment_input == 'index'),
-                       joint_visual_signal=(segment_input == 'joint'),
-                       depth_signal=depth_input,
-                       success_measure=success_measure, RoomTargetFile=roomTargetFile,
-                       max_steps=max_steps, render_device=render_device)
+    if multithread_api:
+        api = objrender.RenderAPIThread(w=resolution[0], h=resolution[1], device=render_device)
+    else:
+        api = objrender.RenderAPI(w=resolution[0], h=resolution[1], device=render_device)
+    if cache_supervision:
+        assert discrete_angle and use_discrete_action
+        cacheAllTarget = True
+    if isinstance(k, tuple):  # a range of houses
+        assert (len(k) == 2) and (k[0] < k[1]) and (k[0] >= 0)
+        all_houses = [create_house_from_index(i, genRoomTypeMap, cacheAllTarget, include_outdoor_target) for i in range(k[0], k[1])]
+        env = MultiHouseEnv(api, all_houses, config=CFG)
+    elif k >= 0:
+        house = create_house_from_index(k, genRoomTypeMap, cacheAllTarget, include_outdoor_target)
+        env = HouseEnv(api, house, config=CFG)
     else:  # multi-house environment
-        all_worlds = create_world_from_index(k, genRoomTypeMap, cacheAllTarget)
-        env = MultiHouseEnv(all_worlds, colorFile, resolution=resolution, reward_type=reward_type,
-                            hardness=hardness, action_degree=action_shape[0],
-                            segment_input=(segment_input != 'none'),
-                            use_segment_id=(segment_input == 'index'),
-                            joint_visual_signal=(segment_input == 'joint'),
-                            depth_signal=depth_input,
-                            success_measure=success_measure, RoomTargetFile=roomTargetFile,
-                            max_steps=max_steps, render_device=render_device)
-    return env
+        all_houses = create_house_from_index(k, genRoomTypeMap, cacheAllTarget, include_outdoor_target)
+        env = MultiHouseEnv(api, all_houses, config=CFG)
+    Task = RoomNavTask if task_name == 'roomnav' else ObjNavTask
+    task = Task(env, reward_type=reward_type,
+                hardness=hardness, max_birthplace_steps=max_birthplace_steps,
+                segment_input=(segment_input != 'none'),
+                joint_visual_signal=(segment_input == 'joint'),
+                depth_signal=depth_input,
+                target_mask_signal=target_mask_input,
+                max_steps=max_steps, success_measure=success_measure,
+                discrete_action=use_discrete_action,
+                include_object_target=include_object_target,
+                reward_silence=reward_silence,
+                birthplace_curriculum_schedule=curriculum_schedule,
+                false_rate=false_rate,
+                discrete_angle=discrete_angle,
+                supervision_signal=cache_supervision,
+                min_birth_grid_dist=min_birthplace_grids,
+                cache_discrete_angles=cache_discrete_angles)
+    return task
 
 
 def get_gpus_for_rendering():
     """
-    Please always use this function to choose rendering device.
-    So that your script can run on clusters.
-
     Returns:
         list of int. The device ids that can be used for RenderAPI
     """
-    def parse_devlist(fname):
-        ret = []
-        with open(fname) as f:
-            for line in f:
-                if line.startswith('c 195:') and ':255' not in line:
-                    gid = line.strip().split(' ')[1].split(':')[1]
-                    ret.append(int(gid))
-        return sorted(ret)
-
-    jid = os.environ.get('CHRONOS_JOB_INSTANCE_ID', None)
-    if jid:
-        # to work with chronos cluster
-        fname = '/sys/fs/cgroup/devices/chronos.slice/gp/{}/devices.list'.format(jid)
-        return parse_devlist(fname)
-    else:
-        # to respect env var
-        return list(map(int, os.environ['CUDA_VISIBLE_DEVICES'].split(',')))
+	# to respect env var
+    if 'CUDA_VISIBLE_DEVICES' not in os.environ:
+        return [0]  # default setting
+    return list(map(int, os.environ['CUDA_VISIBLE_DEVICES'].split(',')))

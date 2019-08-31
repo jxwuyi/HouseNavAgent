@@ -3,5 +3,9 @@ __pycache__/
 temp/
 log/
 _model_/
+_graph_/
 .idea/
 config.json
+.DS_Store
+tmp*
+__backup*

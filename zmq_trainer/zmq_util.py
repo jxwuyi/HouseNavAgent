@@ -10,41 +10,86 @@ import utils
 import common
 from zmq_trainer.zmqsimulator import SimulatorProcess, SimulatorMaster, ensure_proc_terminate
 
-n_episode_evaluation = 500
+n_episode_evaluation = 1000
 
 class ZMQHouseEnvironment:
-    def __init__(self, k=0, reward_type='indicator', success_measure='center', multi_target=False, aux_task=False,
-                 hardness=None, segment_input='none', depth_input=False, max_steps=-1, device=0):
+    def __init__(self, k=0, task_name='roomnav', false_rate=0.0,
+                 reward_type='indicator', reward_silence=0,
+                 success_measure='see', multi_target=True,
+                 include_object_target=True, fixed_target=None, aux_task=False,
+                 hardness=None, max_birthplace_steps=None, min_birthplace_grids=0,
+                 curriculum_schedule=None,
+                 segment_input='none', depth_input=False, target_mask_input=False,
+                 cache_supervision=False,
+                 include_outdoor_target=True,
+                 mask_feature_dim=None,
+                 max_steps=-1, device=0):
         assert k >= 0
-        self.env = common.create_env(k, reward_type=reward_type, hardness=hardness, success_measure=success_measure,
+        init_birthplace = max_birthplace_steps if curriculum_schedule is None else curriculum_schedule[0]
+        self.env = common.create_env(k, task_name=task_name, false_rate=false_rate,
+                                     reward_type=reward_type,
+                                     hardness=hardness, max_birthplace_steps=init_birthplace,
+                                     success_measure=success_measure,
                                      segment_input=segment_input, depth_input=depth_input,
+                                     target_mask_input=target_mask_input,
                                      max_steps=max_steps, render_device=device,
                                      genRoomTypeMap=aux_task,
-                                     cacheAllTarget=multi_target)
-        self.obs = self.env.reset()
+                                     cacheAllTarget=multi_target,
+                                     include_object_target=include_object_target,
+                                     use_discrete_action=True,   # assume A3C with discrete actions
+                                     reward_silence=reward_silence,
+                                     #curriculum_schedule=curriculum_schedule,
+                                     cache_supervision=cache_supervision,
+                                     include_outdoor_target=include_outdoor_target,
+                                     min_birthplace_grids=min_birthplace_grids)
+        self.obs = self.env.reset() if multi_target else self.env.reset(target='kitchen')
         self.done = False
         self.multi_target = multi_target
-        if multi_target:
-            self.env.cache_all_target()
+        self.fixed_target = fixed_target
         self.aux_task = aux_task
+        self.supervision = cache_supervision
+        self.mask_feature_dim = mask_feature_dim
+        self._mask_feature = self._get_mask_feature() if mask_feature_dim is not None else None
+        self._sup_act = self.env.info['supervision'] if self.supervision else None
         if self.aux_task:
-            self._aux_target = self.env.get_current_room_pred_mask()
+            #self._aux_target = self.env.get_current_room_pred_mask()   TODO: Currently do not support aux room pred
+            assert False, 'Aux Room Prediction Currently Not Supported!'
         self._target = common.target_instruction_dict[self.env.get_current_target()]
+
+    def _get_mask_feature(self):
+        if self.mask_feature_dim is None:
+            return None
+        return self.env.get_feature_mask()[: self.mask_feature_dim]
 
     def current_state(self):
         if self.aux_task:
-            return self.obs, self._target, self._aux_target
+            #return self.obs, self._target, self._aux_target
+            return None
         else:
-            return self.obs, self._target
+            ret_val = [self.obs, self._target]
+            if self.mask_feature_dim is not None:
+                ret_val.append(self._mask_feature)
+            if self.supervision:
+                ret_val.append(self._sup_act)
+            return tuple(ret_val)
 
-    def action(self, act):
-        obs, rew, done, _ = self.env.step(act, return_info=False)
+    def action(self, _act):
+        if isinstance(_act, list) or isinstance(_act, tuple):
+            act, nxt_birthplace = _act
+            self.env.reset_hardness(self.env.hardness, max_birthplace_steps=nxt_birthplace)
+        else:
+            act = _act
+        obs, rew, done, info = self.env.step(act)
         if done:
             if self.multi_target:
-                obs = self.env.reset(reset_target=True)
+                obs = self.env.reset(target=self.fixed_target)
                 self._target = common.target_instruction_dict[self.env.get_current_target()]
             else:
-                obs = self.env.reset()
+                obs = self.env.reset(target=self.env.get_current_target())
+            if self.supervision: info = self.env.info
+        if self.supervision: self._sup_act = info['supervision']
+        if self.mask_feature_dim is not None:
+            self._mask_feature = self._get_mask_feature()
         self.obs = obs
         return rew, done
 
@@ -57,9 +102,19 @@ class ZMQSimulator(SimulatorProcess):
         device_list = config['render_devices']
         device_ind = self.idx % len(device_list)
         device = device_list[device_ind]
-        return ZMQHouseEnvironment(k, config['reward_type'], config['success_measure'],
-                                   config['multi_target'], config['aux_task'], config['hardness'],
+        return ZMQHouseEnvironment(k, config['task_name'], config['false_rate'],
+                                   config['reward_type'], config['reward_silence'],
+                                   config['success_measure'],
+                                   config['multi_target'], config['object_target'],
+                                   config['fixed_target'], config['aux_task'],
+                                   config['hardness'], config['max_birthplace_steps'],
+                                   config['min_birthplace_grids'],
+                                   config['curriculum_schedule'],
                                    config['segment_input'], config['depth_input'],
+                                   config['target_mask_input'],
+                                   (('cache_supervision' in config) and config['cache_supervision']),
+                                   config['outdoor_target'],
+                                   config['mask_feature_dim'],
                                    config['max_episode_len'], device)
 
 
@@ -88,14 +143,26 @@ class ZMQMaster(SimulatorMaster):
         self.episode_stats = dict(len=[], rew=[], succ=[])
         self.update_stats = dict(lrate=[])
         self.best_avg_reward = -1e50
+        self.best_succ_rate = 0.0
         self.multi_target = config['multi_target']
         if self.multi_target:
             self.episode_stats['target'] = []
+        self.supervision = config['cache_supervision'] if 'cache_supervision' in config else False
+        if self.supervision:
+            self.curr_sup_act = dict()
+        self.use_mask_feature = config['mask_feature']
+        if self.use_mask_feature:
+            self.curr_mask_feat = dict()
         self.aux_task = config['aux_task']
         if self.aux_task:
             self.episode_stats['aux_task_rew'] = []
             self.episode_stats['aux_task_err'] = []
             self.curr_aux_mask = dict()
+        self.curriculum_schedule = config['curriculum_schedule']
+        self.max_episode_len = config['max_episode_len']
+        self.curr_birthplace = dict()
+        self.max_birthplace_steps = config['max_birthplace_steps']
+        self.global_birthplace = config['max_birthplace_steps'] if self.curriculum_schedule is None else self.curriculum_schedule[0]
 
     def _rand_select(self, ids):
         if not isinstance(ids, list): ids = list(ids)
@@ -111,12 +178,14 @@ class ZMQMaster(SimulatorMaster):
             target = [[self.curr_target[id]] for id in batched_ids]
         else:
             target = None
+        mask_input = [[self.curr_mask_feat[id]] for id in batched_ids] if self.use_mask_feature else None
         self.trainer.eval()  # TODO: check this option
         if self.aux_task:
             action, next_hidden, aux_preds = self.trainer.action(states, hiddens, target=target, return_aux_pred=True)
             aux_preds = aux_preds.squeeze().cpu().numpy()
         else:
-            action, next_hidden = self.trainer.action(states, hiddens, target=target)
+            action, next_hidden = self.trainer.action(states, hiddens,
+                                                      target=target, mask_input=mask_input)
         cpu_action = action.squeeze().cpu().numpy()
         for i,id in enumerate(batched_ids):
             self.cnt += 1
@@ -124,7 +193,11 @@ class ZMQMaster(SimulatorMaster):
                 act = random.randint(self.n_action)
             else:
                 act = cpu_action[i]
-            self.send_message(id, act)  # send action to simulator
+            if (self.curriculum_schedule is not None) and (self.curr_birthplace[id] < self.global_birthplace):
+                self.curr_birthplace[id] = self.global_birthplace
+                self.send_message(id, (act, self.global_birthplace))  # send action and curriculum
+            else:
+                self.send_message(id, act)  # send action to simulator
             self.train_buffer[id]['act'].append(act)
             self.hidden_state[id] = next_hidden[i]
             if self.aux_task:
@@ -133,7 +206,6 @@ class ZMQMaster(SimulatorMaster):
                 self.accu_stats[id]['aux_task_err'] += float(aux_rew < 0)
 
     def _perform_train(self):
-        self.train_cnt += 1
         # prepare training data
         obs = []
         hidden = []
@@ -142,11 +214,21 @@ class ZMQMaster(SimulatorMaster):
         done = np.zeros((self.batch_size, self.t_max), dtype=np.float32)
         target = None if not self.multi_target else []
         aux_target = None if not self.aux_task else []
+        sup_mask = None if not self.supervision else np.zeros((self.batch_size, self.t_max), dtype=np.uint8)
+        mask_feat = None if not self.use_mask_feature else []
         for i,id in enumerate(self.train_buffer.keys()):
             dat = self.train_buffer[id]
             obs.append(dat['obs'])
             hidden.append(dat['init_h'])
             act[i] = dat['act']
+            if self.supervision:
+                # if supervision, change sampled actions to supervised action
+                curr_sup_act = np.array(dat['sup_act'][:-1])   # sup_act has t_max+1 elements
+                _t_idx = curr_sup_act > -1   # entries with supervision
+                act[i, _t_idx] = curr_sup_act[_t_idx]
+                sup_mask[i, _t_idx] = 1   # mask those entries with supervision
+            if self.use_mask_feature:
+                mask_feat.append(dat['mask_feat'])
             rew[i] = dat['rew']
             done[i] = dat['done']
             if target is not None: target.append(dat['target'])
@@ -156,7 +238,17 @@ class ZMQMaster(SimulatorMaster):
             stats = self.trainer.update(obs, hidden, act, rew, done,
                                         target=target, aux_target=aux_target)
         else:
-            stats = self.trainer.update(obs, hidden, act, rew, done, target=target)
+            stats = self.trainer.update(obs, hidden, act, rew, done, target=target,
+                                        supervision_mask=sup_mask, mask_input=mask_feat)
+        if stats is None:
+            return False   # just accumulate gradient, no update performed
+
+        self.train_cnt += 1   # update performed!
+        # curriculum learning counter increases
+        if self.curriculum_schedule is not None:
+            if (self.train_cnt % self.curriculum_schedule[2] == 0):
+                self.global_birthplace = min(self.max_birthplace_steps, self.global_birthplace + self.curriculum_schedule[1])
+        # update stats
         for key in stats.keys():
             if key not in self.update_stats:
                 self.update_stats[key] = []
@@ -178,6 +270,7 @@ class ZMQMaster(SimulatorMaster):
             self._evaluate_stats()
             self.save_all(version='final')
             exit(0)
+        return True
 
     def save_all(self, version=''):
         self.trainer.save(self.config['save_dir'], version=version)
@@ -199,7 +292,7 @@ class ZMQMaster(SimulatorMaster):
         avg_rew = sum(rew_stats) / len(rew_stats)
         avg_len = sum(len_stats) / len(len_stats)
         avg_succ = sum(succ_stats) / len(succ_stats)
-        self.logger.print("  > Avg Reward = %.6f, Avg Path Len = %.6f, Succ Rate = %.2f" % (avg_rew, avg_len, avg_succ))
+        self.logger.print("  > Avg Reward = %.6f, Avg Path Len = %.6f, Succ Rate = %.2f, Max-BirthPlace = %d" % (avg_rew, avg_len, avg_succ, self.global_birthplace))
         if self.aux_task:
             aux_rew_stats = self.episode_stats['aux_task_rew'][-n_episode_evaluation:]
             aux_err_stats = self.episode_stats['aux_task_err'][-n_episode_evaluation:]
@@ -225,6 +318,17 @@ class ZMQMaster(SimulatorMaster):
         self.logger.print('   ----> Data Loading Time = %.4f min' % (time_counter[0] / 60))
         self.logger.print('   ----> Training Time = %.4f min' % (time_counter[1] / 60))
         self.logger.print('   ----> Update Time Per Iter = %.4f s' % (duration / self.train_cnt))
+        # Best Model with Highest Success Rate
+        if avg_succ > self.best_succ_rate:
+            self.best_succ_rate = avg_succ
+            self.logger.print('   ===========>>>>>>> Best Succ Rate! Model Saved!!!')
+            self.trainer.save(self.config['save_dir'], version='succ')
+            stats_dict = dict(avg_rew=avg_rew, avg_len=avg_len, avg_succ=avg_succ, iter=self.train_cnt)
+            if self.aux_task:
+                stats_dict['aux_avg_rew'] = avg_aux_rew
+                stats_dict['aux_avg_err'] = avg_aux_err
+            self.trainer.save(self.config['log_dir'], version='succ_stats', target_dict_data=stats_dict)
+        # Best Model with Highest Avg Reward
         if avg_rew > self.best_avg_reward:
             self.best_avg_reward = avg_rew
             self.logger.print('   ===========>>>>>>> Best Avg Reward! Model Saved!!!')
@@ -241,15 +345,24 @@ class ZMQMaster(SimulatorMaster):
         Handle a message sent by "ident" simulator.
         The simulator takes the last action we send, arrive in "state", get "reward" and "isOver".
         """
+        sup_act = None
+        mask_feat = None
         if self.aux_task:
             state, target, aux_msk = _state
         else:
-            state, target = _state
+            state = _state[0]
+            target = _state[1]
+            if self.use_mask_feature:
+                mask_feat = _state[2]
+            if self.supervision:
+                sup_act = _state[-1]
             aux_msk = None
         trainer = self.trainer
         if ident not in self.hidden_state:  # new process passed in
             self.hidden_state[ident] = trainer.get_init_hidden()
             self.accu_stats[ident] = dict(rew=0, len=0, succ=0)
+            if self.curriculum_schedule is not None:
+                self.curr_birthplace[ident] = self.curriculum_schedule[0]
             if self.multi_target:
                 self.accu_stats[ident]['target'] = target
             if self.aux_task:
@@ -274,6 +387,7 @@ class ZMQMaster(SimulatorMaster):
             self.episode_stats['rew'].append(self.accu_stats[ident]['rew'])
             self.episode_stats['len'].append(self.accu_stats[ident]['len'])
             self.episode_stats['succ'].append(self.accu_stats[ident]['succ'])
+            # reset stats
             self.accu_stats[ident]['rew'] = 0
             self.accu_stats[ident]['len'] = 1
             self.accu_stats[ident]['succ'] = 0
@@ -291,6 +405,10 @@ class ZMQMaster(SimulatorMaster):
         self.curr_target[ident] = target
         if self.aux_task:
             self.curr_aux_mask[ident] = aux_msk
+        if self.supervision:
+            self.curr_sup_act[ident] = sup_act
+        if self.use_mask_feature:
+            self.curr_mask_feat[ident] = mask_feat
 
         # currently run batched simulation
         if ident in self.train_buffer:
@@ -299,6 +417,8 @@ class ZMQMaster(SimulatorMaster):
             self.train_buffer[ident]['rew'].append(reward)
             if self.multi_target: self.train_buffer[ident]['target'].append(target)
             if self.aux_task: self.train_buffer[ident]['aux_target'].append(trainer.process_aux_target(aux_msk))
+            if self.supervision: self.train_buffer[ident]['sup_act'].append(sup_act)
+            if self.use_mask_feature: self.train_buffer[ident]['mask_feat'].append(mask_feat)
             self.pool.add(ident)
             if len(self.pool) == self.batch_size:
                 if self.batch_step == self.t_max:
@@ -319,6 +439,10 @@ class ZMQMaster(SimulatorMaster):
                                                  init_h=self.hidden_state[id], target=[self.curr_target[id]])
                     if self.aux_task:
                         self.train_buffer[id]['aux_target'] = [trainer.process_aux_target(self.curr_aux_mask[id])]
+                    if self.supervision:
+                        self.train_buffer[id]['sup_act'] = [sup_act]
+                    if self.use_mask_feature:
+                        self.train_buffer[id]['mask_feat'] = [mask_feat]
                 self._batched_simulate()
                 self.pool.clear()
                 self.batch_step += 1

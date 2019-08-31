@@ -11,6 +11,7 @@ from torch.autograd import Variable
 class DiscreteRNNPolicy(torch.nn.Module):
     def __init__(self, D_shape_in, D_out,
                  conv_hiddens = [], kernel_sizes=5, strides=2,
+                 use_avg_pool = False,
                  linear_hiddens = [],
                  policy_hiddens = [],
                  critic_hiddens = [],
@@ -20,8 +21,11 @@ class DiscreteRNNPolicy(torch.nn.Module):
                  target_embedding_dim=25,  # embedding dimension of target instruction
                  use_target_gating=False,
                  aux_prediction=None,
+                 ######## extra input feature ########
+                 extra_feature_dim=None,
                  ##### ablation test options ######
-                 no_skip_connect=False
+                 no_skip_connect=False,   # only take the output of rnn to produce policy
+                 pure_feed_forward=False,   # when True, convert to feedforward policy
                  ):
         """
         D_shape_in: (n_channel, n_row, n_col)
@@ -44,9 +48,14 @@ class DiscreteRNNPolicy(torch.nn.Module):
         self.use_target_gating = multi_target and use_target_gating
         self.target_embed_dim = target_embedding_dim
         self.aux_prediction = aux_prediction
-        self.no_skip_connect = no_skip_connect
-        if no_skip_connect:
+        self.feed_forward = pure_feed_forward
+        self.extra_feature_dim = extra_feature_dim
+        if pure_feed_forward:
+            print('[RNN-Policy] <--pure-feed-forward> flag is TRUE!!! NO RNN module any more! Turning CNN Policy!!!!')
+            no_skip_connect = True
+        elif no_skip_connect:
             print('[RNN-Policy] Skip-Connection Blocked!!!!')
+        self.no_skip_connect = no_skip_connect
         if len(self.cnn_kernel_sizes) == 1: self.cnn_kernel_sizes = self.cnn_kernel_sizes * self.cnn_layers
         if len(self.cnn_strides) == 1: self.cnn_strides = self.cnn_strides * self.cnn_layers
 
@@ -75,7 +84,12 @@ class DiscreteRNNPolicy(torch.nn.Module):
             else:
                 self.bc_layers.append(None)
             prev_hidden = h
-        self.conv_out_size = feat_size = self._get_feature_dim(D_shape_in)
+        self.avg_pool = None
+        n_size, n_row, n_col = self._get_feature_dim(D_shape_in)
+        if use_avg_pool:
+            self.avg_pool = nn.AvgPool2d((n_col, n_row))
+        feat_size = prev_hidden if use_avg_pool else n_size
+        self.conv_out_size = feat_size
         print('Output of Convlution Feature Size = %d' % self.conv_out_size)
 
         # extra linear layers
@@ -97,8 +111,9 @@ class DiscreteRNNPolicy(torch.nn.Module):
         self.rnn_input_size = feat_size
 
         # multi target instructions
+        self.n_target_instructions = common.n_target_instructions
         if self.multi_target:
-            self.target_embed = nn.Linear(common.n_target_instructions, target_embedding_dim, bias=False)
+            self.target_embed = nn.Linear(self.n_target_instructions, target_embedding_dim, bias=False)
             utils.initialize_weights(self.target_embed)
             self.target_trans = []
             if use_target_gating:
@@ -106,6 +121,10 @@ class DiscreteRNNPolicy(torch.nn.Module):
                 setattr(self, 'target_transform_layer0', self.target_trans[-1])
                 utils.initialize_weights(self.target_trans[-1])
             self.rnn_input_size += target_embedding_dim  # feat instruction to rnn!
+
+        # any extra input feature
+        if self.extra_feature_dim is not None:
+            self.rnn_input_size += self.extra_feature_dim
 
         # build rnn
         self.cell_type = rnn_cell
@@ -115,7 +134,7 @@ class DiscreteRNNPolicy(torch.nn.Module):
                              num_layers=self.rnn_layers,
                              batch_first=True)
         utils.initialize_weights(self.cell)
-        self.rnn_output_size = self.rnn_units
+        self.rnn_output_size = self.rnn_units if not self.feed_forward else self.feat_size
 
         # build policy layers
         policy_hiddens.append(self.out_dim)
@@ -150,12 +169,14 @@ class DiscreteRNNPolicy(torch.nn.Module):
 
 
     ######################
-    def _forward_feature(self, x, compute_linear=False):
+    def _forward_feature(self, x, compute_linear=False, compute_bc=True):
         for conv, bc in zip(self.conv_layers, self.bc_layers):
             x = conv(x)
-            if bc is not None:
+            if (bc is not None) and compute_bc:
                 x = bc(x)
             x = self.func(x)
+        if self.avg_pool is not None:
+            x = self.avg_pool(x)
         if compute_linear:
             x = x.view(-1, self.conv_out_size)
             for l, bc in zip(self.linear_layers, self.ln_bc_layers):
@@ -168,12 +189,16 @@ class DiscreteRNNPolicy(torch.nn.Module):
     def _get_feature_dim(self, D_shape_in):
         bs = 1
         inp = Variable(torch.rand(bs, *D_shape_in))
-        out_feat = self._forward_feature(inp)
+        out_feat = self._forward_feature(inp, compute_bc=False)
         n_size = out_feat.data.view(bs, -1).size(1)
-        return n_size
+        return n_size, out_feat.size(-1), out_feat.size(-2)
 
-    def get_zero_state(self, batch=1, return_variable=False, volatile=False):
-        z = torch.zeros(self.rnn_layers, batch, self.rnn_units).type(FloatTensor)
+    def get_zero_state(self, batch=1, return_variable=False, volatile=False, hidden_batch_first=False):
+        if hidden_batch_first:
+            z = torch.zeros(batch, self.rnn_layers, self.rnn_units)
+        else:
+            z = torch.zeros(self.rnn_layers, batch, self.rnn_units)
+        z = z.type(FloatTensor)
         if return_variable: z = Variable(z, volatile=volatile)
         if self.cell_type == 'lstm':
             return (z, z)
@@ -223,10 +248,14 @@ class DiscreteRNNPolicy(torch.nn.Module):
 
     def forward(self, x, h, only_value = False, return_value=True, sample_action=False,
                 unpack_hidden=False, return_tensor=False, target=None,
-                compute_aux_pred=False, return_aux_logprob=True, sample_aux_pred=False):
+                compute_aux_pred=False, return_aux_logprob=True, sample_aux_pred=False,
+                temperature=None,
+                extra_input_feature=None,
+                return_logits=False,
+                hidden_batch_first=False):
         """
         compute the forward pass of the model.
-        @:param x: [seq_len, batch, n_channel, n_row, n_col]
+        @:param x: [batch, seq_len, n_channel, n_row, n_col]
         @:param h: [layer, batch, units] or a list of <batch_size> individual hiddens
         @:param return_value: when False, only return action
         @:param sample_action: when True, action will be the sampled LongTensor, [batch, seq_len, 1]
@@ -234,15 +263,27 @@ class DiscreteRNNPolicy(torch.nn.Module):
         @:param compute_aux_pred: when True, also output aux-task prediction [batch, seq_len, n_aux_prediction]
         @:param return_aux_logprob: ONLY effect when <compute_aux_pred> is True. When False, return softmax-probability
         @:param sample_aux_pred: ONLY effect when <compute_aux_pred> is True. When True, return an aux-pred sample
+        @:param extra_input_feature: [batch, seq_len, extra_feature_dim]
+        @:param return_logits: [Only Effect when <sample_action> is False] return logits as output
+        @:param hidden_batch_first: When True, hidden will be [batch, layer, units]
         @:return (action, value, hiddens) or (action, hiddens) + [optional, aux-pred]
         """
+
+        if hidden_batch_first:
+            if self.cell_type == 'lstm':
+                h = (h[0].permute(1,0,2), h[1].permute(1,0,2))
+            else:
+                h = h.permute(1,0,2)
+
+        assert x.size(2) == self.in_shape[0], '[RNNPolicy] Expected shape <{}>, Received Batched Shape <{}>'.format(self.in_shape, x.size())
+
         seq_len = x.size(1)
         batch = x.size(0)
         packed_x = x.view(-1, self.in_shape[0], self.in_shape[1], self.in_shape[2])
         self.feat = feat = self._forward_feature(packed_x, compute_linear=True)   # both conv layers and linear layer
         if self.multi_target:
             assert target is not None
-            target = self.target_embed(target.view(-1, common.n_target_instructions))
+            target = self.target_embed(target.view(-1, self.n_target_instructions))
             if self.use_target_gating:
                 alpha = target
                 for i, l in enumerate(self.target_trans):
@@ -254,11 +295,18 @@ class DiscreteRNNPolicy(torch.nn.Module):
         if self.multi_target:
             target = target.view(batch, seq_len, self.target_embed_dim)
             rnn_input = torch.cat([rnn_input, target], dim=-1)
+        if self.extra_feature_dim is not None:
+            rnn_input = torch.cat([rnn_input, extra_input_feature], dim=-1)
 
         if isinstance(h, list): h = self._pack_hidden_states(h)
 
-        rnn_output, final_h = self.cell(rnn_input, h)  # [seq_len, batch, units], [layer, batch, units]
+        if self.feed_forward:
+            final_h = h
+            rnn_output = self.feat.view(batch, seq_len, self.feat_size)
+        else:
+            rnn_output, final_h = self.cell(rnn_input, h)  # [seq_len, batch, units], [layer, batch, units]
         self.last_h = final_h
+        rnn_output = rnn_output.contiguous()
         if return_tensor:
             if isinstance(final_h, tuple):
                 final_h = (final_h[0].data, final_h[1].data)
@@ -293,14 +341,17 @@ class DiscreteRNNPolicy(torch.nn.Module):
             for i, l in enumerate(self.policy_layers):
                 feat = l(feat)
                 if i < len(self.policy_layers) - 1: feat = self.func(feat)
-            self.logits = feat.view(batch, seq_len, self.out_dim)
-            self.prob = F.softmax(feat).view(batch, seq_len, self.out_dim)
-            self.logp = F.log_softmax(feat).view(batch, seq_len, self.out_dim)
+            logits = feat.view(batch, seq_len, self.out_dim)
+            if temperature is not None:
+                logits /= temperature
+            self.logits = logits
+            self.prob = prob = F.softmax(feat).view(batch, seq_len, self.out_dim)
+            self.logp = logp = F.log_softmax(feat).view(batch, seq_len, self.out_dim)
 
             if sample_action:
-                ret_act = torch.multinomial(self.prob.view(-1, self.out_dim), 1).view(batch, seq_len, 1)
+                ret_act = torch.multinomial(prob.view(-1, self.out_dim), 1).view(batch, seq_len, 1)
             else:
-                ret_act = self.logp
+                ret_act = logp if not return_logits else logits
 
             if return_tensor: ret_act = ret_act.data
             if not return_value:

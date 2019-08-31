@@ -21,11 +21,6 @@ flag_max_kl_diff = ZMQA3C.flag_max_kl_diff
 flag_min_kl_diff = ZMQA3C.flag_min_kl_diff
 flag_lrate_coef = ZMQA3C.flag_lrate_coef
 
-# when supervised loss, weight for <indoor> is 0.1
-# when reinforce loss, reward for correctly predict <indoor> is 0.1
-aux_uncertain_weight = 0.1
-aux_uncertain_id = common.all_aux_predictions['indoor']
-
 # cache aux target mask
 aux_max_allowed_mask_value = (1 << common.n_aux_predictions)
 aux_mask_dict = []
@@ -39,15 +34,16 @@ for msk in range(aux_max_allowed_mask_value):
 class ZMQAuxTaskTrainer(ZMQA3CTrainer):
     def __init__(self, name, model_creator, obs_shape, act_shape, args):
         super(ZMQAuxTaskTrainer, self).__init__(name, model_creator, obs_shape, act_shape, args)
-        self.use_supervised_loss = not args['reinforce_loss']
-        self.aux_loss_coef = args['aux_loss_coef']
+        self.use_supervised_loss = (not args['reinforce_loss'] if 'reinforce_loss' in args else True)
+        self.aux_loss_coef = (args['aux_loss_coef'] if 'aux_loss_coef' in args else 0.0)
+        self._normal_aux_predition = True
+
+    def set_greedy_aux_prediction(self):
+        self._normal_aux_predition = False
 
     def _create_aux_target_tensor(self, targets):
         aux_tar = torch.from_numpy(np.array(targets)).type(FloatTensor)
-        if self.use_supervised_loss:
-            aux_tar[:, :, aux_uncertain_id] *= aux_uncertain_weight
-        else:
-            aux_tar[:, :, aux_uncertain_id] *= 0.5 * (aux_uncertain_weight + 1)
+        if not self.use_supervised_loss:
             aux_tar = aux_tar * 2 - 1
         aux_tar = Variable(aux_tar)
         return aux_tar
@@ -59,10 +55,7 @@ class ZMQAuxTaskTrainer(ZMQA3CTrainer):
 
     def get_aux_task_reward(self, pred, mask):
         if (mask & (1 << pred)) > 0:
-            if pred == aux_uncertain_id:
-                return aux_uncertain_weight
-            else:
-                return 1.0
+            return 1.0
         else:
             return -1.0
 
@@ -75,9 +68,9 @@ class ZMQAuxTaskTrainer(ZMQA3CTrainer):
         hidden = self._create_gpu_hidden(hidden, return_variable=True, volatile=True)  # a list of hidden tensors
         if target is not None:
             target = self._create_target_tensor(target, return_variable=True, volatile=True)
-        ret_vals = self.policy(obs, hidden, return_value=False, sample_action=True,
+        ret_vals = self.policy(obs, hidden, return_value=False, sample_action=self._normal_execution,
                                unpack_hidden=True, return_tensor=True, target=target,
-                               compute_aux_pred=return_aux_pred, sample_aux_pred=True)
+                               compute_aux_pred=return_aux_pred, sample_aux_pred=self._normal_aux_predition)
 
         act, nxt_hidden = ret_vals[0], ret_vals[1]
         if self._hidden is None:

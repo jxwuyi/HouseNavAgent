@@ -9,6 +9,9 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torch.autograd import Variable
 
+# TODO: currently a hack
+n_discrete_actions = 12
+
 class NOPTrainer(AgentTrainer):
     def __init__(self, name, policy, obs_shape, act_shape, args):
         super(NOPTrainer, self).__init__()
@@ -26,6 +29,10 @@ class NOPTrainer(AgentTrainer):
         self.args = args
 
     def action(self, gumbel_noise=None):
+        # use discrete action
+        if gumbel_noise is None:
+            return random.randint(0, n_discrete_actions-1)
+        # use continous action
         frames = self.replay_buffer.encode_recent_observation()[np.newaxis, ...]
         raw_x = self._process_frames(frames, volatile=True)
         batched_actions = self.policy(raw_x)

@@ -30,7 +30,7 @@ def create_scheduler(type='medium'):
 
 def train(args=None,
           houseID=0, reward_type='indicator', success_measure='center',
-          multi_target=False,
+          multi_target=False, include_object_target=False,
           algo='pg', model_name='cnn',  # NOTE: optional: model_name='rnn'
           iters=2000000, report_rate=20, save_rate=1000, eval_range=200,
           log_dir='./temp', save_dir='./_model_', warmstart=None,
@@ -45,19 +45,26 @@ def train(args=None,
         args = common.create_default_args(algo)
 
     hardness = args['hardness']
+    max_birthplace_steps = args['max_birthplace_steps']
     if hardness is not None:
         print('>>> Hardness Level = {}'.format(hardness))
+    if max_birthplace_steps is not None:
+        print('>>>> Max BirthPlace Steps = {}'.format(max_birthplace_steps))
 
-    trainer = common.create_trainer(algo, model_name, args)
-    env = common.create_env(houseID, reward_type, hardness,
+    env = common.create_env(houseID, task_name=args['task_name'], false_rate=args['false_rate'],
+                            reward_type=reward_type, hardness=hardness,
+                            max_birthplace_steps=max_birthplace_steps,
                             success_measure=success_measure,
                             segment_input=args['segment_input'],
                             depth_input=args['depth_input'],
-                            cacheAllTarget=args['multi_target'])
+                            render_device=args['render_gpu'],
+                            cacheAllTarget=args['multi_target'],
+                            use_discrete_action=('dpg' not in algo),
+                            include_object_target=include_object_target)
+    trainer = common.create_trainer(algo, model_name, args)
     logger = utils.MyLogger(log_dir, True)
     if multi_target:
         assert hasattr(trainer, 'set_target')
-        env.cache_all_target()  # cache all the target maps
 
     if warmstart is not None:
         if os.path.exists(warmstart):
@@ -80,10 +87,13 @@ def train(args=None,
     episode_targets = ['kitchen']
 
     trainer.reset_agent()
-    obs = env.reset()
     if multi_target:
-        trainer.set_target(env.get_current_target())
-        episode_targets[-1] = env.get_current_target()
+        obs = env.reset()
+        target_room = env.info['target_room']
+        trainer.set_target(target_room)
+        episode_targets[-1] = target_room
+    else:
+        env.reset(target='kitchen')
     assert not np.any(np.isnan(obs)), 'nan detected in the observation!'
     obs = obs.transpose([1, 0, 2])
     logger.print('Observation Shape = {}'.format(obs.shape))
@@ -120,18 +130,19 @@ def train(args=None,
             if done or terminal:
                 trainer.reset_agent()
                 if multi_target:
-                    obs = env.reset(reset_target=True)
-                    trainer.set_target(env.get_current_target())
-                else:
                     obs = env.reset()
+                    target_room = env.info['target_room']
+                    trainer.set_target(target_room)
+                    episode_targets.append(target_room)
+                else:
+                    obs = env.reset(target='kitchen')
                 assert not np.any(np.isnan(obs)), 'nan detected in the observation!'
                 obs = obs.transpose([1, 0, 2])
                 episode_step = 0
                 episode_rewards.append(0)
                 episode_success.append(0)
                 episode_length.append(0)
-                if multi_target:
-                    episode_targets.append(env.get_current_target())
+
 
             # update all trainers
             trainer.preupdate()
@@ -193,12 +204,16 @@ def train(args=None,
 
 def parse_args():
     parser = argparse.ArgumentParser("Reinforcement Learning for 3D House Navigation")
+    # Select Task
+    parser.add_argument("--task-name", choices=['roomnav', 'objnav'], default='roomnav')
+    parser.add_argument("--false-rate", type=float, default=0, help='The Rate of Impossible Targets')
     # Environment
-    parser.add_argument("--env-set", choices=['small', 'train', 'test'], default='small')
+    parser.add_argument("--env-set", choices=['small', 'train', 'test', 'color'], default='small')
     parser.add_argument("--house", type=int, default=0,
                         help="house ID (default 0); if < 0, then multi-house environment")
     parser.add_argument("--seed", type=int, help="random seed")
     parser.add_argument("--hardness", type=float, help="real number from 0 to 1, indicating the hardness of the environment")
+    parser.add_argument("--max-birthplace-steps", type=int, help="int, the maximum steps required from birthplace to target")
     parser.add_argument("--linear-reward", action='store_true', default=False,
                         help="[Deprecated] whether to use reward according to distance; o.w. indicator reward")
     parser.add_argument("--reward-type", choices=['none','linear','indicator','delta','speed'], default='indicator',
@@ -218,6 +233,11 @@ def parse_args():
     parser.add_argument("--multi-target", dest='multi_target', action='store_true',
                         help="when this flag is set, a new target room will be selected per episode")
     parser.set_defaults(multi_target=False)
+    parser.add_argument("--include-object-target", dest='object_target', action='store_true',
+                        help="when this flag is set, target can be also a target. Only effective when --multi-target")
+    parser.set_defaults(object_target=False)
+    parser.add_argument("--render-gpu", type=int,
+                        help="An integer indicating the gpu_id for render. Default by choosing the first GPU in all the accessible devices.")
     # Core training parameters
     parser.add_argument("--algo", choices=['ddpg','pg', 'rdpg', 'ddpg_joint', 'ddpg_alter', 'ddpg_eagle',
                                            'a2c', 'qac', 'dqn'], default="ddpg", help="algorithm")
@@ -232,6 +252,7 @@ def parse_args():
     parser.add_argument("--update-freq", type=int, help="update model parameters once every this many samples collected")
     parser.add_argument("--max-iters", type=int, default=int(2e6), help="maximum number of training episodes")
     parser.add_argument("--target-net-update-rate", type=float, help="update rate for target networks")
+    parser.add_argument("--target-net-update-freq", type=int, help="[Only For DQN] update (copy) frequency for target network. This will De-effect --target-net-update-rate")
     parser.add_argument("--batch-norm", action='store_true', dest='use_batch_norm',
                         help="Whether to use batch normalization in the policy network. default=False.")
     parser.set_defaults(use_batch_norm=False)
@@ -290,6 +311,8 @@ if __name__ == '__main__':
     common.set_house_IDs(cmd_args.env_set, ensure_kitchen=(not cmd_args.multi_target))
     print('>> Environment Set = <%s>, Total %d Houses!' % (cmd_args.env_set, len(common.all_houseIDs)))
 
+    common.ensure_object_targets(cmd_args.object_target)
+
     if cmd_args.seed is not None:
         np.random.seed(cmd_args.seed)
         random.seed(cmd_args.seed)
@@ -330,13 +353,18 @@ if __name__ == '__main__':
                                       cmd_args.history_frame_len
                                       )
 
+    args['task_name'] = cmd_args.task_name
+    args['false_rate'] = cmd_args.false_rate
+
     args['algo'] = cmd_args.algo
 
-    if cmd_args.target_net_update_rate is not None:
-        args['target_net_update_rate']=cmd_args.target_net_update_rate
+    args['target_net_update_rate']=cmd_args.target_net_update_rate
+    args['target_net_update_freq']=cmd_args.target_net_update_freq
 
     if cmd_args.hardness is not None:
         args['hardness'] = cmd_args.hardness
+
+    args['max_birthplace_steps'] = cmd_args.max_birthplace_steps
 
     if cmd_args.scheduler is not None:
         args['scheduler'] = create_scheduler(cmd_args.scheduler)
@@ -348,10 +376,18 @@ if __name__ == '__main__':
     if cmd_args.q_loss_coef is not None:
         args['q_loss_coef'] = cmd_args.q_loss_coef
 
+    if cmd_args.render_gpu is not None:
+        all_gpus = common.get_gpus_for_rendering()
+        assert (len(all_gpus) > 0), 'No GPU found! There must be at least 1 GPU for rendering!'
+        args['render_gpu'] = all_gpus[cmd_args.render_gpu]
+    else:
+        args['render_gpu'] = None
+
     args['action_gating'] = cmd_args.action_gating   # gating in ddpg network
     args['residual_critic'] = cmd_args.residual_critic  # resnet for critic (classical ddpg)
     args['multi_target'] = cmd_args.multi_target  # multi-target learning
     args['target_gating'] = cmd_args.target_gating
+    args['object_target'] = cmd_args.object_target  # include object targets
 
     # attentive-cnn related params
     args['att_shared_cnn'] = cmd_args.att_shared_cnn
@@ -364,6 +400,7 @@ if __name__ == '__main__':
           reward_type=cmd_args.reward_type,
           success_measure=cmd_args.success_measure,
           multi_target=cmd_args.multi_target,
+          include_object_target=cmd_args.object_target,
           algo=cmd_args.algo, model_name=cmd_args.model, iters=cmd_args.max_iters,
           report_rate=cmd_args.report_rate, save_rate=cmd_args.save_rate,
           log_dir=cmd_args.log_dir, save_dir=cmd_args.save_dir,

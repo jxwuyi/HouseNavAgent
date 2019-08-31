@@ -9,19 +9,9 @@ time_counter = [0,0,0,0]
 
 n_segmentation_mask = 20  # including unknown, it is 21, we set unknown as 0
 
-#if "Apple" in sys.version:
-    ## own mac PC
-    #path_to_python_repo = '/Users/yiw/workroom/objrender/python'
-#elif "Red Hat" in sys.version:
-    #path_to_python_repo = '/home/yiw/code/objrender/python'
-#elif "Ubuntu" in platform.platform():
-    #path_to_python_repo = '/home/jxwuyi/workspace/objrender/python'
-#else:
-    #assert False, 'Please specify the path to the environment in <headers.py>'
 if CFG.get('python_path'):
     sys.path.insert(0, CFG['python_path'])
-path_to_python_repo = '/home/yuxinwu/archhome/3D/objrender/python/'
-
+import House3D
 
 import torch
 from torch.autograd import Variable
@@ -45,19 +35,19 @@ class AgentTrainer(object):
         pass
 
     def action(self, obs):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def process_observation(self, obs):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def process_experience(self, idx, act, rew, done, terminal, info):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def preupdate(self):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def update(self):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def _process_frames(self, raw_frames, volatile=False, merge_dim=True, return_variable=True):
         """
@@ -116,13 +106,16 @@ class AgentTrainer(object):
             version = "_" + version
         if save_dir[-1] != '/':
             save_dir += '/'
-        if target_dict_data is None:
-            filename = save_dir + self.name + version + '.pkl'
-            torch.save(self.policy.state_dict(), filename)
-        else:
-            filename = save_dir + self.name + version + '.pkl'
-            with open(filename, 'wb') as fp:
-                pickle.dump(target_dict_data, fp)
+        try:
+            if target_dict_data is None:
+                filename = save_dir + self.name + version + '.pkl'
+                torch.save(self.policy.state_dict(), filename)
+            else:
+                filename = save_dir + self.name + version + '.pkl'
+                with open(filename, 'wb') as fp:
+                    pickle.dump(target_dict_data, fp)
+        except Exception as e:
+            print('[AgentTrainer.save] fail to save model <{}>! Err = {}... Saving Skipped ...'.format(filename, e), file=sys.stderr)
 
     def load(self, save_dir, version=""):
         if os.path.isfile(save_dir) or (version is None):
@@ -133,7 +126,83 @@ class AgentTrainer(object):
             if save_dir[-1] != '/':
                 save_dir += '/'
                 filename = save_dir + self.name + version + '.pkl'
-        self.policy.load_state_dict(torch.load(filename))
+        if os.path.exists(filename):
+            self.policy.load_state_dict(torch.load(filename, map_location=lambda storage, loc: storage))
+        else:
+            print('[Warning] model file not found! loading skipped... target = <{}>'.format(filename))
 
     def is_rnn(self):
         return False
+
+
+class BaseMotion(object):
+    def __init__(self, task, trainer, pass_target=True, term_measure='mask', oracle_func=None):
+        self.task = task
+        self.env = self.task.env
+        self.trainer = trainer
+        self.pass_target = pass_target
+        #assert term_measure in ['mask', 'stay', 'see']
+        self.term_measure = term_measure
+        self._oracle_func = oracle_func
+        self._force_oracle_done = False
+    
+    def set_force_oracle_done(self, oracle_done=True):
+        self._force_oracle_done = oracle_done
+
+    def _is_insight(self, target_name=None, obs_seg=None, n_pixel=50):
+        if target_name is None:
+            target_name = self.task.get_current_target()
+        if obs_seg is None:
+            obs_seg = self.env.render(mode='semantic')
+        object_color_list = self.task.room_target_object[target_name]
+        _object_cnt = 0
+        for c in object_color_list:
+            cur_n = np.sum(np.all(obs_seg == c, axis=2))
+            _object_cnt += cur_n
+            if _object_cnt >= n_pixel:
+                return True
+        return False
+
+
+    def _is_success(self, target_id, mask=None, term_measure=None, is_stay=False, obs_seg=None, target_name=None):
+        if mask is None: mask = self.task.get_feature_mask() if self._oracle_func is None else self._oracle_func(self.task)
+        if mask[target_id] == 0: return False
+        if term_measure is None: term_measure = self.term_measure
+        if term_measure == 'mask':
+            return True
+        if term_measure == 'stay':
+            return is_stay
+        if term_measure == 'see':
+            return self._is_insight(target_name, obs_seg)
+        return False
+
+    """
+    return a list of [aux_mask, action, reward, done]
+    """
+    def run(self, target, max_steps):
+        pass
+
+    """
+    clear motion state
+    """
+    def reset(self):
+        pass
+
+
+class BasePlanner(object):
+    def __init__(self, motion):
+        self.motion = motion
+        self.task = self.motion.task
+        self.env = self.task.env
+
+    def learn(self, **args):
+        raise NotImplementedError()
+
+    def observe(self, exp_data, target):
+        raise NotImplementedError()
+
+    def plan(self, mask, target):
+        raise NotImplementedError()
+
+    def reset(self):
+        raise NotImplementedError()

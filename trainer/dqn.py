@@ -13,7 +13,6 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 import torch.autograd as autograd
 
-
 import time
 
 class DQNTrainer(QACTrainer):
@@ -25,6 +24,8 @@ class DQNTrainer(QACTrainer):
         self._target = 0
         if self.multi_target:
             self.target_buffer = np.zeros(args['replay_buffer_size'], dtype=np.uint8)
+        self.target_net_update_freq = args['target_net_update_freq'] if 'target_net_update_freq' in args else None
+        self._update_counter = 0
 
     def set_target(self, target):
         self._target = common.target_instruction_dict[target]
@@ -61,6 +62,7 @@ class DQNTrainer(QACTrainer):
         if (self.sample_counter < self.args['update_freq']) or \
            not self.replay_buffer.can_sample(self.batch_size * min(self.args['update_freq'], 20)):
             return None
+        self._update_counter += 1
         self.sample_counter = 0
         self.train()
         tt = time.time()
@@ -123,7 +125,12 @@ class DQNTrainer(QACTrainer):
         tt =time.time()
 
         # update target networks
-        make_update_exp(self.net, self.target_net, rate=self.target_update_rate)
+        if self.target_net_update_freq is not None:
+            if self._update_counter == self.target_net_update_freq:
+                self._update_counter = 0
+                self.target_net.load_state_dict(self.net.state_dict())
+        else:
+            make_update_exp(self.net, self.target_net, rate=self.target_update_rate)
         common.debugger.print('Stats of Target Network (After Update)....', False)
         utils.log_parameter_stats(common.debugger, self.target_net)
 
