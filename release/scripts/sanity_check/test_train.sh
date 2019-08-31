@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# sanity check of training
+# sanity check -- training
 target="kitchen"
 
 CUDA_VISIBLE_DEVICES=0 python3 zmq_train.py --job-name large \
