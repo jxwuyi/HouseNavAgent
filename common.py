@@ -599,13 +599,13 @@ def create_house_from_index(k, genRoomTypeMap=False, cacheAllTarget=False, inclu
 
 def create_env(k=0,
                hardness=None, max_birthplace_steps=None,
-               reward_type='delta', success_measure='see',
-               segment_input='none', depth_input=False,
+               reward_type='new', success_measure='see',
+               segment_input='color', depth_input=True,
                max_steps=-1,
                render_device=None,
                genRoomTypeMap=False,
                cacheAllTarget=False,
-               use_discrete_action=False,
+               use_discrete_action=True,
                include_object_target=False,
                reward_silence=0,
                curriculum_schedule=None,
@@ -615,9 +615,44 @@ def create_env(k=0,
                discrete_angle=True,
                cache_supervision=False,
                include_outdoor_target=True,
-               min_birthplace_grids=0,
+               min_birthplace_grids=1,
                cache_discrete_angles=False,
                multithread_api=False):
+    """
+    :param k: the index of house to generate
+        when k < 0, it menas the first |k| houses from the environment set
+        make sure you have called *set_house_IDs()* to select the desired house set (default the small set of 20 houses)
+    :param hardness: a real value [0, 1] indicating the maximum hardness of the task, None means 1.0
+        the birthplace of the agent will be at most (hardness * house_diameter) to the target
+    :param max_birthplace_steps: the maximum meters that the agent will be spawned from the target
+        when None, the birthplace of the agent can be anywhere in the house
+    :param min_birthplace_grids: the minimum number of *grids* between agents the birthplace and target rooms
+        default 1, so agents will be always outside target regions
+    :param reward_type: use 'new' by default
+    :param success_measure: use 'see' by default.
+        If you want the agent to terminate the episode by itself, use 'see-stop'.
+    :param segment_input: set 'none' to not include segmentation input
+    :param depth_input: whether to include depth signal
+    :param max_steps: maximum steps to terminate the episode, -1 means never
+    :param render_device: the GPU id to render the environment
+        NOTE: this may NOT be the same as the GPU index from nvidia-smi (CUDA)
+    :param genRoomTypeMap: whether to generate room type map on the fly
+    :param cacheAllTarget: whether to cache all target metadata; recommend True if the target is not fixed
+    :param use_discrete_action: MUST be true for LSTM policy
+    :param include_object_target: whether to include object type as navigation targets
+    :param reward_silence: default 0, the number of steps in the beginning of episode without rewards
+    :param curriculum_schedule: schedule of curriculum, default None
+        check the comments in the RoonNavTask class for details
+    :param target_mask_input: whether to include a 0/1 mask indicating whether each pixel belongs to the target type
+    :param task_name: default roomnav
+    :param false_rate: default 0.0
+    :param discrete_angle: when True, the possible rotation angle of the agent will be discretized
+    :param cache_supervision: default false, option for DAgger
+    :param include_outdoor_target: default true, whether to include outdoor as targets
+    :param cache_discrete_angles: default false, for DAgger
+    :param multithread_api: whether to use thread safe renderer API
+    :return: a RoomNavTask environment instance
+    """
     if render_device is None:
         render_device = get_gpus_for_rendering()[0]   # by default use the first gpu
     if segment_input is None:
