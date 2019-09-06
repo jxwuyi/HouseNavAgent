@@ -23,11 +23,11 @@ Our project relies on a customized, [C++ re-implementation](https://github.com/j
     b. evaluation test: `python3 release/scripts/sanity_check/test_eval.py`
 
 ## Usage
-All the scripts and trained policies are stored in [release](https://github.com/jxwuyi/HouseNavAgent/release) folder. To run scripts, ensure that the scripts are run from the root folder (i.e., under `HouseNavAgent` folder).
-1. For evaluation BRM agents and all related baselines, check the [scripts/eval](https://github.com/jxwuyi/HouseNavAgent/release/scripts/eval) folder.
-2. For re-training the polices, check the [scripts/train](https://github.com/jxwuyi/HouseNavAgent/release/scripts/train) folder
+All the scripts and trained policies are stored in [release](https://github.com/jxwuyi/HouseNavAgent/blob/master/release) folder. To run scripts, ensure that the scripts are run from the root folder (i.e., under `HouseNavAgent` folder).
+1. For evaluation BRM agents and all related baselines, check the [scripts/eval](https://github.com/jxwuyi/HouseNavAgent/blob/master/release/scripts/eval) folder.
+2. For re-training the polices, check the [scripts/train](https://github.com/jxwuyi/HouseNavAgent/blob/master/release/scripts/train) folder
 
 ## Important Files
-1. To create an environment, refer to [`create_env(...)`](https://github.com/jxwuyi/HouseNavAgent/common.py#L600) function in [`common.py`](https://github.com/jxwuyi/HouseNavAgent/common.py)
-2. For evaluation, refer to [`HRL/eval_HRL.py`](https://github.com/jxwuyi/HouseNavAgent/HRL/eval_HRL.py). See the descriptions of all argument.
-3. For parallel A2C training, refer to [`zmq_train.py`](https://github.com/jxwuyi/HouseNavAgent/zmq_train.py). See the descriptions of all argument.
+1. To create an environment, refer to [`create_env(...)`](https://github.com/jxwuyi/HouseNavAgent/blob/master/common.py#L600) function in [`common.py`](https://github.com/jxwuyi/HouseNavAgent/blob/master/common.py)
+2. For evaluation, refer to [`HRL/eval_HRL.py`](https://github.com/jxwuyi/HouseNavAgent/blob/master/HRL/eval_HRL.py). See the [descriptions](https://github.com/jxwuyi/HouseNavAgent/blob/master/HRL/eval_HRL.py#L279) of all the command line arguments.
+3. For parallel A2C training, refer to [`zmq_train.py`](https://github.com/jxwuyi/HouseNavAgent/blob/master/zmq_train.py). See the [descriptions](https://github.com/jxwuyi/HouseNavAgent/blob/master/zmq_train.py#L185) of all the command line arguments.
