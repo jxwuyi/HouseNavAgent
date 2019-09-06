@@ -1,5 +1,17 @@
 # Bayesian Relational Memory for Semantic Visual Navigation (ICCV2019)
-This is the source code for our ICCV2019 paper, which implements a visual navigation agent with a Bayesian relational memory over semantic concepts in the House3D environment.
+This is the source code for our ICCV2019 paper, which implements a visual navigation agent with a Bayesian relational memory over semantic concepts in the [House3D](https://github.com/facebookresearch/House3D) environment.
+
+**_check out our paper [here](https://people.eecs.berkeley.edu/~russell/papers/iccv19-brm.pdf)._**
+
+Bibtex:
+```
+@inproceedings{wu2019bayesian,
+  title={Bayesian Relational Memory for Semantic Visual Navigation},
+  author={Wu, Yi and Wu, Yuxin and Tamar, Aviv and Russell, Stuart and Gkioxari, Georgia and Tian, Yuandong},
+  booktitle={Proceedings of the 2019 IEEE International Conference on Computer Vision (ICCV)},
+  year={2019}
+}
+```
 
 ## PyTorch Version
 The required PyTorch version is 0.3.1.
