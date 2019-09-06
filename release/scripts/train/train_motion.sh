@@ -1,7 +1,11 @@
 #!/bin/bash
 
-# change target to the desired the semantic goal to train the conditional policy
+# set <target> the desired the semantic goal to train the corresponding conditional policy
 target="kitchen"
+
+# or run the following for-loop to generate all conditional policies
+# for target in "kitchen" "dining_room" "living_room" "bathroom" "bedroom" "garage" "office" "ourdoor"
+# do
 
 CUDA_VISIBLE_DEVICES=0,1,2,3,4,5 python3 zmq_train.py --job-name large \
     --fixed-target $target \
@@ -20,3 +24,5 @@ CUDA_VISIBLE_DEVICES=0,1,2,3,4,5 python3 zmq_train.py --job-name large \
     --report-rate 20 --save-rate 1000 --eval-rate 200000 \
     --save-dir ./model/$target \
     --log-dir ./log/$target
+
+# done
