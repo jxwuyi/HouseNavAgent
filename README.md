@@ -13,6 +13,11 @@ Bibtex:
 }
 ```
 
+## Environment
+Our project developed a **_customized, [C++ re-implementation](https://github.com/jxwuyi/House3D/tree/C++)_** of the House3D environment, which is **_much faster_**, consumes **_orders of magnitudes less memory_**, and provides much more APIs for task analysis and auxiliary training.
+
+For task and environment details, please follow the original [House3D paper](https://arxiv.org/abs/1801.02209).
+
 ## PyTorch Version
 The required PyTorch version is 0.3.1.
 
@@ -20,13 +25,8 @@ Note: the policies where trained under PyTorch 0.2.0. In order to guarantee the 
 
 It will raise run-time errors in pytorch 0.3.0. Make sure to avoid this version! The code will be kept as it is now and no further package upgrade will be performed.
 
-## Environment
-For task and environment details, please follow the original [House3D paper](https://arxiv.org/abs/1801.02209).
-
-Our project relies on a customized, [C++ re-implementation](https://github.com/jxwuyi/House3D/tree/C++) of the House3D environment, which is much faster, consumes orders of magnitudes less memory, and provides much more APIs for task analysis and auxiliary training.
-
 ## Preliminary
-0. Python version 3.6
+0. Python version 3.6.
 1. These packages are required: `numpy, pytorch=0.3.1, gym, matplotlib, opencv, msgpack, msgpack_numpy`.
 2. Set the House3D path properly by generating your own `config.json` file (see `config.json.example` as an [example](https://github.com/jxwuyi/HouseNavAgent/blob/master/config.json.example)).
 3. (optional) See `config.py` and ensure all metadata files, `all_house_ids.json` (all house ids) and `all_house_targets.json` (semantic target types), are properly set.
