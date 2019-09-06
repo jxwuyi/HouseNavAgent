@@ -185,7 +185,8 @@ def train(args=None, warmstart=None):
 def parse_args():
     parser = argparse.ArgumentParser("Reinforcement Learning for 3D House Navigation")
     # Special Job Tag
-    parser.add_argument("--job-name", type=str, default='')
+    parser.add_argument("--job-name", type=str, default='',
+                        help='This is used to indicate the communication tunnel during parallel training.')
     # Select Task
     parser.add_argument("--task-name", choices=['roomnav', 'objnav'], default='roomnav')
     parser.add_argument("--false-rate", type=float, default=0, help='The Rate of Impossible Targets')
@@ -202,11 +203,10 @@ def parse_args():
                         help="in format of <a,b,c>, comma seperated 3 ints, the curriculum schedule. a: start birthsteps; b: brithstep increment; c: increment frequency")
     parser.add_argument("--linear-reward", action='store_true', default=False,
                         help="[Deprecated] whether to use reward according to distance; o.w. indicator reward")
-    parser.add_argument("--reward-type", choices=['none', 'linear', 'indicator', 'delta', 'speed', 'new'], default='indicator',
+    parser.add_argument("--reward-type", choices=['none', 'linear', 'indicator', 'delta', 'speed', 'new'], default='new',
                         help="Reward shaping type")
     parser.add_argument("--reward-silence", type=int, default=0,
                         help="When set, the first <--reward-silence> step of each episode will not have any reward signal except collision penalty")
-    #parser.add_argument("--action-dim", type=int, help="degree of freedom of agent movement, must be in the range of [2, 4], default=4")
     parser.add_argument("--segmentation-input", choices=['none', 'index', 'color', 'joint'], default='none', dest='segment_input',
                         help="whether to use segmentation mask as input; default=none; <joint>: use both pixel input and color segment input")
     parser.add_argument("--depth-input", dest='depth_input', action='store_true',
@@ -218,19 +218,17 @@ def parse_args():
     parser.add_argument("--resolution", choices=['normal', 'low', 'tiny', 'high', 'square', 'square_low'],
                         dest='resolution_level', default='normal',
                         help="resolution of visual input, default normal=[120 * 90]")
-    #parser.add_argument("--history-frame-len", type=int, default=4,
-    #                    help="length of the stacked frames, default=4")
-    parser.add_argument("--max-episode-len", type=int, default=50, help="maximum episode length")
+    parser.add_argument("--max-episode-len", type=int, default=60, help="maximum episode rollout length for training")
     parser.add_argument("--success-measure", choices=['stop', 'stay', 'see', 'see-stop'], default='see',
                         help="criteria for a successful episode")
     parser.add_argument("--multi-target", dest='multi_target', action='store_true',
-                        help="when this flag is set, a new target room will be selected per episode")
+                        help="when this flag is set, a random target room type will be selected per episode")
     parser.set_defaults(multi_target=False)
     parser.add_argument("--include-object-target", dest='object_target', action='store_true',
                         help="when this flag is set, target can be also an object. Only effective when --multi-target")
     parser.set_defaults(object_target=False)
     parser.add_argument("--include-mask-feature", dest='mask_feature', action='store_true',
-                        help="when this flag is set, mast_feature will be fed to the neural network.")
+                        help="when this flag is set, 0/1 per-category mask_feature will be fed to the neural network.")
     parser.set_defaults(mask_feature=False)
     parser.add_argument("--fixed-target", type=str, help="fixed training targets: candidate values room, object or any-room/object")
     parser.add_argument("--no-outdoor-target", dest='outdoor_target', action='store_false',
@@ -243,15 +241,15 @@ def parse_args():
     parser.add_argument("--rew-shape-wrong-stop", type=float, help="wrong_stop_penalty")
     parser.add_argument("--rew-shape-time", type=float, help="time_penalty")
     ########################################################
-    # ZMQ training parameters
+    # ZMQ training parameters for parallel training
     parser.add_argument("--train-gpu", type=int,
-                        help="[ZMQ] an integer indicating the training gpu")
+                        help="[ZMQ] an integer indicating the training gpu id")
     parser.add_argument("--render-gpu", type=str,
-                        help="[ZMQ] an integer or a ','-split list of integers, indicating the gpu-id for renderers")
+                        help="[ZMQ] an integer or a ','-split list of integers, indicating the gpu-id of renderers")
     parser.add_argument("--n-proc", type=int, default=32,
-                        help="[ZMQ] number of processes for simulation")
-    parser.add_argument("--t-max", type=int, default=5,
-                        help="[ZMQ] number of time steps in each batch")
+                        help="[ZMQ] number of processes for simulation, all houses will be uniformly assigned over the processes")
+    parser.add_argument("--t-max", type=int, default=20,
+                        help="[ZMQ] number of time steps for backprop in each training batch")
     parser.add_argument("--batch-size", type=int, default=32,
                         help="[ZMQ] batch size, should be no greather than --num-proc")
     parser.add_argument("--grad-batch", type=int, default=1,
@@ -266,7 +264,7 @@ def parse_args():
     parser.add_argument("--lrate", type=float, help="learning rate for policy")
     parser.add_argument('--weight-decay', type=float, help="weight decay for policy")
     parser.add_argument("--gamma", type=float, help="discount")
-    parser.add_argument("--grad-clip", type=float, default = 5.0, help="gradient clipping")
+    parser.add_argument("--grad-clip", type=float, default=5.0, help="gradient clipping")
     parser.add_argument("--adv-norm", dest='adv_norm', action='store_true',
                         help="perform advantage normalization (per-minibatch, not the full gradient batch)")
     parser.set_defaults(adv_norm=False)
@@ -321,9 +319,9 @@ def parse_args():
     parser.add_argument("--save-dir", type=str, default="./_model_", help="directory in which training state and model should be saved")
     parser.add_argument("--log-dir", type=str, default="./log", help="directory in which logs training stats")
     parser.add_argument("--save-rate", type=int, default=1000, help="save model once every time this many training iters are completed")
-    parser.add_argument("--report-rate", type=int, default=1,
+    parser.add_argument("--report-rate", type=int, default=10,
                         help="report training stats once every time this many training steps are performed")
-    parser.add_argument("--eval-rate", type=int, default=50,
+    parser.add_argument("--eval-rate", type=int, default=1000,
                         help="report evaluation stats once every time this many *FRAMES* produced")
     parser.add_argument("--warmstart", type=str, help="model to recover from. can be either a directory or a file.")
 
