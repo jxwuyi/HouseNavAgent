@@ -30,9 +30,9 @@ It will raise run-time errors in pytorch 0.3.0. Make sure to avoid this version!
 1. These packages are required: `numpy, pytorch=0.3.1, gym, matplotlib, opencv, msgpack, msgpack_numpy`.
 2. Set the House3D path properly by generating your own `config.json` file (see `config.json.example` as an [example](https://github.com/jxwuyi/HouseNavAgent/blob/master/config.json.example)).
 3. (optional) See `config.py` and ensure all metadata files, `all_house_ids.json` (all house ids) and `all_house_targets.json` (semantic target types), are properly set.
-4. Stay in the root folder and ensure the following two sanity check scripts can be properly run:
-    a. training test: `python3 release/scripts/sanity_check/test_train.py`
-    b. evaluation test: `python3 release/scripts/sanity_check/test_eval.py`
+4. Stay in the root folder and ensure the following two sanity check scripts can be properly run:  
+   a. training test: `python3 release/scripts/sanity_check/test_train.py`  
+   b. evaluation test: `python3 release/scripts/sanity_check/test_eval.py`   
 
 ## Usage
 All the scripts and trained policies are stored in [release](https://github.com/jxwuyi/HouseNavAgent/blob/master/release) folder. To run scripts, ensure that the scripts are run from the root folder (i.e., under `HouseNavAgent` folder).
