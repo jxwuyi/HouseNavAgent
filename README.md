@@ -1,7 +1,7 @@
 # Bayesian Relational Memory for Semantic Visual Navigation (ICCV2019)
 This is the source code for our ICCV2019 paper, which implements a visual navigation agent with a Bayesian relational memory over semantic concepts in the [House3D](https://github.com/facebookresearch/House3D) environment.
 
-**_check out our paper [here](https://people.eecs.berkeley.edu/~russell/papers/iccv19-brm.pdf)._**
+**_check out our paper [here](https://arxiv.org/abs/1909.04306)._**
 
 Bibtex:
 ```
